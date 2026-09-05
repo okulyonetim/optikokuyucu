@@ -38,7 +38,7 @@ class CameraFrameAnalyzer(
     private val onLiveRead: (LiveOmrReadResult) -> Unit = {}
 ) : ImageAnalysis.Analyzer {
 
-    private val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6
+    private val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
     private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
     private val bubbleReader = CanonicalBubbleReader(template)
     private val markGridReader = CanonicalMarkGridReader(template)
@@ -123,7 +123,7 @@ class CameraFrameAnalyzer(
                                 templateId = template.id,
                                 templateVersion = template.version,
                                 studentNumber = studentNumber,
-                                answerSignature = answerSignature(liveResult.bubbleResult)
+                                answerSignature = readSignature(liveResult)
                             )
                             val isNewResult = fingerprint?.let {
                                 sessionDeduplicator.registerIfNew(it)
