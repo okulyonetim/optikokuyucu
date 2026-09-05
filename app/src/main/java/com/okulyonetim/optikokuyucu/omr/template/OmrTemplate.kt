@@ -175,4 +175,32 @@ object StandardOmrTemplate {
             )
         }
     )
+
+    /**
+     * Phase-3 speed/accuracy template: 100 ABCD questions in four 25-question columns.
+     * It uses the exact same unitless form space and fiducials as every other template.
+     */
+    val SAMPLE_100_ABCD: OmrTemplate = DEFAULT.copy(
+        id = "sample-100-abcd",
+        version = 1,
+        bubbleRows = (1..100).map { question ->
+            val column = (question - 1) / 25
+            val row = (question - 1) % 25
+            val firstChoiceX = 110.0 + column * 240.0
+            val y = 175.0 + row * 43.0
+            BubbleRowSpec(
+                id = question.toString(),
+                bubbles = listOf("A", "B", "C", "D").mapIndexed { choiceIndex, choice ->
+                    BubbleSpec(
+                        id = choice,
+                        center = TemplatePoint(
+                            x = firstChoiceX + choiceIndex * 38.0,
+                            y = y
+                        ),
+                        radius = 10.5
+                    )
+                }
+            )
+        }
+    )
 }
