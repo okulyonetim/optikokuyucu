@@ -9,12 +9,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,9 +55,6 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
-import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
-import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
-import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormBuildResult
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormConfig
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormDocumentFactory
@@ -64,7 +63,6 @@ import com.okulyonetim.optikokuyucu.omr.designer.StructuredLesson
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredOrientation
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredPaperSize
 import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
-import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -89,7 +87,9 @@ fun StructuredOmrDesignerScreen(
     val buildAttempt = remember(config) { runCatching { StructuredFormDocumentFactory.build(config) } }
     val buildResult = buildAttempt.getOrNull()
     val buildError = buildAttempt.exceptionOrNull()?.message
-    var pendingPdf by remember { mutableStateOf<Pair<DesignerDocument, com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile>?>(null) }
+    var pendingPdf by remember {
+        mutableStateOf<Pair<DesignerDocument, com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile>?>(null)
+    }
 
     val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
@@ -494,7 +494,7 @@ fun StructuredOmrDesignerScreen(
 private fun DesignerSectionCard(
     title: String,
     modifier: Modifier = Modifier,
-    content: @Composable Column.() -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
