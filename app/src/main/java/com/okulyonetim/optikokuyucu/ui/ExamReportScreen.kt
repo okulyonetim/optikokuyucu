@@ -1,5 +1,8 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +44,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private data class SavedExamReport(
+    val uri: Uri,
+    val mimeType: String
+)
+
 @Composable
 fun ExamReportScreen(
     examId: String,
@@ -59,6 +67,7 @@ fun ExamReportScreen(
     var pendingCsv by remember { mutableStateOf<String?>(null) }
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
     var pendingPdf by remember { mutableStateOf<ExamReport?>(null) }
+    var lastSavedReport by remember { mutableStateOf<SavedExamReport?>(null) }
 
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -74,7 +83,8 @@ fun ExamReportScreen(
                 output.flush()
             }
         }.onSuccess {
-            status = "Sınav CSV raporu kaydedildi"
+            lastSavedReport = SavedExamReport(uri, "text/csv")
+            status = "Sınav CSV raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "CSV kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -94,7 +104,8 @@ fun ExamReportScreen(
                 output.flush()
             }
         }.onSuccess {
-            status = "Sınav Excel raporu kaydedildi"
+            lastSavedReport = SavedExamReport(uri, ExamReportXlsxExporter.MIME_TYPE)
+            status = "Sınav Excel raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "Excel kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -113,7 +124,8 @@ fun ExamReportScreen(
                 ExamReportPdfExporter.export(pdfReport, output)
             }
         }.onSuccess {
-            status = "Sınav PDF raporu kaydedildi"
+            lastSavedReport = SavedExamReport(uri, ExamReportPdfExporter.MIME_TYPE)
+            status = "Sınav PDF raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -145,6 +157,22 @@ fun ExamReportScreen(
         records = scanRepository.list()
         keys = keyRepository.list()
         status = "Rapor yenilendi"
+    }
+
+    fun shareLastSavedReport() {
+        val saved = lastSavedReport ?: return
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = saved.mimeType
+            putExtra(Intent.EXTRA_STREAM, saved.uri)
+            putExtra(Intent.EXTRA_SUBJECT, "Sınav Sonuç Raporu")
+            clipData = ClipData.newRawUri("Sınav sonuç raporu", saved.uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching {
+            context.startActivity(Intent.createChooser(shareIntent, "Sınav raporunu paylaş"))
+        }.onFailure { error ->
+            status = "Paylaşım açılamadı: ${error.message ?: error.javaClass.simpleName}"
+        }
     }
 
     Scaffold(
@@ -203,6 +231,17 @@ fun ExamReportScreen(
                     }
                 ) {
                     Text("PDF Sonuç Raporunu Dışa Aktar")
+                }
+            }
+
+            lastSavedReport?.let {
+                item {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                        onClick = ::shareLastSavedReport
+                    ) {
+                        Text("Son Kaydedilen Raporu Paylaş")
+                    }
                 }
             }
 
