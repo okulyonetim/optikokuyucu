@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.exam.ExamGalleryBatchProgress
 import com.okulyonetim.optikokuyucu.exam.ExamPaperRegistrar
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.exam.containsStudentNumber
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
@@ -126,6 +127,11 @@ fun ExamGalleryBatchScreen(
 
                         val record = galleryRecorder.record(templateAtStart, result)
                         try {
+                            val studentNumber = record.grid("studentNumber")?.value.orEmpty()
+                            val latestExam = requireNotNull(examRepository.load(examId)) { "Sınav bulunamadı." }
+                            require(!latestExam.containsStudentNumber(studentNumber)) {
+                                "Öğrenci no $studentNumber bu sınavda zaten kayıtlı."
+                            }
                             registrar.register(examId = examId, record = record)
                         } catch (error: Throwable) {
                             scanRepository.delete(record.id)
@@ -224,7 +230,7 @@ fun ExamGalleryBatchScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Boş, çift veya şüpheli cevaplar raw okumada korunur; sonuç ekranında kontrol gerekli olarak görünür.",
+                        "Aynı öğrenci numarası ikinci kez algılanırsa mükerrer kayıt engellenir. Boş, çift veya şüpheli cevaplar raw okumada korunur.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -273,7 +279,7 @@ fun ExamGalleryBatchScreen(
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Okunamayan Görseller", fontWeight = FontWeight.SemiBold)
+                        Text("Okunamayan / Eklenmeyen Görseller", fontWeight = FontWeight.SemiBold)
                         failures.take(10).forEach { failure ->
                             Text(failure, color = MaterialTheme.colorScheme.error)
                         }
