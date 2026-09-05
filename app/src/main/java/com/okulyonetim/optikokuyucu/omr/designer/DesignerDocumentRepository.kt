@@ -5,7 +5,8 @@ import java.io.File
 import java.util.Base64
 
 interface DesignerDocumentRepository {
-    fun save(document: DesignerDocument)
+    /** Saves without mutating an existing version and returns the actual stored version. */
+    fun save(document: DesignerDocument): DesignerDocument
     fun load(id: String, version: Int): DesignerDocument?
     fun list(): List<DesignerDocument>
     fun delete(id: String, version: Int): Boolean
@@ -18,20 +19,25 @@ interface DesignerDocumentRepository {
 class FileDesignerDocumentRepository(context: Context) : DesignerDocumentRepository {
     private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
-    override fun save(document: DesignerDocument) {
-        val target = fileFor(document.id, document.version)
-        val temp = File(directory, target.name + ".tmp")
-        val bytes = DesignerDocumentCodec.encode(document)
+    override fun save(document: DesignerDocument): DesignerDocument {
+        val existing = list()
+        val resolved = DesignerTemplateVersioning.resolveForSave(document, existing)
+        val target = fileFor(resolved.id, resolved.version)
 
-        temp.outputStream().buffered().use { it.write(bytes) }
-        if (target.exists() && !target.delete()) {
-            temp.delete()
-            error("Eski şablon dosyası değiştirilemedi.")
+        if (target.isFile) {
+            val stored = runCatching { DesignerDocumentCodec.decode(target.readBytes()) }.getOrNull()
+            if (stored == resolved) return resolved
+            error("Şablon sürümü zaten kullanılıyor ve üzerine yazılamaz.")
         }
+
+        val temp = File(directory, target.name + ".tmp")
+        val bytes = DesignerDocumentCodec.encode(resolved)
+        temp.outputStream().buffered().use { it.write(bytes) }
         if (!temp.renameTo(target)) {
             temp.delete()
             error("Şablon dosyası kaydedilemedi.")
         }
+        return resolved
     }
 
     override fun load(id: String, version: Int): DesignerDocument? {
