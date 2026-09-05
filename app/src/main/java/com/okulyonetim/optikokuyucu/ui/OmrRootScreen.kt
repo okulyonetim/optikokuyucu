@@ -27,6 +27,7 @@ private enum class RootDestination {
     NEW_EXAM,
     EXAM_DETAIL,
     EXAM_SCANNER,
+    STUDENT_PAPER,
     TOOLS,
     SCANNER,
     RESULTS,
@@ -43,6 +44,7 @@ fun OmrRootScreen(
 ) {
     var destination by remember { mutableStateOf(RootDestination.EXAMS) }
     var selectedExamId by remember { mutableStateOf<String?>(null) }
+    var selectedScanRecordId by remember { mutableStateOf<String?>(null) }
 
     if (destination != RootDestination.EXAMS) {
         BackHandler {
@@ -51,7 +53,9 @@ fun OmrRootScreen(
                 RootDestination.EXAM_DETAIL,
                 RootDestination.TOOLS -> RootDestination.EXAMS
 
-                RootDestination.EXAM_SCANNER -> RootDestination.EXAM_DETAIL
+                RootDestination.EXAM_SCANNER,
+                RootDestination.STUDENT_PAPER -> RootDestination.EXAM_DETAIL
+
                 RootDestination.ADVANCED_DESIGNER -> RootDestination.DESIGNER
 
                 RootDestination.SCANNER,
@@ -71,6 +75,7 @@ fun OmrRootScreen(
                 onNewExam = { destination = RootDestination.NEW_EXAM },
                 onOpenExam = { examId ->
                     selectedExamId = examId
+                    selectedScanRecordId = null
                     destination = RootDestination.EXAM_DETAIL
                 },
                 onOpenTools = { destination = RootDestination.TOOLS }
@@ -80,6 +85,7 @@ fun OmrRootScreen(
                 onBack = { destination = RootDestination.EXAMS },
                 onSaved = { examId ->
                     selectedExamId = examId
+                    selectedScanRecordId = null
                     destination = RootDestination.EXAM_DETAIL
                 }
             )
@@ -91,9 +97,15 @@ fun OmrRootScreen(
                 } else {
                     ExamDetailScreen(
                         examId = examId,
-                        onBack = { destination = RootDestination.EXAMS },
+                        onBack = {
+                            selectedScanRecordId = null
+                            destination = RootDestination.EXAMS
+                        },
                         onScan = { destination = RootDestination.EXAM_SCANNER },
-                        onOpenPaper = { destination = RootDestination.RESULTS },
+                        onOpenPaper = { scanRecordId ->
+                            selectedScanRecordId = scanRecordId
+                            destination = RootDestination.STUDENT_PAPER
+                        },
                         onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
                         onOpenReports = { destination = RootDestination.RESULTS }
                     )
@@ -109,6 +121,20 @@ fun OmrRootScreen(
                         examId = examId,
                         openCvReady = openCvReady,
                         selfTest = selfTest,
+                        onBack = { destination = RootDestination.EXAM_DETAIL }
+                    )
+                }
+            }
+
+            RootDestination.STUDENT_PAPER -> {
+                val examId = selectedExamId
+                val scanRecordId = selectedScanRecordId
+                if (examId == null || scanRecordId == null) {
+                    destination = RootDestination.EXAM_DETAIL
+                } else {
+                    StudentPaperDetailScreen(
+                        examId = examId,
+                        scanRecordId = scanRecordId,
                         onBack = { destination = RootDestination.EXAM_DETAIL }
                     )
                 }
