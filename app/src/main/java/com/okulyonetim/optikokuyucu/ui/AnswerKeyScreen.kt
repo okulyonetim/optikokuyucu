@@ -33,6 +33,7 @@ import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyCapture
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeySource
+import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyXlsxExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
@@ -59,6 +60,7 @@ fun AnswerKeyScreen(
     var status by remember {
         mutableStateOf(if (openCvReady) "Cevap anahtarı hazır" else "OpenCV başlatılamadı")
     }
+    var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
 
     DisposableEffect(Unit) {
         onDispose { worker.shutdown() }
@@ -129,6 +131,38 @@ fun AnswerKeyScreen(
         if (uri != null) importFromGallery(uri)
     }
 
+    val xlsxLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(XLSX_MIME_TYPE)
+    ) { uri ->
+        val bytes = pendingXlsx
+        pendingXlsx = null
+        if (uri == null || bytes == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "XLSX çıktı akışı açılamadı." }
+                output.write(bytes)
+                output.flush()
+            }
+        }.onSuccess {
+            status = "Cevap anahtarı XLSX olarak kaydedildi"
+        }.onFailure { error ->
+            status = "XLSX kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    fun exportXlsx(key: StoredAnswerKey) {
+        runCatching { AnswerKeyXlsxExporter.export(key) }
+            .onSuccess { bytes ->
+                pendingXlsx = bytes
+                xlsxLauncher.launch(answerKeyFileName(key))
+            }
+            .onFailure { error ->
+                pendingXlsx = null
+                status = "XLSX oluşturulamadı: ${error.message ?: error.javaClass.simpleName}"
+            }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -164,6 +198,10 @@ fun AnswerKeyScreen(
                 )
                 Text(
                     "Kamerayla okunan bir formu cevap anahtarı yapmak için Tarama Oturumu ekranındaki ilgili kaydı kullanabilirsiniz.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Kayıtlı her cevap anahtarı Excel uyumlu XLSX dosyası olarak dışa aktarılabilir.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(status, style = MaterialTheme.typography.bodySmall)
@@ -205,6 +243,7 @@ fun AnswerKeyScreen(
             keys.forEach { key ->
                 AnswerKeyCard(
                     key = key,
+                    onExportXlsx = { exportXlsx(key) },
                     onDelete = {
                         repository.delete(
                             templateId = key.templateId,
@@ -224,6 +263,7 @@ fun AnswerKeyScreen(
 @Composable
 private fun AnswerKeyCard(
     key: StoredAnswerKey,
+    onExportXlsx: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -262,6 +302,12 @@ private fun AnswerKeyCard(
                     },
                 style = MaterialTheme.typography.bodySmall
             )
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onExportXlsx
+            ) {
+                Text("XLSX olarak dışa aktar")
+            }
             TextButton(onClick = onDelete) {
                 Text("Bu anahtarı sil")
             }
@@ -269,4 +315,11 @@ private fun AnswerKeyCard(
     }
 }
 
+private fun answerKeyFileName(key: StoredAnswerKey): String {
+    val variant = key.variantValue?.let { "-$it" } ?: "-genel"
+    val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(key.createdAtEpochMs))
+    return "cevap-anahtari$variant-$timestamp.xlsx"
+}
+
 private const val BOOKLET_GRID_ID = "booklet"
+private const val XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
