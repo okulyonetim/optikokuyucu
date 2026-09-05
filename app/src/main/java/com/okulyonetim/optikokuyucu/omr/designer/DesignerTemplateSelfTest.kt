@@ -1,16 +1,16 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
-import com.okulyonetim.optikokuyucu.omr.diagnostics.SyntheticOmrRenderer
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkColumnState
 
 /**
  * Phone-side, printer-free end-to-end validation for the currently edited form.
  *
- * It deliberately runs through the same synthetic raster -> fiducial detection -> canonical
- * rectification -> bubble/mark-grid readers used by gallery/live recognition. Geometry-only
- * readability checks are therefore supplemented with an actual recognition round trip.
+ * It deliberately runs through the same full designer raster -> fiducial detection -> canonical
+ * rectification -> bubble/mark-grid readers used by gallery/live recognition. The raster includes
+ * visual elements and semantic labels, so the test validates the actual designed form rather than
+ * an OMR-only surrogate.
  */
 object DesignerTemplateSelfTest {
     fun run(document: DesignerDocument): DesignerTemplateSelfTestResult {
@@ -39,8 +39,8 @@ object DesignerTemplateSelfTest {
             }.toMap()
         }
 
-        val bitmap = SyntheticOmrRenderer.render(
-            template = template,
+        val bitmap = DesignerGalleryTestAsset.render(
+            document = document,
             markedChoicesByRow = expectedQuestions.mapValues { (_, choice) -> setOf(choice) },
             markedGridChoices = expectedGrids.mapValues { (_, columns) ->
                 columns.mapValues { (_, value) -> setOf(value) }
