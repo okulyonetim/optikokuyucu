@@ -11,6 +11,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,7 +23,10 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 
 private enum class RootDestination {
-    HOME,
+    EXAMS,
+    NEW_EXAM,
+    EXAM_DETAIL,
+    TOOLS,
     SCANNER,
     RESULTS,
     ANSWER_KEYS,
@@ -36,15 +40,66 @@ fun OmrRootScreen(
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult
 ) {
-    var destination by remember { mutableStateOf(RootDestination.HOME) }
+    var destination by remember { mutableStateOf(RootDestination.EXAMS) }
+    var selectedExamId by remember { mutableStateOf<String?>(null) }
 
-    if (destination != RootDestination.HOME) {
-        BackHandler { destination = RootDestination.HOME }
+    if (destination != RootDestination.EXAMS) {
+        BackHandler {
+            destination = when (destination) {
+                RootDestination.NEW_EXAM,
+                RootDestination.EXAM_DETAIL,
+                RootDestination.TOOLS -> RootDestination.EXAMS
+
+                RootDestination.ADVANCED_DESIGNER -> RootDestination.DESIGNER
+
+                RootDestination.SCANNER,
+                RootDestination.RESULTS,
+                RootDestination.ANSWER_KEYS,
+                RootDestination.ACTIVE_TEMPLATE,
+                RootDestination.DESIGNER -> RootDestination.TOOLS
+
+                RootDestination.EXAMS -> RootDestination.EXAMS
+            }
+        }
     }
 
-    MaterialTheme {
+    OptikProductTheme {
         when (destination) {
-            RootDestination.HOME -> RootHomeScreen(
+            RootDestination.EXAMS -> ExamListScreen(
+                onNewExam = { destination = RootDestination.NEW_EXAM },
+                onOpenExam = { examId ->
+                    selectedExamId = examId
+                    destination = RootDestination.EXAM_DETAIL
+                },
+                onOpenTools = { destination = RootDestination.TOOLS }
+            )
+
+            RootDestination.NEW_EXAM -> NewExamScreen(
+                onBack = { destination = RootDestination.EXAMS },
+                onSaved = { examId ->
+                    selectedExamId = examId
+                    destination = RootDestination.EXAM_DETAIL
+                }
+            )
+
+            RootDestination.EXAM_DETAIL -> {
+                val examId = selectedExamId
+                if (examId == null) {
+                    destination = RootDestination.EXAMS
+                } else {
+                    ExamDetailScreen(
+                        examId = examId,
+                        onBack = { destination = RootDestination.EXAMS },
+                        onScan = { destination = RootDestination.SCANNER },
+                        onOpenPaper = { destination = RootDestination.RESULTS },
+                        onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
+                        onOpenReports = { destination = RootDestination.RESULTS }
+                    )
+                }
+            }
+
+            RootDestination.TOOLS -> RootToolsScreen(
+                onBackToExams = { destination = RootDestination.EXAMS },
                 onOpenScanner = { destination = RootDestination.SCANNER },
                 onOpenResults = { destination = RootDestination.RESULTS },
                 onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
@@ -58,21 +113,25 @@ fun OmrRootScreen(
             )
 
             RootDestination.RESULTS -> ScanSessionScreen(
-                onBack = { destination = RootDestination.HOME }
+                onBack = {
+                    destination = if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
+                }
             )
 
             RootDestination.ANSWER_KEYS -> AnswerKeyScreen(
                 openCvReady = openCvReady,
-                onBack = { destination = RootDestination.HOME }
+                onBack = {
+                    destination = if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
+                }
             )
 
             RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
-                onBack = { destination = RootDestination.HOME }
+                onBack = { destination = RootDestination.TOOLS }
             )
 
             RootDestination.DESIGNER -> StructuredOmrDesignerScreen(
                 openCvReady = openCvReady,
-                onBack = { destination = RootDestination.HOME },
+                onBack = { destination = RootDestination.TOOLS },
                 onOpenAdvanced = { destination = RootDestination.ADVANCED_DESIGNER }
             )
 
@@ -86,7 +145,8 @@ fun OmrRootScreen(
 }
 
 @Composable
-private fun RootHomeScreen(
+private fun RootToolsScreen(
+    onBackToExams: () -> Unit,
     onOpenScanner: () -> Unit,
     onOpenResults: () -> Unit,
     onOpenAnswerKeys: () -> Unit,
@@ -101,10 +161,11 @@ private fun RootHomeScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Optik Okuyucu", style = MaterialTheme.typography.headlineMedium)
+        TextButton(onClick = onBackToExams) { Text("‹ Sınavlar") }
+        Text("Optik Araçları", style = MaterialTheme.typography.headlineMedium)
         Text(
             modifier = Modifier.padding(top = 8.dp, bottom = 28.dp),
-            text = "Doğruluk + hız odaklı bağımsız OMR",
+            text = "Okuma, anahtar ve form tasarımı",
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -112,40 +173,32 @@ private fun RootHomeScreen(
             modifier = Modifier.fillMaxWidth(),
             onClick = onOpenScanner
         ) {
-            Text("Tara · Kamera ve OMR Testleri")
+            Text("Tara · Kamera ve OMR")
         }
 
         OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenResults
         ) {
             Text("Tarama Oturumu · Sonuçlar")
         }
 
         OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenAnswerKeys
         ) {
             Text("Cevap Anahtarları")
         }
 
         OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenActiveTemplate
         ) {
             Text("Aktif Form / Şablon")
         }
 
         OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenDesigner
         ) {
             Text("Optik Form Tasarımcısı")
