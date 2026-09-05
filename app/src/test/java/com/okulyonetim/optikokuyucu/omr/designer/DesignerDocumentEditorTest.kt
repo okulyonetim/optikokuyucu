@@ -8,6 +8,38 @@ import org.junit.Test
 
 class DesignerDocumentEditorTest {
     @Test
+    fun `component property replacement preserves id and list position`() {
+        val source = DesignerStarterTemplates.questions40Abcd()
+        val original = source.components.single() as QuestionGroupComponent
+        val changed = original.copy(
+            questionCount = 35,
+            columns = 1,
+            bubbleRadius = 12.0,
+            rowGap = 52.0
+        )
+
+        val result = DesignerDocumentEditor.replaceComponent(source, changed)
+        val stored = result.components.single() as QuestionGroupComponent
+
+        assertEquals("questions", stored.id)
+        assertEquals(35, stored.questionCount)
+        assertEquals(1, stored.columns)
+        assertEquals(12.0, stored.bubbleRadius, 0.001)
+        assertEquals(52.0, stored.rowGap, 0.001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `component replacement cannot create unknown id`() {
+        val source = DesignerStarterTemplates.questions20Abcd()
+        val original = source.components.single() as QuestionGroupComponent
+
+        DesignerDocumentEditor.replaceComponent(
+            source,
+            original.copy(id = "unknown")
+        )
+    }
+
+    @Test
     fun `component move snaps to canonical grid`() {
         val document = DesignerStarterTemplates.questions20Abcd()
         val moved = DesignerDocumentEditor.moveComponent(
