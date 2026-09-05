@@ -33,7 +33,8 @@ fun ExamScannerScreen(
     examId: String,
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenGalleryBatch: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
@@ -109,6 +110,20 @@ fun ExamScannerScreen(
             onClick = onBack
         ) {
             Text("‹ ${exam.name}")
+        }
+
+        TextButton(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 12.dp, top = 8.dp)
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                    RoundedCornerShape(14.dp)
+                ),
+            onClick = onOpenGalleryBatch
+        ) {
+            Text("Toplu Galeri")
         }
 
         Column(
