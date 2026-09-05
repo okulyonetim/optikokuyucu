@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
@@ -42,6 +43,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
+import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
@@ -50,18 +52,32 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 
 @Composable
 fun OmrDesignerScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val repository = remember(context) {
+        FileDesignerDocumentRepository(context.applicationContext)
+    }
     val starters = remember { DesignerStarterTemplates.all() }
     val initialDocument = remember { starters.first() }
     val history = remember { DesignerHistory(initialDocument) }
     var document by remember { mutableStateOf(initialDocument) }
     var selectedComponentId by remember { mutableStateOf<String?>(null) }
     var showOmrRegions by remember { mutableStateOf(true) }
+    var savedDocuments by remember { mutableStateOf(repository.list()) }
+    var saveStatus by remember { mutableStateOf<String?>(null) }
 
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
     val readability = remember(compiled) { TemplateReadabilityAnalyzer.analyze(compiled) }
 
     fun commit(next: DesignerDocument) {
         document = history.commit(next)
+        saveStatus = null
+    }
+
+    fun openDocument(next: DesignerDocument) {
+        history.reset(next)
+        document = next
+        selectedComponentId = null
+        saveStatus = null
     }
 
     fun nextDuplicateId(sourceId: String): String {
@@ -109,7 +125,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
             ) {
                 Text("Başlangıç şablonları", style = MaterialTheme.typography.titleSmall)
                 starters.forEach { starter ->
-                    if (starter.id == document.id) {
+                    if (starter.id == document.id && starter.version == document.version) {
                         FilledTonalButton(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { }
@@ -119,13 +135,33 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                     } else {
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                history.reset(starter)
-                                document = starter
-                                selectedComponentId = null
-                            }
+                            onClick = { openDocument(starter) }
                         ) {
                             Text(starter.name)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (savedDocuments.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Cihazdaki şablonlar", style = MaterialTheme.typography.titleSmall)
+                    savedDocuments.forEach { saved ->
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { openDocument(saved) }
+                        ) {
+                            Text("${saved.name} · v${saved.version}")
                         }
                     }
                 }
@@ -234,6 +270,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                 onClick = {
                     document = history.undo()
                     selectedComponentId = null
+                    saveStatus = null
                 }
             ) {
                 Text("Geri Al")
@@ -244,6 +281,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                 onClick = {
                     document = history.redo()
                     selectedComponentId = null
+                    saveStatus = null
                 }
             ) {
                 Text("Yinele")
@@ -302,9 +340,21 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = readability.canSave,
-            onClick = { }
+            onClick = {
+                saveStatus = runCatching {
+                    repository.save(document)
+                    savedDocuments = repository.list()
+                    "Şablon cihazda kaydedildi ✓"
+                }.getOrElse { error ->
+                    "Kaydetme hatası: ${error.message ?: error.javaClass.simpleName}"
+                }
+            }
         ) {
-            Text("Şablonu Kaydet · sonraki paket")
+            Text("Şablonu Kaydet")
+        }
+
+        saveStatus?.let { status ->
+            Text(status, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
