@@ -27,7 +27,8 @@ private enum class RootDestination {
     RESULTS,
     ANSWER_KEYS,
     ACTIVE_TEMPLATE,
-    DESIGNER
+    DESIGNER,
+    ADVANCED_DESIGNER
 }
 
 @Composable
@@ -69,10 +70,16 @@ fun OmrRootScreen(
                 onBack = { destination = RootDestination.HOME }
             )
 
-            RootDestination.DESIGNER -> OmrDesignerScreen(
+            RootDestination.DESIGNER -> StructuredOmrDesignerScreen(
+                openCvReady = openCvReady,
+                onBack = { destination = RootDestination.HOME },
+                onOpenAdvanced = { destination = RootDestination.ADVANCED_DESIGNER }
+            )
+
+            RootDestination.ADVANCED_DESIGNER -> OmrDesignerScreen(
                 openCvReady = openCvReady,
                 selfTest = selfTest,
-                onBack = { destination = RootDestination.HOME }
+                onBack = { destination = RootDestination.DESIGNER }
             )
         }
     }
