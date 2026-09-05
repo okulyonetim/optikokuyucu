@@ -20,9 +20,12 @@ import com.okulyonetim.optikokuyucu.exam.ExamPaperRegistrar
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.LiveScanRecorder
+import com.okulyonetim.optikokuyucu.omr.results.StoredScanImage
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
+import java.util.UUID
 
 /** Production exam scanner: every temporally accepted read is persisted and linked to this exam. */
 @Composable
@@ -57,6 +60,7 @@ fun ExamScannerScreen(
     val scanRecorder = remember(context) {
         LiveScanRecorder(FileScanRecordRepository(appContext))
     }
+    val imageRepository = remember(context) { FileScanImageRepository(appContext) }
     val registrar = remember(context) { ExamPaperRegistrar(examRepository) }
     val template = resolved.template
 
@@ -67,8 +71,28 @@ fun ExamScannerScreen(
             template = template,
             onAcceptedRead = { result ->
                 runCatching {
-                    val record = scanRecorder.record(template = template, result = result)
+                    val recordId = UUID.randomUUID().toString()
+                    val record = scanRecorder.record(
+                        template = template,
+                        result = result,
+                        id = recordId
+                    )
                     registrar.register(examId = examId, record = record)
+
+                    val canonical = result.canonicalLuma
+                    if (canonical != null && result.canonicalWidth > 0 && result.canonicalHeight > 0) {
+                        // Image persistence is best-effort: an I/O error must never discard a valid OMR record.
+                        runCatching {
+                            imageRepository.save(
+                                StoredScanImage(
+                                    scanRecordId = record.id,
+                                    width = result.canonicalWidth,
+                                    height = result.canonicalHeight,
+                                    luma = canonical
+                                )
+                            )
+                        }
+                    }
                 }
             }
         )

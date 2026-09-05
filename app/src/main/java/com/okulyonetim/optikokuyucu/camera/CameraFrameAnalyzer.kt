@@ -13,6 +13,7 @@ import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
 import com.okulyonetim.optikokuyucu.omr.live.LiveSessionDeduplicator
 import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
+import com.okulyonetim.optikokuyucu.omr.results.MAX_SCAN_IMAGE_PIXELS
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
@@ -209,6 +210,7 @@ class CameraFrameAnalyzer(
                 addAll(bubbles.questions.map { it.confidence })
                 addAll(markGrids.grids.flatMap { grid -> grid.columns.map { it.confidence } })
             }
+            val canonicalLuma = copyCanonicalLuma(canonical)
 
             LiveOmrReadResult(
                 sequence = 0,
@@ -222,12 +224,25 @@ class CameraFrameAnalyzer(
                 },
                 elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
                 sourceWidth = image.width,
-                sourceHeight = image.height
+                sourceHeight = image.height,
+                canonicalWidth = if (canonicalLuma != null) canonical.cols() else 0,
+                canonicalHeight = if (canonicalLuma != null) canonical.rows() else 0,
+                canonicalLuma = canonicalLuma
             )
         } finally {
             canonical?.release()
             gray.release()
         }
+    }
+
+    /** Copies only a bounded single-channel canonical frame; recognition remains valid if omitted. */
+    private fun copyCanonicalLuma(canonical: Mat): ByteArray? {
+        if (canonical.empty() || canonical.channels() != 1) return null
+        val pixelCount = canonical.rows().toLong() * canonical.cols().toLong()
+        if (pixelCount !in 1..MAX_SCAN_IMAGE_PIXELS.toLong()) return null
+        val bytes = ByteArray(pixelCount.toInt())
+        val copied = canonical.get(0, 0, bytes)
+        return bytes.takeIf { copied == bytes.size }
     }
 
     private fun readSignature(result: LiveOmrReadResult): String = buildString {
@@ -297,7 +312,10 @@ data class LiveOmrReadResult(
     val decisionConfidence: Double,
     val elapsedMs: Double,
     val sourceWidth: Int,
-    val sourceHeight: Int
+    val sourceHeight: Int,
+    val canonicalWidth: Int = 0,
+    val canonicalHeight: Int = 0,
+    val canonicalLuma: ByteArray? = null
 )
 
 data class CameraFrameStats(
