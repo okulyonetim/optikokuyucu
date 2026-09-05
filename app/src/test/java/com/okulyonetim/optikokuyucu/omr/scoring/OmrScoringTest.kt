@@ -3,6 +3,10 @@ package com.okulyonetim.optikokuyucu.omr.scoring
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionRead
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
+import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
+import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
+import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.omr.results.ScanSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -69,6 +73,56 @@ class OmrScoringTest {
         assertEquals(1, score.correctCount)
         assertEquals(1, score.wrongCount)
         assertEquals(1.0, score.totalPoints, 0.001)
+    }
+
+    @Test
+    fun `persisted record can be rescored with matching template key`() {
+        val record = ScanRecord(
+            id = "record",
+            templateId = "exam",
+            templateVersion = 2,
+            capturedAtEpochMs = 1L,
+            source = ScanSource.GALLERY,
+            sourceWidth = 1000,
+            sourceHeight = 1414,
+            pageConfidence = null,
+            decisionConfidence = null,
+            elapsedMs = 20.0,
+            answers = listOf(
+                RecordedAnswer("1", RecordedAnswerState.MARKED, "C", 0.93, emptyMap()),
+                RecordedAnswer("2", RecordedAnswerState.BLANK, null, 0.99, emptyMap())
+            ),
+            markGrids = emptyList()
+        )
+        val key = AnswerKey("exam", 2, mapOf("1" to "C", "2" to "A"))
+
+        val score = OmrScorer.score(record, key)
+
+        assertEquals(1, score.correctCount)
+        assertEquals(1, score.blankCount)
+        assertEquals(1.0, score.totalPoints, 0.001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `persisted record rejects answer key from different template version`() {
+        val record = ScanRecord(
+            id = "record",
+            templateId = "exam",
+            templateVersion = 2,
+            capturedAtEpochMs = 1L,
+            source = ScanSource.GALLERY,
+            sourceWidth = 1000,
+            sourceHeight = 1414,
+            pageConfidence = null,
+            decisionConfidence = null,
+            elapsedMs = 20.0,
+            answers = listOf(
+                RecordedAnswer("1", RecordedAnswerState.MARKED, "A", 0.9, emptyMap())
+            ),
+            markGrids = emptyList()
+        )
+
+        OmrScorer.score(record, AnswerKey("exam", 3, mapOf("1" to "A")))
     }
 
     private fun q(
