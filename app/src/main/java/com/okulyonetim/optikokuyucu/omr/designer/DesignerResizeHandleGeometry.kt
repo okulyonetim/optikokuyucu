@@ -19,7 +19,7 @@ object DesignerResizeHandleGeometry {
     fun hitTest(
         element: DesignerVisualElement,
         point: TemplatePoint,
-        touchRadius: Double = 24.0
+        touchRadius: Double = 60.0
     ): Boolean {
         require(touchRadius > 0.0)
         val handle = handlePoint(element) ?: return false
