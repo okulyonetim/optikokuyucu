@@ -53,12 +53,16 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import java.util.Locale
 import java.util.concurrent.Executors
 
 @Composable
-fun OmrCameraScreen(openCvReady: Boolean) {
+fun OmrCameraScreen(
+    openCvReady: Boolean,
+    selfTest: OmrSelfTestResult
+) {
     val context = LocalContext.current
     var cameraGranted by remember {
         mutableStateOf(
@@ -81,7 +85,10 @@ fun OmrCameraScreen(openCvReady: Boolean) {
 
     MaterialTheme {
         if (cameraGranted) {
-            CameraPreviewContent(openCvReady = openCvReady)
+            CameraPreviewContent(
+                openCvReady = openCvReady,
+                selfTest = selfTest
+            )
         } else {
             CameraPermissionContent(
                 onRequestPermission = {
@@ -119,7 +126,10 @@ private fun CameraPermissionContent(onRequestPermission: () -> Unit) {
 }
 
 @Composable
-private fun CameraPreviewContent(openCvReady: Boolean) {
+private fun CameraPreviewContent(
+    openCvReady: Boolean,
+    selfTest: OmrSelfTestResult
+) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
         requireNotNull(context.findActivity() as? LifecycleOwner) {
@@ -223,7 +233,8 @@ private fun CameraPreviewContent(openCvReady: Boolean) {
                 .padding(12.dp),
             message = cameraMessage,
             stats = stats,
-            initialOpenCvReady = openCvReady
+            initialOpenCvReady = openCvReady,
+            selfTest = selfTest
         )
 
         Text(
@@ -252,7 +263,8 @@ private fun CameraTelemetryCard(
     modifier: Modifier,
     message: String,
     stats: CameraFrameStats,
-    initialOpenCvReady: Boolean
+    initialOpenCvReady: Boolean,
+    selfTest: OmrSelfTestResult
 ) {
     Card(
         modifier = modifier,
@@ -270,6 +282,21 @@ private fun CameraTelemetryCard(
                 modifier = Modifier.padding(top = 3.dp),
                 text = message,
                 style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                modifier = Modifier.padding(top = 5.dp),
+                text = if (selfTest.passed) {
+                    String.format(
+                        Locale.US,
+                        "Dahili test ✓  %d/4 marker  %.1f ms",
+                        selfTest.detectedExpectedCount,
+                        selfTest.elapsedMs
+                    )
+                } else {
+                    "Dahili test !  ${selfTest.detectedExpectedCount}/4 marker"
+                },
+                style = MaterialTheme.typography.labelMedium
             )
 
             if (stats.width > 0) {
@@ -299,7 +326,7 @@ private fun CameraTelemetryCard(
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text(
-                        text = "Marker ${stats.markerCount}/4",
+                        text = "Canlı ${stats.markerCount}/4",
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text(
