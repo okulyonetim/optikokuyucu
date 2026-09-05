@@ -1,5 +1,6 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
+import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -56,5 +57,72 @@ class DesignerDocumentEditorTest {
 
         assertEquals(1, deleted.components.size)
         assertFalse(deleted.components.any { it.id == "studentNumber" })
+    }
+
+    @Test
+    fun `visual duplicate receives new id and snapped offset`() {
+        val document = DesignerStarterTemplates.questions20Abcd().copy(
+            visualElements = listOf(
+                DesignerTextElement(
+                    id = "title",
+                    bounds = TemplateRect(100.0, 80.0, 300.0, 60.0),
+                    text = "SINAV",
+                    fontSize = 28.0
+                )
+            )
+        )
+
+        val duplicated = DesignerDocumentEditor.duplicateVisualElement(
+            document = document,
+            elementId = "title",
+            newId = "title-copy",
+            offsetX = 22.0,
+            offsetY = 18.0
+        )
+        val copy = duplicated.visualElements.last() as DesignerTextElement
+
+        assertEquals(2, duplicated.visualElements.size)
+        assertEquals("title-copy", copy.id)
+        assertEquals(120.0, copy.bounds.left, 0.001)
+        assertEquals(100.0, copy.bounds.top, 0.001)
+    }
+
+    @Test
+    fun `locked visual element cannot move or delete until unlocked`() {
+        val source = DesignerTextElement(
+            id = "school",
+            bounds = TemplateRect(80.0, 70.0, 250.0, 50.0),
+            text = "OKUL",
+            fontSize = 24.0,
+            locked = true
+        )
+        val document = DesignerStarterTemplates.questions20Abcd().copy(
+            visualElements = listOf(source)
+        )
+
+        val movedWhileLocked = DesignerDocumentEditor.moveVisualElement(
+            document,
+            "school",
+            50.0,
+            50.0
+        )
+        val deletedWhileLocked = DesignerDocumentEditor.deleteVisualElement(
+            movedWhileLocked,
+            "school"
+        )
+        assertEquals(source, deletedWhileLocked.visualElements.single())
+
+        val unlocked = DesignerDocumentEditor.setVisualElementLocked(
+            deletedWhileLocked,
+            "school",
+            false
+        )
+        val moved = DesignerDocumentEditor.moveVisualElement(unlocked, "school", 50.0, 50.0)
+        val movedElement = moved.visualElements.single() as DesignerTextElement
+        assertEquals(130.0, movedElement.bounds.left, 0.001)
+        assertEquals(120.0, movedElement.bounds.top, 0.001)
+
+        val deleted = DesignerDocumentEditor.deleteVisualElement(moved, "school")
+        assertTrue(deleted.visualElements.isEmpty())
     }
 }
