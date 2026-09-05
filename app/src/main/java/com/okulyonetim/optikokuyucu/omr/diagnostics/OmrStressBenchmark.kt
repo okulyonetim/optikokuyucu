@@ -70,7 +70,8 @@ object OmrStressBenchmark {
                 "Bulanıklık" to blurLike(clean),
                 "180° ters form" to rotate180(clean),
                 "Agresif perspektif" to aggressivePerspective(clean),
-                "Soluk kalem + JPEG %55" to jpegRoundTrip(faint, 55)
+                "Soluk kalem + JPEG %55" to jpegRoundTrip(faint, 55),
+                "Eşitsiz çift işaret / parlama" to asymmetricDoubleGlare(clean)
             )
 
             val results = scenarios.map { (name, bitmap) ->
@@ -296,6 +297,30 @@ object OmrStressBenchmark {
             paint
         )
         canvas.restore()
+        return out
+    }
+
+    /**
+     * Regression for the failure found on-device in v0.5.0: both bubbles are truly filled, but a
+     * bright vertical reflection makes the C-column substantially lighter than the A-column.
+     * A valid double mark must not require equal darkness.
+     */
+    private fun asymmetricDoubleGlare(source: Bitmap): Bitmap {
+        val out = source.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(out)
+        val cBubble = template.bubbleRows.first().bubbles.first { it.id == "C" }
+        val halfWidth = (cBubble.radius * 1.7).toFloat()
+        val paint = Paint().apply {
+            color = Color.argb(165, 255, 255, 255)
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(
+            cBubble.center.x.toFloat() - halfWidth,
+            0f,
+            cBubble.center.x.toFloat() + halfWidth,
+            out.height.toFloat(),
+            paint
+        )
         return out
     }
 
