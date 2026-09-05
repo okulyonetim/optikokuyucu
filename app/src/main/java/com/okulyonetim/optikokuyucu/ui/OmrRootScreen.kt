@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -21,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -145,9 +147,12 @@ fun OmrRootScreen(
                             onBack = { destination = RootDestination.HOME }
                         )
 
-                        RootDestination.STUDENTS -> RootPlaceholderScreen(
-                            title = "Öğrenciler",
-                            description = "Öğrenci listesi, sınıf filtreleri ve optik numara eşleştirmesi bu merkezi tasarım içinde oluşturuluyor."
+                        RootDestination.STUDENTS -> ProductStudentsScreen(
+                            onOpenPaper = { examId, scanRecordId ->
+                                selectedExamId = examId
+                                selectedScanRecordId = scanRecordId
+                                destination = RootDestination.STUDENT_PAPER
+                            }
                         )
 
                         RootDestination.SETTINGS -> RootSettingsScreen(
@@ -528,30 +533,196 @@ private fun HomeExamCard(exam: Exam, onClick: () -> Unit) {
     }
 }
 
-private fun formatHomeExamDate(epochDay: Long): String = runCatching {
-    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-}.getOrDefault("-")
+private data class StudentOverview(
+    val key: String,
+    val name: String,
+    val number: String,
+    val className: String,
+    val scanCount: Int,
+    val latestExamId: String,
+    val latestScanRecordId: String,
+    val latestLinkedAtEpochMs: Long
+)
+
+private fun buildStudentOverviews(exams: List<Exam>): List<StudentOverview> {
+    val byKey = linkedMapOf<String, StudentOverview>()
+    exams.forEach { exam ->
+        exam.papers.forEach { link ->
+            val name = link.studentName.trim()
+            val number = link.studentNumber.trim()
+            val className = link.className.trim()
+            val key = when {
+                number.isNotBlank() -> "number:${number.lowercase()}"
+                name.isNotBlank() -> "name:${name.lowercase()}|class:${className.lowercase()}"
+                else -> "scan:${link.scanRecordId}"
+            }
+            val previous = byKey[key]
+            val isLatest = previous == null || link.linkedAtEpochMs >= previous.latestLinkedAtEpochMs
+            byKey[key] = StudentOverview(
+                key = key,
+                name = previous?.name?.takeIf { it.isNotBlank() } ?: name,
+                number = previous?.number?.takeIf { it.isNotBlank() } ?: number,
+                className = previous?.className?.takeIf { it.isNotBlank() } ?: className,
+                scanCount = (previous?.scanCount ?: 0) + 1,
+                latestExamId = if (isLatest) exam.id else previous!!.latestExamId,
+                latestScanRecordId = if (isLatest) link.scanRecordId else previous!!.latestScanRecordId,
+                latestLinkedAtEpochMs = if (isLatest) link.linkedAtEpochMs else previous!!.latestLinkedAtEpochMs
+            )
+        }
+    }
+    return byKey.values.sortedWith(
+        compareBy<StudentOverview> { it.className.ifBlank { "~" } }
+            .thenBy { it.name.ifBlank { "~" } }
+            .thenBy { it.number }
+    )
+}
 
 @Composable
-private fun RootPlaceholderScreen(title: String, description: String) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+private fun ProductStudentsScreen(
+    onOpenPaper: (String, String) -> Unit
+) {
+    val context = LocalContext.current
+    val exams = remember(context) { FileExamRepository(context.applicationContext).list() }
+    val students = remember(exams) { buildStudentOverviews(exams) }
+    var query by remember { mutableStateOf("") }
+    var selectedClass by remember { mutableStateOf<String?>(null) }
+    val classes = remember(students) {
+        students.map { it.className }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val normalizedQuery = query.trim().lowercase()
+    val filtered = students.filter { student ->
+        val matchesClass = selectedClass == null || student.className == selectedClass
+        val matchesQuery = normalizedQuery.isBlank() ||
+            student.name.lowercase().contains(normalizedQuery) ||
+            student.number.lowercase().contains(normalizedQuery) ||
+            student.className.lowercase().contains(normalizedQuery)
+        matchesClass && matchesQuery
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        ProductTopBar(title = "Öğrenciler")
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                modifier = Modifier.padding(20.dp),
-                text = description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            item { Spacer(Modifier.height(4.dp)) }
+            item {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    label = { Text("Öğrenci, numara veya sınıf ara") },
+                    leadingIcon = { Text("⌕", fontSize = 24.sp) },
+                    shape = RoundedCornerShape(28.dp)
+                )
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HomeStatCard(Modifier.weight(1f), "Öğrenci", students.size.toString())
+                    HomeStatCard(Modifier.weight(1f), "Sınıf", classes.size.toString())
+                    HomeStatCard(Modifier.weight(1f), "Kağıt", students.sumOf { it.scanCount }.toString())
+                }
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        ProductFilterPill(
+                            label = "Tümü",
+                            count = students.size,
+                            selected = selectedClass == null,
+                            onClick = { selectedClass = null }
+                        )
+                    }
+                    items(classes, key = { it }) { className ->
+                        ProductFilterPill(
+                            label = className,
+                            count = students.count { it.className == className },
+                            selected = selectedClass == className,
+                            onClick = { selectedClass = className }
+                        )
+                    }
+                }
+            }
+
+            if (filtered.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                if (students.isEmpty()) "Henüz öğrenci kaydı oluşmadı" else "Öğrenci bulunamadı",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (students.isEmpty())
+                                    "Sınava bağlanan optik kağıtlardaki öğrenci bilgileri burada otomatik birleşir."
+                                else "Arama metnini veya sınıf filtresini değiştirin.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(filtered, key = { it.key }) { student ->
+                    StudentOverviewCard(
+                        student = student,
+                        onClick = {
+                            onOpenPaper(student.latestExamId, student.latestScanRecordId)
+                        }
+                    )
+                }
+            }
+            item { Spacer(Modifier.height(18.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun StudentOverviewCard(
+    student: StudentOverview,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(17.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    student.name.ifBlank { "Öğrenci bilgisi bekliyor" },
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${student.className.ifBlank { "Sınıf —" }}  ·  No: ${student.number.ifBlank { "—" }}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            ProductStatusBadge(
+                text = "${student.scanCount} KAĞIT",
+                tone = ProductBadgeTone.NEUTRAL
             )
         }
     }
 }
+
+private fun formatHomeExamDate(epochDay: Long): String = runCatching {
+    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+}.getOrDefault("-")
 
 @Composable
 private fun RootSettingsScreen(
