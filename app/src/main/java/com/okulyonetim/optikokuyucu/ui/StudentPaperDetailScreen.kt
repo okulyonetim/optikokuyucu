@@ -323,9 +323,11 @@ fun StudentPaperDetailScreen(
                     item { Spacer(Modifier.height(18.dp)) }
                 }
             } else {
-                ImageNotStoredState(
-                    sourceWidth = record.sourceWidth,
-                    sourceHeight = record.sourceHeight
+                StudentPaperImagePanel(
+                    scanRecordId = scanRecordId,
+                    record = record,
+                    evaluations = evaluations,
+                    templateSelection = currentExam.templateSelection
                 )
             }
         }
