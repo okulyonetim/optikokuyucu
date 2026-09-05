@@ -234,7 +234,7 @@ private fun CameraPreviewContent() {
                     shape = RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-            text = "Optik formu çerçevenin içine getirin",
+            text = "Optik formu A4 çerçevesinin içine getirin",
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
         )
@@ -293,12 +293,22 @@ private fun CameraTelemetryCard(
 @Composable
 private fun OmrGuideOverlay(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val horizontalMargin = size.width * 0.08f
-        val verticalMargin = size.height * 0.14f
-        val top = verticalMargin
-        val left = horizontalMargin
-        val width = size.width - (horizontalMargin * 2f)
-        val height = size.height - (verticalMargin * 2f)
+        val a4Aspect = 210f / 297f
+        val maxWidth = size.width * 0.84f
+        val maxHeight = size.height * 0.70f
+
+        val width: Float
+        val height: Float
+        if (maxWidth / maxHeight > a4Aspect) {
+            height = maxHeight
+            width = height * a4Aspect
+        } else {
+            width = maxWidth
+            height = width / a4Aspect
+        }
+
+        val left = (size.width - width) / 2f
+        val top = (size.height - height) / 2f
 
         drawRoundRect(
             color = Color.White.copy(alpha = 0.82f),
