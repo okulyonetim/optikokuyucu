@@ -58,6 +58,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualTransform
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualZOrder
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
@@ -128,6 +129,7 @@ fun OmrDesignerScreen(
     fun commit(next: DesignerDocument) {
         document = history.commit(next)
         saveStatus = null
+
     }
 
     fun openDocument(next: DesignerDocument) {
@@ -395,6 +397,9 @@ fun OmrDesignerScreen(
             },
             onAlignVertical = { id, alignment ->
                 commit(DesignerVisualTransform.alignVertical(document, id, alignment))
+            },
+            onZOrder = { id, action ->
+                commit(DesignerVisualZOrder.apply(document, id, action))
             },
             onDuplicate = { id ->
                 val newId = nextVisualDuplicateId(id)
