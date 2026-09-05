@@ -80,14 +80,6 @@ fun ExamListScreen(
                 }
             )
         },
-        bottomBar = {
-            ProductBottomBar(
-                selected = "exams",
-                onExams = { exams = repository.list() },
-                onStudents = { filter = ExamListFilter.READ },
-                onForms = onOpenTools
-            )
-        },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = onNewExam) {
                 Text("＋  Yeni Sınav", fontSize = 17.sp)

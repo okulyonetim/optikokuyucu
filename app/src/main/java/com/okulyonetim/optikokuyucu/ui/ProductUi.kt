@@ -5,9 +5,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,9 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val ProductBlue = Color(0xFF2F61CF)
-private val ProductBlueLight = Color(0xFFE4EEFF)
-private val ProductBackground = Color(0xFFF7F7FB)
+private val ProductPurple = Color(0xFF6B3FD6)
+private val ProductPurpleLight = Color(0xFFEFE9FF)
+private val ProductBackground = Color(0xFFF8F7FC)
 private val ProductGreen = Color(0xFF2E9B66)
 private val ProductGreenSoft = Color(0xFFE8F7F0)
 private val ProductOrange = Color(0xFFE48A14)
@@ -38,25 +41,36 @@ private val ProductRed = Color(0xFFD84B45)
 private val ProductRedSoft = Color(0xFFFFECEB)
 
 private val LightProductScheme = lightColorScheme(
-    primary = ProductBlue,
+    primary = ProductPurple,
     onPrimary = Color.White,
-    primaryContainer = ProductBlueLight,
-    onPrimaryContainer = Color(0xFF163A83),
+    primaryContainer = ProductPurpleLight,
+    onPrimaryContainer = Color(0xFF31116F),
+    secondary = Color(0xFF7255D8),
     background = ProductBackground,
     surface = Color.White,
-    surfaceVariant = Color(0xFFF0F1F6),
-    outline = Color(0xFFB6B8C0)
+    surfaceVariant = Color(0xFFF1EFF7),
+    outline = Color(0xFFB8B3C2)
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFF9AB8FF),
-    onPrimary = Color(0xFF062A69),
-    primaryContainer = Color(0xFF173F8A),
-    background = Color(0xFF111318),
-    surface = Color(0xFF1A1C22),
-    surfaceVariant = Color(0xFF252830),
-    outline = Color(0xFF8E9099)
+    primary = Color(0xFFC8B5FF),
+    onPrimary = Color(0xFF2F0E71),
+    primaryContainer = Color(0xFF4B289A),
+    onPrimaryContainer = Color(0xFFE9E0FF),
+    secondary = Color(0xFFCEBDFF),
+    background = Color(0xFF121116),
+    surface = Color(0xFF1C1A21),
+    surfaceVariant = Color(0xFF292630),
+    outline = Color(0xFF938D9C)
 )
+
+enum class ProductTab {
+    HOME,
+    CAMERA,
+    STUDENTS,
+    RESULTS,
+    SETTINGS
+}
 
 @Composable
 fun OptikProductTheme(content: @Composable () -> Unit) {
@@ -69,8 +83,8 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
 @Composable
 fun ProductTopBar(
     title: String,
-    leadingText: String,
-    onLeadingClick: () -> Unit,
+    leadingText: String? = null,
+    onLeadingClick: (() -> Unit)? = null,
     actionText: String = "⋮",
     onActionClick: (() -> Unit)? = null
 ) {
@@ -78,33 +92,39 @@ fun ProductTopBar(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = RoundedCornerShape(bottomStart = 30.dp, bottomEnd = 30.dp)
+        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
     ) {
         Row(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 15.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onLeadingClick) {
-                Text(leadingText, color = MaterialTheme.colorScheme.onPrimary, fontSize = 28.sp)
+            if (leadingText != null && onLeadingClick != null) {
+                TextButton(onClick = onLeadingClick) {
+                    Text(leadingText, color = MaterialTheme.colorScheme.onPrimary, fontSize = 27.sp)
+                }
+            } else {
+                Spacer(Modifier.size(48.dp))
             }
+
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onPrimary,
-                fontSize = 24.sp,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            TextButton(onClick = { onActionClick?.invoke() }, enabled = onActionClick != null) {
-                Text(
-                    text = actionText,
-                    color = if (onActionClick != null) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary,
-                    fontSize = 25.sp
-                )
+
+            if (onActionClick != null) {
+                TextButton(onClick = onActionClick) {
+                    Text(actionText, color = MaterialTheme.colorScheme.onPrimary, fontSize = 25.sp)
+                }
+            } else {
+                Spacer(Modifier.size(48.dp))
             }
         }
     }
@@ -165,25 +185,28 @@ fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
 
 @Composable
 fun ProductBottomBar(
-    selected: String,
-    onExams: () -> Unit,
-    onStudents: () -> Unit,
-    onForms: () -> Unit
+    selected: ProductTab,
+    onSelect: (ProductTab) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 5.dp,
-        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProductBottomItem("Sınavlar", "▤", selected == "exams", onExams)
-            ProductBottomItem("Öğrenciler", "◉", selected == "students", onStudents)
-            ProductBottomItem("Optikler", "◎", selected == "forms", onForms)
+            ProductBottomItem("Anasayfa", "⌂", selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
+            ProductBottomItem("Kamera", "▣", selected == ProductTab.CAMERA) { onSelect(ProductTab.CAMERA) }
+            ProductBottomItem("Öğrenciler", "◉", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
+            ProductBottomItem("Sonuçlar", "▤", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
+            ProductBottomItem("Ayarlar", "⚙", selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
         }
     }
 }
@@ -195,16 +218,22 @@ private fun ProductBottomItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    TextButton(onClick = onClick) {
+    TextButton(
+        modifier = Modifier.weight(1f),
+        onClick = onClick,
+        contentPadding = ButtonDefaults.TextButtonContentPadding
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 symbol,
-                fontSize = 24.sp,
+                fontSize = 21.sp,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
             )
             Text(
                 label,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                fontSize = 10.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
             )
         }
