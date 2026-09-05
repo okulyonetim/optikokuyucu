@@ -1,5 +1,6 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import android.graphics.Paint as AndroidPaint
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -39,15 +40,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
@@ -55,6 +63,14 @@ import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
+import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
+
+private sealed interface DesignerCanvasSelection {
+    val id: String
+
+    data class Component(override val id: String) : DesignerCanvasSelection
+    data class Visual(override val id: String) : DesignerCanvasSelection
+}
 
 @Composable
 fun OmrDesignerScreen(
@@ -70,14 +86,16 @@ fun OmrDesignerScreen(
     val initialDocument = remember { starters.first() }
     val history = remember { DesignerHistory(initialDocument) }
     var document by remember { mutableStateOf(initialDocument) }
-    var selectedComponentId by remember { mutableStateOf<String?>(null) }
+    var selection by remember { mutableStateOf<DesignerCanvasSelection?>(null) }
     var showOmrRegions by remember { mutableStateOf(true) }
     var savedDocuments by remember { mutableStateOf(repository.list()) }
     var saveStatus by remember { mutableStateOf<String?>(null) }
     var testCamera by remember { mutableStateOf(false) }
 
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
-    val readability = remember(compiled) { TemplateReadabilityAnalyzer.analyze(compiled) }
+    val readability = remember(document, compiled) {
+        TemplateReadabilityAnalyzer.analyze(document, compiled)
+    }
 
     if (testCamera) {
         BackHandler { testCamera = false }
@@ -112,14 +130,34 @@ fun OmrDesignerScreen(
     fun openDocument(next: DesignerDocument) {
         history.reset(next)
         document = next
-        selectedComponentId = null
+        selection = null
         saveStatus = null
     }
 
-    fun nextDuplicateId(sourceId: String): String {
+    fun nextComponentDuplicateId(sourceId: String): String {
         var suffix = 1
         var candidate = "$sourceId-copy$suffix"
         while (document.components.any { it.id == candidate }) {
+            suffix += 1
+            candidate = "$sourceId-copy$suffix"
+        }
+        return candidate
+    }
+
+    fun nextVisualId(prefix: String): String {
+        var suffix = 1
+        var candidate = "$prefix-$suffix"
+        while (document.visualElements.any { it.id == candidate }) {
+            suffix += 1
+            candidate = "$prefix-$suffix"
+        }
+        return candidate
+    }
+
+    fun nextVisualDuplicateId(sourceId: String): String {
+        var suffix = 1
+        var candidate = "$sourceId-copy$suffix"
+        while (document.visualElements.any { it.id == candidate }) {
             suffix += 1
             candidate = "$sourceId-copy$suffix"
         }
@@ -218,7 +256,8 @@ fun OmrDesignerScreen(
                         Text(document.name, style = MaterialTheme.typography.titleMedium)
                         Text(
                             "${compiled.bubbleRows.size} soru · " +
-                                "${compiled.markGrids.size} işaret alanı · v${document.version}",
+                                "${compiled.markGrids.size} işaret alanı · " +
+                                "${document.visualElements.size} görsel öğe · v${document.version}",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -234,15 +273,20 @@ fun OmrDesignerScreen(
                 CanonicalTemplatePreview(
                     document = document,
                     template = compiled,
-                    selectedComponentId = selectedComponentId,
+                    selection = selection,
                     showOmrRegions = showOmrRegions,
-                    onSelectComponent = { selectedComponentId = it },
+                    onSelect = { selection = it },
                     onDragStart = {
                         history.beginTransaction()
                         saveStatus = null
                     },
-                    onDragUpdate = { id, dx, dy ->
-                        val next = DesignerDocumentEditor.moveComponent(document, id, dx, dy)
+                    onDragUpdate = { target, dx, dy ->
+                        val next = when (target) {
+                            is DesignerCanvasSelection.Component ->
+                                DesignerDocumentEditor.moveComponent(document, target.id, dx, dy)
+                            is DesignerCanvasSelection.Visual ->
+                                DesignerDocumentEditor.moveVisualElement(document, target.id, dx, dy)
+                        }
                         document = history.updateTransaction(next)
                         saveStatus = null
                     },
@@ -260,13 +304,13 @@ fun OmrDesignerScreen(
 
         DesignerPropertyPanel(
             document = document,
-            selectedComponentId = selectedComponentId,
-            onSelect = { selectedComponentId = it },
+            selectedComponentId = (selection as? DesignerCanvasSelection.Component)?.id,
+            onSelect = { selection = DesignerCanvasSelection.Component(it) },
             onMove = { id, dx, dy ->
                 commit(DesignerDocumentEditor.moveComponent(document, id, dx, dy))
             },
             onDuplicate = { id ->
-                val newId = nextDuplicateId(id)
+                val newId = nextComponentDuplicateId(id)
                 commit(
                     DesignerDocumentEditor.duplicateComponent(
                         document = document,
@@ -274,11 +318,89 @@ fun OmrDesignerScreen(
                         newId = newId
                     )
                 )
-                selectedComponentId = newId
+                selection = DesignerCanvasSelection.Component(newId)
             },
             onDelete = { id ->
                 commit(DesignerDocumentEditor.deleteComponent(document, id))
-                selectedComponentId = null
+                selection = null
+            }
+        )
+
+        DesignerVisualPropertyPanel(
+            document = document,
+            selectedElementId = (selection as? DesignerCanvasSelection.Visual)?.id,
+            onSelect = { selection = DesignerCanvasSelection.Visual(it) },
+            onAddText = {
+                val id = nextVisualId("text")
+                commit(
+                    document.copy(
+                        visualElements = document.visualElements + DesignerTextElement(
+                            id = id,
+                            bounds = TemplateRect(250.0, 120.0, 500.0, 55.0),
+                            text = "Sınav Adı",
+                            fontSize = 28.0,
+                            alignment = DesignerTextAlignment.CENTER
+                        )
+                    )
+                )
+                selection = DesignerCanvasSelection.Visual(id)
+            },
+            onAddBox = {
+                val id = nextVisualId("box")
+                commit(
+                    document.copy(
+                        visualElements = document.visualElements + DesignerBoxElement(
+                            id = id,
+                            bounds = TemplateRect(240.0, 105.0, 520.0, 80.0),
+                            strokeWidth = 2.0
+                        )
+                    )
+                )
+                selection = DesignerCanvasSelection.Visual(id)
+            },
+            onAddLine = {
+                val id = nextVisualId("line")
+                commit(
+                    document.copy(
+                        visualElements = document.visualElements + DesignerLineElement(
+                            id = id,
+                            start = TemplatePoint(250.0, 210.0),
+                            end = TemplatePoint(750.0, 210.0),
+                            strokeWidth = 2.0
+                        )
+                    )
+                )
+                selection = DesignerCanvasSelection.Visual(id)
+            },
+            onMove = { id, dx, dy ->
+                commit(DesignerDocumentEditor.moveVisualElement(document, id, dx, dy))
+            },
+            onDuplicate = { id ->
+                val newId = nextVisualDuplicateId(id)
+                commit(
+                    DesignerDocumentEditor.duplicateVisualElement(
+                        document = document,
+                        elementId = id,
+                        newId = newId
+                    )
+                )
+                selection = DesignerCanvasSelection.Visual(newId)
+            },
+            onDelete = { id ->
+                commit(DesignerDocumentEditor.deleteVisualElement(document, id))
+                selection = null
+            },
+            onLockedChange = { id, locked ->
+                commit(DesignerDocumentEditor.setVisualElementLocked(document, id, locked))
+            },
+            onTextChange = { id, text ->
+                commit(DesignerDocumentEditor.setVisualText(document, id, text))
+            },
+            onFontSizeChange = { id, size ->
+                commit(DesignerDocumentEditor.setVisualFontSize(document, id, size))
+            },
+            onStrokeWidthChange = { id, width ->
+                commit(DesignerDocumentEditor.setVisualStrokeWidth(document, id, width))
             }
         )
 
@@ -308,7 +430,7 @@ fun OmrDesignerScreen(
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
-                readability.issues.take(4).forEach { issue ->
+                readability.issues.take(5).forEach { issue ->
                     Text("• ${issue.message}", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -339,7 +461,7 @@ fun OmrDesignerScreen(
                 enabled = history.canUndo(),
                 onClick = {
                     document = history.undo()
-                    selectedComponentId = null
+                    selection = null
                     saveStatus = null
                 }
             ) {
@@ -350,7 +472,7 @@ fun OmrDesignerScreen(
                 enabled = history.canRedo(),
                 onClick = {
                     document = history.redo()
-                    selectedComponentId = null
+                    selection = null
                     saveStatus = null
                 }
             ) {
@@ -379,7 +501,7 @@ fun OmrDesignerScreen(
                             )
                         )
                     )
-                    selectedComponentId = "studentNumber"
+                    selection = DesignerCanvasSelection.Component("studentNumber")
                 }
             ) {
                 Text("Öğrenci No Ekle")
@@ -400,12 +522,14 @@ fun OmrDesignerScreen(
                             )
                         )
                     )
-                    selectedComponentId = "booklet"
+                    selection = DesignerCanvasSelection.Component("booklet")
                 }
             ) {
                 Text("Kitapçık A/B Ekle")
             }
         }
+
+        DesignerPdfExportCard(document = document)
 
         Button(
             modifier = Modifier.fillMaxWidth(),
@@ -416,7 +540,7 @@ fun OmrDesignerScreen(
                     if (stored != document) {
                         history.reset(stored)
                         document = stored
-                        selectedComponentId = null
+                        selection = null
                     }
                     savedDocuments = repository.list()
                     "Şablon cihazda kaydedildi · v${stored.version} ✓"
@@ -438,11 +562,11 @@ fun OmrDesignerScreen(
 private fun CanonicalTemplatePreview(
     document: DesignerDocument,
     template: OmrTemplate,
-    selectedComponentId: String?,
+    selection: DesignerCanvasSelection?,
     showOmrRegions: Boolean,
-    onSelectComponent: (String?) -> Unit,
-    onDragStart: (String) -> Unit,
-    onDragUpdate: (String, Double, Double) -> Unit,
+    onSelect: (DesignerCanvasSelection?) -> Unit,
+    onDragStart: (DesignerCanvasSelection) -> Unit,
+    onDragUpdate: (DesignerCanvasSelection, Double, Double) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit
 ) {
@@ -452,11 +576,18 @@ private fun CanonicalTemplatePreview(
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val markerColor = Color.Black
     val currentDocument by rememberUpdatedState(document)
-    val currentOnSelect by rememberUpdatedState(onSelectComponent)
+    val currentOnSelect by rememberUpdatedState(onSelect)
     val currentOnDragStart by rememberUpdatedState(onDragStart)
     val currentOnDragUpdate by rememberUpdatedState(onDragUpdate)
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val currentOnDragCancel by rememberUpdatedState(onDragCancel)
+
+    fun hitTest(point: TemplatePoint): DesignerCanvasSelection? {
+        val visualId = DesignerVisualGeometry.hitTest(currentDocument, point)
+        if (visualId != null) return DesignerCanvasSelection.Visual(visualId)
+        val componentId = DesignerComponentGeometry.hitTest(currentDocument, point)
+        return componentId?.let { DesignerCanvasSelection.Component(it) }
+    }
 
     Box(
         modifier = Modifier
@@ -470,11 +601,11 @@ private fun CanonicalTemplatePreview(
                         x = offset.x / size.width.toDouble() * template.space.width,
                         y = offset.y / size.height.toDouble() * template.space.height
                     )
-                    currentOnSelect(DesignerComponentGeometry.hitTest(currentDocument, point))
+                    currentOnSelect(hitTest(point))
                 }
             }
             .pointerInput(template.space) {
-                var draggingId: String? = null
+                var dragging: DesignerCanvasSelection? = null
                 detectDragGestures(
                     onDragStart = { offset ->
                         if (size.width <= 0 || size.height <= 0) return@detectDragGestures
@@ -482,36 +613,77 @@ private fun CanonicalTemplatePreview(
                             x = offset.x / size.width.toDouble() * template.space.width,
                             y = offset.y / size.height.toDouble() * template.space.height
                         )
-                        val id = DesignerComponentGeometry.hitTest(currentDocument, point)
-                        draggingId = id
-                        currentOnSelect(id)
-                        if (id != null) currentOnDragStart(id)
+                        val target = hitTest(point)
+                        dragging = target
+                        currentOnSelect(target)
+                        if (target != null) currentOnDragStart(target)
                     },
                     onDragEnd = {
-                        if (draggingId != null) currentOnDragEnd()
-                        draggingId = null
+                        if (dragging != null) currentOnDragEnd()
+                        dragging = null
                     },
                     onDragCancel = {
-                        if (draggingId != null) currentOnDragCancel()
-                        draggingId = null
+                        if (dragging != null) currentOnDragCancel()
+                        dragging = null
                     }
                 ) { change, dragAmount ->
-                    val id = draggingId ?: return@detectDragGestures
+                    val target = dragging ?: return@detectDragGestures
                     change.consume()
                     if (size.width <= 0 || size.height <= 0) return@detectDragGestures
                     val dx = dragAmount.x / size.width.toDouble() * template.space.width
                     val dy = dragAmount.y / size.height.toDouble() * template.space.height
-                    currentOnDragUpdate(id, dx, dy)
+                    currentOnDragUpdate(target, dx, dy)
                 }
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val scaleX = size.width / template.space.width.toFloat()
             val scaleY = size.height / template.space.height.toFloat()
+            val averageScale = (scaleX + scaleY) / 2f
 
             fun x(value: Double): Float = value.toFloat() * scaleX
             fun y(value: Double): Float = value.toFloat() * scaleY
-            fun radius(value: Double): Float = value.toFloat() * ((scaleX + scaleY) / 2f)
+            fun radius(value: Double): Float = value.toFloat() * averageScale
+
+            document.visualElements.forEach { element ->
+                when (element) {
+                    is DesignerTextElement -> {
+                        drawIntoCanvas { canvas ->
+                            val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+                                color = android.graphics.Color.BLACK
+                                textSize = (element.fontSize.toFloat() * averageScale).coerceAtLeast(7f)
+                            }
+                            val left = x(element.bounds.left)
+                            val right = x(element.bounds.right)
+                            val textWidth = paint.measureText(element.text)
+                            val textX = when (element.alignment) {
+                                DesignerTextAlignment.START -> left
+                                DesignerTextAlignment.CENTER -> left + (right - left - textWidth) / 2f
+                                DesignerTextAlignment.END -> right - textWidth
+                            }
+                            val maxHeight = y(element.bounds.height)
+                            val baseline = y(element.bounds.top) + minOf(paint.textSize, maxHeight * 0.82f)
+                            canvas.nativeCanvas.drawText(element.text, textX, baseline, paint)
+                        }
+                    }
+                    is DesignerBoxElement -> {
+                        drawRect(
+                            color = Color.Black,
+                            topLeft = Offset(x(element.bounds.left), y(element.bounds.top)),
+                            size = Size(x(element.bounds.width), y(element.bounds.height)),
+                            style = Stroke(width = (element.strokeWidth.toFloat() * averageScale).coerceAtLeast(1f))
+                        )
+                    }
+                    is DesignerLineElement -> {
+                        drawLine(
+                            color = Color.Black,
+                            start = Offset(x(element.start.x), y(element.start.y)),
+                            end = Offset(x(element.end.x), y(element.end.y)),
+                            strokeWidth = (element.strokeWidth.toFloat() * averageScale).coerceAtLeast(1f)
+                        )
+                    }
+                }
+            }
 
             template.fiducials.forEach { fiducial ->
                 drawRect(
@@ -547,13 +719,20 @@ private fun CanonicalTemplatePreview(
                 }
             }
 
-            val selected = document.components.firstOrNull { it.id == selectedComponentId }
-            if (selected != null) {
-                val bounds = DesignerComponentGeometry.bounds(selected)
+            val selectedBounds = when (selection) {
+                is DesignerCanvasSelection.Component -> document.components
+                    .firstOrNull { it.id == selection.id }
+                    ?.let { DesignerComponentGeometry.bounds(it) }
+                is DesignerCanvasSelection.Visual -> document.visualElements
+                    .firstOrNull { it.id == selection.id }
+                    ?.let { DesignerVisualGeometry.bounds(it) }
+                null -> null
+            }
+            if (selectedBounds != null) {
                 drawRect(
                     color = selectionColor,
-                    topLeft = Offset(x(bounds.left), y(bounds.top)),
-                    size = Size(x(bounds.width), y(bounds.height)),
+                    topLeft = Offset(x(selectedBounds.left), y(selectedBounds.top)),
+                    size = Size(x(selectedBounds.width), y(selectedBounds.height)),
                     style = Stroke(width = 3f)
                 )
             }
