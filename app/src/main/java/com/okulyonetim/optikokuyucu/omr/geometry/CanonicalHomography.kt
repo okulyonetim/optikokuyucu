@@ -35,6 +35,9 @@ data class ProjectiveTransform internal constructor(
 
     fun mapTemplate(point: TemplatePoint): ImagePoint? =
         map(point.x, point.y)?.let { (x, y) -> ImagePoint(x, y) }
+
+    /** Internal bridge for OpenCV warpPerspective; callers receive an immutable copy. */
+    internal fun coefficients(): DoubleArray = h.copyOf()
 }
 
 data class CanonicalRegistration(
