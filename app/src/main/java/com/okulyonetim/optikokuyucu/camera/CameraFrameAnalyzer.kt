@@ -34,9 +34,10 @@ class CameraFrameAnalyzer(
         try {
             frameCount += 1
 
-            if (fiducialDetector != null) {
+            val detector = fiducialDetector
+            if (detector != null) {
                 latestDetection = runCatching {
-                    fiducialDetector.detect(image)
+                    detector.detect(image)
                 }.onFailure {
                     detectorHealthy = false
                 }.getOrDefault(FiducialDetectionResult.Empty)
@@ -66,7 +67,7 @@ class CameraFrameAnalyzer(
                         rotationDegrees = image.imageInfo.rotationDegrees,
                         fps = fps,
                         averageLuma = sampleAverageLuma(image),
-                        openCvReady = fiducialDetector != null && detectorHealthy,
+                        openCvReady = detector != null && detectorHealthy,
                         markerCount = latestDetection.detectedMarkers.size,
                         pageConfidence = latestTrackingConfidence,
                         trackingPhase = latestTrackingPhase,
