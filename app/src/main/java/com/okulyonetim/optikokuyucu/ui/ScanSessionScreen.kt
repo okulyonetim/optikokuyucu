@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +31,7 @@ import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
 import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkState
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.omr.results.ScanSessionCsvExporter
 import com.okulyonetim.optikokuyucu.omr.results.ScanSource
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyCapture
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
@@ -55,6 +58,27 @@ fun ScanSessionScreen(onBack: () -> Unit) {
     var answerKeys by remember { mutableStateOf(answerKeyRepository.list()) }
     var expandedRecordId by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("") }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        val csv = pendingCsv
+        pendingCsv = null
+        if (uri == null || csv == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "CSV çıktı akışı açılamadı." }
+                output.write(csv.toByteArray(Charsets.UTF_8))
+                output.flush()
+            }
+        }.onSuccess {
+            status = "CSV sonuç raporu kaydedildi"
+        }.onFailure { error ->
+            status = "CSV kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
 
     fun refresh() {
         records = repository.list()
@@ -140,6 +164,17 @@ fun ScanSessionScreen(onBack: () -> Unit) {
                     }
                 ) {
                     Text("Kayıtları ve anahtarları yenile")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = records.isNotEmpty(),
+                    onClick = {
+                        pendingCsv = ScanSessionCsvExporter.export(records, answerKeys)
+                        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                        csvLauncher.launch("optik-sonuclar-$timestamp.csv")
+                    }
+                ) {
+                    Text("CSV sonuç raporunu dışa aktar")
                 }
             }
         }
