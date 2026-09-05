@@ -2,6 +2,8 @@ package com.okulyonetim.optikokuyucu.omr.scoring
 
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
+import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
+import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 
 data class AnswerKey(
     val templateId: String,
@@ -60,67 +62,127 @@ data class ExamScore(
 /**
  * Pure scoring layer. Recognition uncertainty is preserved instead of being silently converted to
  * a wrong answer. The caller explicitly supplies point values, including any wrong-answer penalty.
+ * Persisted raw records can be re-scored later without re-reading the physical form.
  */
 object OmrScorer {
     fun score(
         read: BubbleReadResult,
         answerKey: AnswerKey,
         policy: ScoringPolicy = ScoringPolicy()
-    ): ExamScore {
-        val evaluations = read.questions.map { question ->
-            val expected = answerKey.answers[question.questionId]
-            if (expected == null) {
-                return@map QuestionEvaluation(
-                    questionId = question.questionId,
-                    state = QuestionEvaluationState.NO_KEY,
-                    expectedChoice = null,
-                    selectedChoice = question.selectedChoice,
-                    recognitionConfidence = question.confidence,
-                    points = 0.0
-                )
-            }
-
-            when (question.state) {
-                QuestionState.MARKED -> {
-                    val correct = question.selectedChoice == expected
-                    QuestionEvaluation(
-                        questionId = question.questionId,
-                        state = if (correct) QuestionEvaluationState.CORRECT else QuestionEvaluationState.WRONG,
-                        expectedChoice = expected,
-                        selectedChoice = question.selectedChoice,
-                        recognitionConfidence = question.confidence,
-                        points = if (correct) policy.correctPoints else policy.wrongPoints
-                    )
-                }
-
-                QuestionState.BLANK -> QuestionEvaluation(
-                    questionId = question.questionId,
-                    state = QuestionEvaluationState.BLANK,
-                    expectedChoice = expected,
-                    selectedChoice = null,
-                    recognitionConfidence = question.confidence,
-                    points = policy.blankPoints
-                )
-
-                QuestionState.DOUBLE_MARK -> QuestionEvaluation(
-                    questionId = question.questionId,
-                    state = QuestionEvaluationState.DOUBLE_MARK,
-                    expectedChoice = expected,
-                    selectedChoice = null,
-                    recognitionConfidence = question.confidence,
-                    points = policy.doubleMarkPoints
-                )
-
-                QuestionState.SUSPICIOUS -> QuestionEvaluation(
-                    questionId = question.questionId,
-                    state = QuestionEvaluationState.SUSPICIOUS,
-                    expectedChoice = expected,
-                    selectedChoice = question.selectedChoice,
-                    recognitionConfidence = question.confidence,
-                    points = policy.suspiciousPoints
-                )
-            }
+    ): ExamScore = ExamScore(
+        read.questions.map { question ->
+            evaluate(
+                questionId = question.questionId,
+                state = when (question.state) {
+                    QuestionState.MARKED -> ScorableState.MARKED
+                    QuestionState.BLANK -> ScorableState.BLANK
+                    QuestionState.DOUBLE_MARK -> ScorableState.DOUBLE_MARK
+                    QuestionState.SUSPICIOUS -> ScorableState.SUSPICIOUS
+                },
+                selectedChoice = question.selectedChoice,
+                confidence = question.confidence,
+                answerKey = answerKey,
+                policy = policy
+            )
         }
-        return ExamScore(evaluations)
+    )
+
+    fun score(
+        record: ScanRecord,
+        answerKey: AnswerKey,
+        policy: ScoringPolicy = ScoringPolicy()
+    ): ExamScore {
+        require(record.templateId == answerKey.templateId) {
+            "Answer key belongs to a different template id."
+        }
+        require(record.templateVersion == answerKey.templateVersion) {
+            "Answer key belongs to a different template version."
+        }
+        return ExamScore(
+            record.answers.map { answer ->
+                evaluate(
+                    questionId = answer.questionId,
+                    state = when (answer.state) {
+                        RecordedAnswerState.MARKED -> ScorableState.MARKED
+                        RecordedAnswerState.BLANK -> ScorableState.BLANK
+                        RecordedAnswerState.DOUBLE_MARK -> ScorableState.DOUBLE_MARK
+                        RecordedAnswerState.SUSPICIOUS -> ScorableState.SUSPICIOUS
+                    },
+                    selectedChoice = answer.selectedChoice,
+                    confidence = answer.confidence,
+                    answerKey = answerKey,
+                    policy = policy
+                )
+            }
+        )
+    }
+
+    private fun evaluate(
+        questionId: String,
+        state: ScorableState,
+        selectedChoice: String?,
+        confidence: Double,
+        answerKey: AnswerKey,
+        policy: ScoringPolicy
+    ): QuestionEvaluation {
+        val expected = answerKey.answers[questionId]
+        if (expected == null) {
+            return QuestionEvaluation(
+                questionId = questionId,
+                state = QuestionEvaluationState.NO_KEY,
+                expectedChoice = null,
+                selectedChoice = selectedChoice,
+                recognitionConfidence = confidence,
+                points = 0.0
+            )
+        }
+
+        return when (state) {
+            ScorableState.MARKED -> {
+                val correct = selectedChoice == expected
+                QuestionEvaluation(
+                    questionId = questionId,
+                    state = if (correct) QuestionEvaluationState.CORRECT else QuestionEvaluationState.WRONG,
+                    expectedChoice = expected,
+                    selectedChoice = selectedChoice,
+                    recognitionConfidence = confidence,
+                    points = if (correct) policy.correctPoints else policy.wrongPoints
+                )
+            }
+
+            ScorableState.BLANK -> QuestionEvaluation(
+                questionId = questionId,
+                state = QuestionEvaluationState.BLANK,
+                expectedChoice = expected,
+                selectedChoice = null,
+                recognitionConfidence = confidence,
+                points = policy.blankPoints
+            )
+
+            ScorableState.DOUBLE_MARK -> QuestionEvaluation(
+                questionId = questionId,
+                state = QuestionEvaluationState.DOUBLE_MARK,
+                expectedChoice = expected,
+                selectedChoice = null,
+                recognitionConfidence = confidence,
+                points = policy.doubleMarkPoints
+            )
+
+            ScorableState.SUSPICIOUS -> QuestionEvaluation(
+                questionId = questionId,
+                state = QuestionEvaluationState.SUSPICIOUS,
+                expectedChoice = expected,
+                selectedChoice = selectedChoice,
+                recognitionConfidence = confidence,
+                points = policy.suspiciousPoints
+            )
+        }
+    }
+
+    private enum class ScorableState {
+        MARKED,
+        BLANK,
+        DOUBLE_MARK,
+        SUSPICIOUS
     }
 }
