@@ -235,7 +235,7 @@ private fun GalleryTestScreen(
             onClick = {
                 busy = true
                 benchmark = null
-                status = "5 senaryolu stres testi çalışıyor…"
+                status = "15 senaryolu gelişmiş stres testi çalışıyor…"
                 worker.execute {
                     runCatching { OmrStressBenchmark.run() }
                         .onSuccess { value ->
@@ -243,9 +243,9 @@ private fun GalleryTestScreen(
                                 benchmark = value
                                 busy = false
                                 status = if (value.allPassed) {
-                                    "Stres testi ✓ ${value.passedCount}/${value.scenarios.size} senaryo"
+                                    "Gelişmiş stres testi ✓ ${value.passedCount}/${value.scenarios.size} senaryo"
                                 } else {
-                                    "Stres testi: ${value.passedCount}/${value.scenarios.size} senaryo geçti"
+                                    "Gelişmiş stres testi: ${value.passedCount}/${value.scenarios.size} senaryo geçti"
                                 }
                             }
                         }
@@ -258,7 +258,7 @@ private fun GalleryTestScreen(
                 }
             }
         ) {
-            Text("3 · Otomatik stres testini çalıştır")
+            Text("3 · Gelişmiş stres testini çalıştır")
         }
 
         benchmark?.let { BenchmarkResultCard(it) }
@@ -337,9 +337,9 @@ private fun BenchmarkResultCard(result: OmrStressBenchmarkResult) {
         ) {
             Text(
                 text = if (result.allPassed) {
-                    "Otomatik OMR stres testi ✓"
+                    "Gelişmiş OMR stres testi ✓"
                 } else {
-                    "Otomatik OMR stres testi"
+                    "Gelişmiş OMR stres testi"
                 },
                 style = MaterialTheme.typography.titleSmall
             )
