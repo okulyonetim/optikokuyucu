@@ -28,7 +28,14 @@ object CanonicalImageRectifier {
         val transform = Mat(3, 3, CvType.CV_64FC1)
         val canonical = Mat()
         return try {
-            transform.put(0, 0, registration.imageToTemplate.coefficients())
+            val h = registration.imageToTemplate.coefficients()
+            transform.put(
+                0,
+                0,
+                h[0], h[1], h[2],
+                h[3], h[4], h[5],
+                h[6], h[7], h[8]
+            )
             Imgproc.warpPerspective(
                 gray,
                 canonical,
