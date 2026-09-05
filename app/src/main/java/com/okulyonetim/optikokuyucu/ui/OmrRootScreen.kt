@@ -26,6 +26,7 @@ private enum class RootDestination {
     SCANNER,
     RESULTS,
     ANSWER_KEYS,
+    ACTIVE_TEMPLATE,
     DESIGNER
 }
 
@@ -46,6 +47,7 @@ fun OmrRootScreen(
                 onOpenScanner = { destination = RootDestination.SCANNER },
                 onOpenResults = { destination = RootDestination.RESULTS },
                 onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
+                onOpenActiveTemplate = { destination = RootDestination.ACTIVE_TEMPLATE },
                 onOpenDesigner = { destination = RootDestination.DESIGNER }
             )
 
@@ -63,6 +65,10 @@ fun OmrRootScreen(
                 onBack = { destination = RootDestination.HOME }
             )
 
+            RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
+                onBack = { destination = RootDestination.HOME }
+            )
+
             RootDestination.DESIGNER -> OmrDesignerScreen(
                 openCvReady = openCvReady,
                 selfTest = selfTest,
@@ -77,6 +83,7 @@ private fun RootHomeScreen(
     onOpenScanner: () -> Unit,
     onOpenResults: () -> Unit,
     onOpenAnswerKeys: () -> Unit,
+    onOpenActiveTemplate: () -> Unit,
     onOpenDesigner: () -> Unit
 ) {
     Column(
@@ -117,6 +124,15 @@ private fun RootHomeScreen(
             onClick = onOpenAnswerKeys
         ) {
             Text("Cevap Anahtarları")
+        }
+
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            onClick = onOpenActiveTemplate
+        ) {
+            Text("Aktif Form / Şablon")
         }
 
         OutlinedButton(
