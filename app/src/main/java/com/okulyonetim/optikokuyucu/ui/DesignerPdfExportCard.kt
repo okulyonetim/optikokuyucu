@@ -28,7 +28,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
 fun DesignerPdfExportCard(document: DesignerDocument) {
     val context = LocalContext.current
     val readability = remember(document) {
-        TemplateReadabilityAnalyzer.analyze(DesignerTemplateCompiler.compile(document))
+        val compiled = DesignerTemplateCompiler.compile(document)
+        TemplateReadabilityAnalyzer.analyze(document, compiled)
     }
     var pendingProfile by remember { mutableStateOf<PdfPageProfile?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
