@@ -74,6 +74,14 @@ object GalleryOmrReader {
             } ?: MarkGridReadResult.Empty
             val markGridMs = nanosToMs(System.nanoTime() - markGridStartedAt)
 
+            val canonicalWidth = canonical?.cols() ?: 0
+            val canonicalHeight = canonical?.rows() ?: 0
+            val canonicalLuma = canonical?.let { image ->
+                ByteArray(canonicalWidth * canonicalHeight).also { pixels ->
+                    image.get(0, 0, pixels)
+                }
+            }
+
             return GalleryOmrResult(
                 bitmap = bitmap,
                 width = gray.cols(),
@@ -81,14 +89,15 @@ object GalleryOmrReader {
                 detection = detection,
                 bubbleResult = bubbles,
                 markGridResult = markGrids,
-                canonicalWidth = canonical?.cols() ?: 0,
-                canonicalHeight = canonical?.rows() ?: 0,
+                canonicalWidth = canonicalWidth,
+                canonicalHeight = canonicalHeight,
                 preprocessingMs = preprocessingMs,
                 markerMs = markerMs,
                 rectificationMs = rectificationMs,
                 bubbleMs = bubbleMs,
                 markGridMs = markGridMs,
-                elapsedMs = nanosToMs(System.nanoTime() - startedAt)
+                elapsedMs = nanosToMs(System.nanoTime() - startedAt),
+                canonicalLuma = canonicalLuma
             )
         } catch (error: Throwable) {
             bitmap.recycle()
@@ -142,7 +151,8 @@ data class GalleryOmrResult(
     val rectificationMs: Double,
     val bubbleMs: Double,
     val markGridMs: Double,
-    val elapsedMs: Double
+    val elapsedMs: Double,
+    val canonicalLuma: ByteArray? = null
 ) {
     val markerCount: Int get() = detection.detectedMarkers.size
     val registrationReady: Boolean get() = detection.canonicalRegistration != null
