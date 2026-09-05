@@ -11,6 +11,8 @@ import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
+import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
+import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import org.opencv.android.Utils
@@ -18,7 +20,7 @@ import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
 
 /**
- * Offline gallery path sharing the same fiducial, registration, rectification and bubble engines
+ * Offline gallery path sharing the same fiducial, registration, rectification and OMR engines
  * with live CameraX recognition. The caller may supply any compatible logical template.
  */
 object GalleryOmrReader {
@@ -66,18 +68,26 @@ object GalleryOmrReader {
             } ?: BubbleReadResult(emptyList())
             val bubbleMs = nanosToMs(System.nanoTime() - bubbleStartedAt)
 
+            val markGridStartedAt = System.nanoTime()
+            val markGrids = canonical?.let {
+                CanonicalMarkGridReader(template).readCanonical(it)
+            } ?: MarkGridReadResult.Empty
+            val markGridMs = nanosToMs(System.nanoTime() - markGridStartedAt)
+
             return GalleryOmrResult(
                 bitmap = bitmap,
                 width = gray.cols(),
                 height = gray.rows(),
                 detection = detection,
                 bubbleResult = bubbles,
+                markGridResult = markGrids,
                 canonicalWidth = canonical?.cols() ?: 0,
                 canonicalHeight = canonical?.rows() ?: 0,
                 preprocessingMs = preprocessingMs,
                 markerMs = markerMs,
                 rectificationMs = rectificationMs,
                 bubbleMs = bubbleMs,
+                markGridMs = markGridMs,
                 elapsedMs = nanosToMs(System.nanoTime() - startedAt)
             )
         } catch (error: Throwable) {
@@ -124,12 +134,14 @@ data class GalleryOmrResult(
     val height: Int,
     val detection: FiducialDetectionResult,
     val bubbleResult: BubbleReadResult,
+    val markGridResult: MarkGridReadResult,
     val canonicalWidth: Int,
     val canonicalHeight: Int,
     val preprocessingMs: Double,
     val markerMs: Double,
     val rectificationMs: Double,
     val bubbleMs: Double,
+    val markGridMs: Double,
     val elapsedMs: Double
 ) {
     val markerCount: Int get() = detection.detectedMarkers.size
