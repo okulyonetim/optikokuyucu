@@ -8,7 +8,9 @@ import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
 import com.okulyonetim.optikokuyucu.omr.live.LiveReadConsensus
+import com.okulyonetim.optikokuyucu.omr.live.LiveScanFingerprint
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
+import com.okulyonetim.optikokuyucu.omr.live.LiveSessionDeduplicator
 import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
@@ -26,7 +28,9 @@ import kotlin.math.max
  * RGB Bitmaps.
  *
  * Acceptance requires both a stable page lock and temporal agreement between consecutive OMR
- * frames. One physical sheet is then latched until it visibly leaves the camera.
+ * frames. One physical sheet is then latched until it visibly leaves the camera. When a stable
+ * student number exists, a session fingerprint also prevents the same completed sheet from being
+ * accepted again after it is removed and reinserted.
  */
 class CameraFrameAnalyzer(
     openCvReady: Boolean,
@@ -41,6 +45,7 @@ class CameraFrameAnalyzer(
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
     private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = 2)
+    private val sessionDeduplicator = LiveSessionDeduplicator()
 
     private var frameCount = 0
     private var windowStartedAtNs = System.nanoTime()
@@ -50,6 +55,7 @@ class CameraFrameAnalyzer(
     private var latestMotionRatio = 1.0
     private var detectorHealthy = openCvReady
     private var liveReadCount = 0
+    private var duplicateReadCount = 0
 
     override fun analyze(image: ImageProxy) {
         try {
@@ -109,8 +115,26 @@ class CameraFrameAnalyzer(
                         if (confirmed) {
                             scanGate.onAcceptedRead()
                             readConsensus.reset()
-                            liveReadCount += 1
-                            onLiveRead(liveResult.copy(sequence = liveReadCount))
+
+                            val studentNumber = liveResult.markGridResult
+                                .grid("studentNumber")
+                                ?.value
+                            val fingerprint = LiveScanFingerprint.build(
+                                templateId = template.id,
+                                templateVersion = template.version,
+                                studentNumber = studentNumber,
+                                answerSignature = answerSignature(liveResult.bubbleResult)
+                            )
+                            val isNewResult = fingerprint?.let {
+                                sessionDeduplicator.registerIfNew(it)
+                            } ?: true
+
+                            if (isNewResult) {
+                                liveReadCount += 1
+                                onLiveRead(liveResult.copy(sequence = liveReadCount))
+                            } else {
+                                duplicateReadCount += 1
+                            }
                         }
                     }
                 }
@@ -137,7 +161,8 @@ class CameraFrameAnalyzer(
                         motionRatio = latestMotionRatio,
                         readArmed = scanGate.isArmed(),
                         consensusMatches = readConsensus.currentMatches(),
-                        liveReadCount = liveReadCount
+                        liveReadCount = liveReadCount,
+                        duplicateReadCount = duplicateReadCount
                     )
                 )
 
@@ -202,11 +227,7 @@ class CameraFrameAnalyzer(
     }
 
     private fun readSignature(result: LiveOmrReadResult): String = buildString {
-        append(
-            result.bubbleResult.questions.joinToString(separator = "|") { question ->
-                "${question.questionId}:${question.state}:${question.selectedChoice ?: "-"}"
-            }
-        )
+        append(answerSignature(result.bubbleResult))
         result.markGridResult.grids.forEach { grid ->
             append("#")
             append(grid.gridId)
@@ -218,6 +239,11 @@ class CameraFrameAnalyzer(
             )
         }
     }
+
+    private fun answerSignature(result: BubbleReadResult): String =
+        result.questions.joinToString(separator = "|") { question ->
+            "${question.questionId}:${question.state}:${question.selectedChoice ?: "-"}"
+        }
 
     private fun sampleAverageLuma(image: ImageProxy): Int {
         val yPlane = image.planes.firstOrNull() ?: return 0
@@ -283,7 +309,8 @@ data class CameraFrameStats(
     val motionRatio: Double,
     val readArmed: Boolean,
     val consensusMatches: Int,
-    val liveReadCount: Int
+    val liveReadCount: Int,
+    val duplicateReadCount: Int
 ) {
     companion object {
         val Empty = CameraFrameStats(
@@ -299,7 +326,8 @@ data class CameraFrameStats(
             motionRatio = 1.0,
             readArmed = true,
             consensusMatches = 0,
-            liveReadCount = 0
+            liveReadCount = 0,
+            duplicateReadCount = 0
         )
     }
 }
