@@ -26,6 +26,16 @@ object ExamPaperMetadataEditor {
     }
 }
 
+/** Pure unlink step used before destructive scan/image cleanup. */
+object ExamPaperRemoval {
+    fun unlink(exam: Exam, scanRecordId: String): Exam {
+        requireNotNull(exam.paperForScan(scanRecordId)) {
+            "Bu tarama sınava bağlı değil."
+        }
+        return exam.withoutPaper(scanRecordId)
+    }
+}
+
 object ExamScoringPolicyResolver {
     fun resolve(policy: WrongAnswerPolicy): ScoringPolicy = when (policy) {
         WrongAnswerPolicy.KEEP_AS_IS -> ScoringPolicy()
