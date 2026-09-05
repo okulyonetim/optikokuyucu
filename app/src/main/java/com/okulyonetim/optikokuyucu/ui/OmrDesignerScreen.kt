@@ -36,7 +36,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
@@ -52,6 +54,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
     val initialDocument = remember { starters.first() }
     val history = remember { DesignerHistory(initialDocument) }
     var document by remember { mutableStateOf(initialDocument) }
+    var selectedComponentId by remember { mutableStateOf<String?>(null) }
     var showOmrRegions by remember { mutableStateOf(true) }
 
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
@@ -59,6 +62,16 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
 
     fun commit(next: DesignerDocument) {
         document = history.commit(next)
+    }
+
+    fun nextDuplicateId(sourceId: String): String {
+        var suffix = 1
+        var candidate = "$sourceId-copy$suffix"
+        while (document.components.any { it.id == candidate }) {
+            suffix += 1
+            candidate = "$sourceId-copy$suffix"
+        }
+        return candidate
     }
 
     Column(
@@ -109,6 +122,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                             onClick = {
                                 history.reset(starter)
                                 document = starter
+                                selectedComponentId = null
                             }
                         ) {
                             Text(starter.name)
@@ -146,11 +160,37 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                 }
 
                 CanonicalTemplatePreview(
+                    document = document,
                     template = compiled,
+                    selectedComponentId = selectedComponentId,
                     showOmrRegions = showOmrRegions
                 )
             }
         }
+
+        DesignerPropertyPanel(
+            document = document,
+            selectedComponentId = selectedComponentId,
+            onSelect = { selectedComponentId = it },
+            onMove = { id, dx, dy ->
+                commit(DesignerDocumentEditor.moveComponent(document, id, dx, dy))
+            },
+            onDuplicate = { id ->
+                val newId = nextDuplicateId(id)
+                commit(
+                    DesignerDocumentEditor.duplicateComponent(
+                        document = document,
+                        componentId = id,
+                        newId = newId
+                    )
+                )
+                selectedComponentId = newId
+            },
+            onDelete = { id ->
+                commit(DesignerDocumentEditor.deleteComponent(document, id))
+                selectedComponentId = null
+            }
+        )
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -191,14 +231,20 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 enabled = history.canUndo(),
-                onClick = { document = history.undo() }
+                onClick = {
+                    document = history.undo()
+                    selectedComponentId = null
+                }
             ) {
                 Text("Geri Al")
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 enabled = history.canRedo(),
-                onClick = { document = history.redo() }
+                onClick = {
+                    document = history.redo()
+                    selectedComponentId = null
+                }
             ) {
                 Text("Yinele")
             }
@@ -225,6 +271,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                             )
                         )
                     )
+                    selectedComponentId = "studentNumber"
                 }
             ) {
                 Text("Öğrenci No Ekle")
@@ -245,6 +292,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                             )
                         )
                     )
+                    selectedComponentId = "booklet"
                 }
             ) {
                 Text("Kitapçık A/B Ekle")
@@ -263,12 +311,15 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
 
 @Composable
 private fun CanonicalTemplatePreview(
+    document: DesignerDocument,
     template: OmrTemplate,
+    selectedComponentId: String?,
     showOmrRegions: Boolean
 ) {
     val aspect = (template.space.width / template.space.height).toFloat()
     val paperColor = Color.White
     val omrColor = MaterialTheme.colorScheme.primary
+    val selectionColor = MaterialTheme.colorScheme.tertiary
     val markerColor = Color.Black
 
     Box(
@@ -317,6 +368,17 @@ private fun CanonicalTemplatePreview(
                         }
                     }
                 }
+            }
+
+            val selected = document.components.firstOrNull { it.id == selectedComponentId }
+            if (selected != null) {
+                val bounds = DesignerComponentGeometry.bounds(selected)
+                drawRect(
+                    color = selectionColor,
+                    topLeft = Offset(x(bounds.left), y(bounds.top)),
+                    size = Size(x(bounds.width), y(bounds.height)),
+                    style = Stroke(width = 3f)
+                )
             }
         }
     }
