@@ -34,6 +34,20 @@ class DesignerTemplateVersioningTest {
     }
 
     @Test
+    fun `repeating old-version save reuses already stored equivalent content`() {
+        val v1 = DesignerStarterTemplates.questions20Abcd()
+        val editedV1 = v1.copy(name = "Düzenlenmiş Form")
+        val storedV2 = editedV1.copy(version = 2)
+
+        val resolved = DesignerTemplateVersioning.resolveForSave(
+            editedV1,
+            listOf(v1, storedV2)
+        )
+
+        assertEquals(storedV2, resolved)
+    }
+
+    @Test
     fun `next version skips versions already used by same template id`() {
         val v1 = DesignerStarterTemplates.questions20Abcd()
         val v2 = v1.copy(version = 2, name = "Sürüm 2")
