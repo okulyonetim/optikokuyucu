@@ -16,7 +16,10 @@ enum class ReadabilityIssueType {
     MARK_OVERLAP,
     MARK_SPACING,
     FIDUCIAL_CLEARANCE,
-    EDGE_CLEARANCE
+    EDGE_CLEARANCE,
+    VISUAL_MARK_CLEARANCE,
+    VISUAL_FIDUCIAL_CLEARANCE,
+    VISUAL_EDGE_CLEARANCE
 }
 
 data class ReadabilityIssue(
@@ -42,7 +45,24 @@ data class TemplateReadabilityReport(
  * Real-device benchmarks may tune these ratios later without changing editor coordinates.
  */
 object TemplateReadabilityAnalyzer {
-    fun analyze(template: OmrTemplate): TemplateReadabilityReport {
+    /** Recognition-only compatibility entry point used by existing tests and engine diagnostics. */
+    fun analyze(template: OmrTemplate): TemplateReadabilityReport =
+        reportFor(analyzeOmrGeometry(template))
+
+    /** Full designer save gate: OMR geometry plus printable visual-layer safety. */
+    fun analyze(
+        document: DesignerDocument,
+        template: OmrTemplate
+    ): TemplateReadabilityReport {
+        require(document.id == template.id) { "Designer document and compiled template ids differ." }
+        require(document.version == template.version) { "Designer document and compiled template versions differ." }
+
+        return reportFor(
+            analyzeOmrGeometry(template) + DesignerVisualSafetyAnalyzer.analyze(document, template)
+        )
+    }
+
+    private fun analyzeOmrGeometry(template: OmrTemplate): List<ReadabilityIssue> {
         val base = min(template.space.width, template.space.height)
         val minRadius = base * MIN_RADIUS_RATIO
         val warningRadius = base * WARNING_RADIUS_RATIO
@@ -121,11 +141,14 @@ object TemplateReadabilityAnalyzer {
             }
         }
 
+        return issues
+    }
+
+    private fun reportFor(issues: List<ReadabilityIssue>): TemplateReadabilityReport {
         val errorCount = issues.count { it.severity == ReadabilitySeverity.ERROR }
         val warningCount = issues.count { it.severity == ReadabilitySeverity.WARNING }
         val score = (100 - errorCount * ERROR_PENALTY - warningCount * WARNING_PENALTY)
             .coerceIn(0, 100)
-
         return TemplateReadabilityReport(score = score, issues = issues)
     }
 
