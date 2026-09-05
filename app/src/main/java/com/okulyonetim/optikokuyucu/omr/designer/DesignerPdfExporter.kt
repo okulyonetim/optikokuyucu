@@ -12,7 +12,6 @@ import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.objdetect.Objdetect
 import java.io.OutputStream
-import kotlin.math.ceil
 import kotlin.math.max
 
 /**
@@ -82,7 +81,10 @@ object DesignerPdfExporter {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = max(5.5f, transform.length(element.fontSize).toFloat())
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            typeface = Typeface.create(
+                Typeface.DEFAULT,
+                if (element.bold) Typeface.BOLD else Typeface.NORMAL
+            )
             textAlign = when (element.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -152,90 +154,61 @@ object DesignerPdfExporter {
             when (component) {
                 is QuestionGroupComponent -> {
                     repeat(component.questionCount) { index ->
-                        val questionId = (component.startQuestion + index).toString()
+                        val questionNumber = component.startQuestion + index
+                        val questionId = DesignerTemplateCompiler.questionReadId(component, questionNumber)
                         val row = byQuestionId[questionId] ?: return@repeat
                         val first = row.bubbles.firstOrNull() ?: return@repeat
                         drawLabel(
                             canvas = canvas,
-                            text = questionId,
-                            canonicalX = first.center.x - first.radius * LABEL_DISTANCE,
-                            canonicalY = first.center.y + first.radius * 0.42,
+                            text = questionNumber.toString(),
+                            canonicalX = first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
+                            canonicalY = first.center.y + first.radius * 0.40,
                             align = Paint.Align.RIGHT,
-                            canonicalTextSize = first.radius * 1.08,
+                            canonicalTextSize = first.radius * 1.02,
                             transform = transform
                         )
                         row.bubbles.forEach { bubble ->
-                            drawLabel(
-                                canvas = canvas,
-                                text = bubble.id,
-                                canonicalX = bubble.center.x,
-                                canonicalY = bubble.center.y - bubble.radius * LABEL_DISTANCE,
-                                align = Paint.Align.CENTER,
-                                canonicalTextSize = bubble.radius * 0.92,
-                                transform = transform
-                            )
+                            drawBubbleLabel(canvas, bubble.id, bubble.center.x, bubble.center.y, bubble.radius, transform)
                         }
                     }
                 }
 
                 is NumericGridComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
-                    val firstColumn = grid.columns.firstOrNull() ?: return@forEach
-                    firstColumn.marks.forEach { mark ->
-                        drawLabel(
-                            canvas = canvas,
-                            text = mark.id,
-                            canonicalX = mark.center.x - mark.radius * LABEL_DISTANCE,
-                            canonicalY = mark.center.y + mark.radius * 0.36,
-                            align = Paint.Align.RIGHT,
-                            canonicalTextSize = mark.radius * 0.92,
-                            transform = transform
-                        )
-                    }
-                    grid.columns.forEachIndexed { index, column ->
-                        val firstMark = column.marks.firstOrNull() ?: return@forEachIndexed
-                        drawLabel(
-                            canvas = canvas,
-                            text = (index + 1).toString(),
-                            canonicalX = firstMark.center.x,
-                            canonicalY = firstMark.center.y - firstMark.radius * LABEL_DISTANCE,
-                            align = Paint.Align.CENTER,
-                            canonicalTextSize = firstMark.radius * 0.82,
-                            transform = transform
-                        )
+                    grid.columns.forEach { column ->
+                        column.marks.forEach { mark ->
+                            drawBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius, transform)
+                        }
                     }
                 }
 
                 is SingleChoiceComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
-                    val marks = grid.columns.firstOrNull()?.marks.orEmpty()
-                    marks.forEach { mark ->
-                        val (labelX, labelY, align) = if (component.axis == ChoiceAxis.HORIZONTAL) {
-                            Triple(
-                                mark.center.x,
-                                mark.center.y - mark.radius * LABEL_DISTANCE,
-                                Paint.Align.CENTER
-                            )
-                        } else {
-                            Triple(
-                                mark.center.x + mark.radius * LABEL_DISTANCE,
-                                mark.center.y + mark.radius * 0.36,
-                                Paint.Align.LEFT
-                            )
-                        }
-                        drawLabel(
-                            canvas = canvas,
-                            text = mark.id,
-                            canonicalX = labelX,
-                            canonicalY = labelY,
-                            align = align,
-                            canonicalTextSize = mark.radius * 0.92,
-                            transform = transform
-                        )
+                    grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
+                        drawBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius, transform)
                     }
                 }
             }
         }
+    }
+
+    private fun drawBubbleLabel(
+        canvas: Canvas,
+        text: String,
+        canonicalX: Double,
+        canonicalY: Double,
+        radius: Double,
+        transform: CanonicalPageTransform
+    ) {
+        drawLabel(
+            canvas = canvas,
+            text = text,
+            canonicalX = canonicalX,
+            canonicalY = canonicalY + radius * 0.34,
+            align = Paint.Align.CENTER,
+            canonicalTextSize = radius * 0.78,
+            transform = transform
+        )
     }
 
     private fun drawLabel(
@@ -257,7 +230,8 @@ object DesignerPdfExporter {
             color = Color.BLACK
             style = Paint.Style.FILL
             textAlign = align
-            textSize = max(5.0f, transform.length(canonicalTextSize).toFloat())
+            textSize = max(4.2f, transform.length(canonicalTextSize).toFloat())
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
         canvas.drawText(text, point.x.toFloat(), point.y.toFloat(), paint)
     }
@@ -342,6 +316,6 @@ object DesignerPdfExporter {
         }
     }
 
-    private const val LABEL_DISTANCE = 2.35
+    private const val QUESTION_NUMBER_DISTANCE = 2.15
     private const val MARKER_RASTER_SIZE = 256
 }
