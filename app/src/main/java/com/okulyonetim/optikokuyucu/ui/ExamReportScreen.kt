@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
+import com.okulyonetim.optikokuyucu.exam.ExamReportPdfExporter
 import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamReportRowStatus
 import com.okulyonetim.optikokuyucu.exam.ExamReportXlsxExporter
@@ -57,6 +58,7 @@ fun ExamReportScreen(
     var status by remember { mutableStateOf("") }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingPdf by remember { mutableStateOf<ExamReport?>(null) }
 
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -95,6 +97,25 @@ fun ExamReportScreen(
             status = "Sınav Excel raporu kaydedildi"
         }.onFailure { error ->
             status = "Excel kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ExamReportPdfExporter.MIME_TYPE)
+    ) { uri ->
+        val pdfReport = pendingPdf
+        pendingPdf = null
+        if (uri == null || pdfReport == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "PDF çıktı akışı açılamadı." }
+                ExamReportPdfExporter.export(pdfReport, output)
+            }
+        }.onSuccess {
+            status = "Sınav PDF raporu kaydedildi"
+        }.onFailure { error ->
+            status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
     }
 
@@ -169,6 +190,19 @@ fun ExamReportScreen(
                     }
                 ) {
                     Text("Excel (.xlsx) Sonuç Raporunu Dışa Aktar")
+                }
+            }
+
+            item {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                    enabled = report.rows.isNotEmpty(),
+                    onClick = {
+                        pendingPdf = report
+                        pdfLauncher.launch(reportFileName(current.name, "pdf"))
+                    }
+                ) {
+                    Text("PDF Sonuç Raporunu Dışa Aktar")
                 }
             }
 
