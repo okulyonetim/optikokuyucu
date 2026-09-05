@@ -55,17 +55,13 @@ enum class FiducialCorner {
 
 data class FiducialSpec(
     val corner: FiducialCorner,
-    /** Stable marker id used for orientation and registration. */
     val markerId: Int,
-    /** Marker location in canonical template coordinates, not paper coordinates. */
     val bounds: TemplateRect
 )
 
 data class BubbleSpec(
     val id: String,
-    /** Bubble center in canonical template coordinates. */
     val center: TemplatePoint,
-    /** Radius in canonical template units. Physical printed radius is intentionally unknown. */
     val radius: Double
 )
 
@@ -77,7 +73,6 @@ data class BubbleRowSpec(
 data class OmrTemplate(
     val id: String,
     val version: Int,
-    /** Logical design canvas. It preserves design aspect ratio but has no physical unit. */
     val space: TemplateSize,
     val fiducials: List<FiducialSpec>,
     val bubbleRows: List<BubbleRowSpec> = emptyList()
@@ -104,13 +99,6 @@ data class OmrTemplate(
     }
 }
 
-/**
- * Default portrait form coordinate system.
- *
- * The 1000 x sqrt(2)*1000 canvas only describes the form's logical proportions.
- * It does NOT mean A4, A5, millimetres or pixels. Printing the same form at 50%, 70.7%,
- * 100% or another size does not change these coordinates.
- */
 object StandardOmrTemplate {
     val DEFAULT_SPACE = TemplateSize(
         width = 1000.0,
@@ -161,5 +149,30 @@ object StandardOmrTemplate {
                 )
             )
         )
+    )
+
+    /**
+     * First closed-loop test template. The app can render it to an image, the user can mark the
+     * image on the phone, and the exact same geometry is then used by gallery and live readers.
+     */
+    val SAMPLE_20_ABCD: OmrTemplate = DEFAULT.copy(
+        id = "sample-20-abcd",
+        version = 1,
+        bubbleRows = (1..20).map { question ->
+            val y = 300.0 + (question - 1) * 48.0
+            BubbleRowSpec(
+                id = question.toString(),
+                bubbles = listOf("A", "B", "C", "D").mapIndexed { index, choice ->
+                    BubbleSpec(
+                        id = choice,
+                        center = TemplatePoint(
+                            x = 430.0 + index * 95.0,
+                            y = y
+                        ),
+                        radius = 14.0
+                    )
+                }
+            )
+        }
     )
 }
