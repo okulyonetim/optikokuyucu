@@ -45,7 +45,9 @@ object DesignerDocumentCodec {
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             require(input.readInt() == MAGIC) { "Geçersiz optik tasarım dosyası." }
             val schema = input.readInt()
-            require(schema == SCHEMA_VERSION) { "Desteklenmeyen tasarım dosyası sürümü: $schema" }
+            require(schema in MIN_SUPPORTED_SCHEMA..SCHEMA_VERSION) {
+                "Desteklenmeyen tasarım dosyası sürümü: $schema"
+            }
 
             val id = input.readUTF()
             val version = input.readInt()
@@ -61,10 +63,10 @@ object DesignerDocumentCodec {
             }
 
             val components = List(readSafeCount(input, MAX_COMPONENTS)) {
-                readComponent(input)
+                readComponent(input, schema)
             }
             val visuals = List(readSafeCount(input, MAX_VISUALS)) {
-                readVisual(input)
+                readVisual(input, schema)
             }
 
             require(input.available() == 0) { "Tasarım dosyasında beklenmeyen ek veri var." }
@@ -95,6 +97,7 @@ object DesignerDocumentCodec {
                 out.writeDouble(component.choiceGap)
                 out.writeDouble(component.rowGap)
                 out.writeDouble(component.columnGap)
+                out.writeUTF(component.questionIdPrefix)
             }
             is NumericGridComponent -> {
                 out.writeByte(TYPE_NUMERIC_GRID)
@@ -106,6 +109,7 @@ object DesignerDocumentCodec {
                 out.writeDouble(component.columnGap)
                 out.writeDouble(component.rowGap)
                 writeStrings(out, component.values)
+                out.writeUTF(component.orientation.name)
             }
             is SingleChoiceComponent -> {
                 out.writeByte(TYPE_SINGLE_CHOICE)
@@ -119,40 +123,47 @@ object DesignerDocumentCodec {
         }
     }
 
-    private fun readComponent(input: DataInputStream): DesignerOmrComponent = when (input.readByte().toInt()) {
-        TYPE_QUESTION_GROUP -> QuestionGroupComponent(
-            id = input.readUTF(),
-            startQuestion = input.readInt(),
-            questionCount = input.readInt(),
-            choices = readStrings(input),
-            columns = input.readInt(),
-            firstChoiceX = input.readDouble(),
-            topY = input.readDouble(),
-            bubbleRadius = input.readDouble(),
-            choiceGap = input.readDouble(),
-            rowGap = input.readDouble(),
-            columnGap = input.readDouble()
-        )
-        TYPE_NUMERIC_GRID -> NumericGridComponent(
-            id = input.readUTF(),
-            digits = input.readInt(),
-            startX = input.readDouble(),
-            topY = input.readDouble(),
-            bubbleRadius = input.readDouble(),
-            columnGap = input.readDouble(),
-            rowGap = input.readDouble(),
-            values = readStrings(input)
-        )
-        TYPE_SINGLE_CHOICE -> SingleChoiceComponent(
-            id = input.readUTF(),
-            choices = readStrings(input),
-            start = readPoint(input),
-            bubbleRadius = input.readDouble(),
-            gap = input.readDouble(),
-            axis = ChoiceAxis.valueOf(input.readUTF())
-        )
-        else -> error("Bilinmeyen OMR tasarım bileşeni.")
-    }
+    private fun readComponent(input: DataInputStream, schema: Int): DesignerOmrComponent =
+        when (input.readByte().toInt()) {
+            TYPE_QUESTION_GROUP -> QuestionGroupComponent(
+                id = input.readUTF(),
+                startQuestion = input.readInt(),
+                questionCount = input.readInt(),
+                choices = readStrings(input),
+                columns = input.readInt(),
+                firstChoiceX = input.readDouble(),
+                topY = input.readDouble(),
+                bubbleRadius = input.readDouble(),
+                choiceGap = input.readDouble(),
+                rowGap = input.readDouble(),
+                columnGap = input.readDouble(),
+                questionIdPrefix = if (schema >= 2) input.readUTF() else ""
+            )
+            TYPE_NUMERIC_GRID -> NumericGridComponent(
+                id = input.readUTF(),
+                digits = input.readInt(),
+                startX = input.readDouble(),
+                topY = input.readDouble(),
+                bubbleRadius = input.readDouble(),
+                columnGap = input.readDouble(),
+                rowGap = input.readDouble(),
+                values = readStrings(input),
+                orientation = if (schema >= 2) {
+                    NumericGridOrientation.valueOf(input.readUTF())
+                } else {
+                    NumericGridOrientation.DIGITS_HORIZONTAL
+                }
+            )
+            TYPE_SINGLE_CHOICE -> SingleChoiceComponent(
+                id = input.readUTF(),
+                choices = readStrings(input),
+                start = readPoint(input),
+                bubbleRadius = input.readDouble(),
+                gap = input.readDouble(),
+                axis = ChoiceAxis.valueOf(input.readUTF())
+            )
+            else -> error("Bilinmeyen OMR tasarım bileşeni.")
+        }
 
     private fun writeVisual(out: DataOutputStream, element: DesignerVisualElement) {
         when (element) {
@@ -164,6 +175,7 @@ object DesignerDocumentCodec {
                 out.writeDouble(element.fontSize)
                 out.writeUTF(element.alignment.name)
                 out.writeBoolean(element.locked)
+                out.writeBoolean(element.bold)
             }
             is DesignerBoxElement -> {
                 out.writeByte(TYPE_BOX)
@@ -183,30 +195,41 @@ object DesignerDocumentCodec {
         }
     }
 
-    private fun readVisual(input: DataInputStream): DesignerVisualElement = when (input.readByte().toInt()) {
-        TYPE_TEXT -> DesignerTextElement(
-            id = input.readUTF(),
-            bounds = readRect(input),
-            text = input.readUTF(),
-            fontSize = input.readDouble(),
-            alignment = DesignerTextAlignment.valueOf(input.readUTF()),
-            locked = input.readBoolean()
-        )
-        TYPE_BOX -> DesignerBoxElement(
-            id = input.readUTF(),
-            bounds = readRect(input),
-            strokeWidth = input.readDouble(),
-            locked = input.readBoolean()
-        )
-        TYPE_LINE -> DesignerLineElement(
-            id = input.readUTF(),
-            start = readPoint(input),
-            end = readPoint(input),
-            strokeWidth = input.readDouble(),
-            locked = input.readBoolean()
-        )
-        else -> error("Bilinmeyen görsel tasarım bileşeni.")
-    }
+    private fun readVisual(input: DataInputStream, schema: Int): DesignerVisualElement =
+        when (input.readByte().toInt()) {
+            TYPE_TEXT -> {
+                val id = input.readUTF()
+                val bounds = readRect(input)
+                val text = input.readUTF()
+                val fontSize = input.readDouble()
+                val alignment = DesignerTextAlignment.valueOf(input.readUTF())
+                val locked = input.readBoolean()
+                val bold = if (schema >= 2) input.readBoolean() else false
+                DesignerTextElement(
+                    id = id,
+                    bounds = bounds,
+                    text = text,
+                    fontSize = fontSize,
+                    alignment = alignment,
+                    bold = bold,
+                    locked = locked
+                )
+            }
+            TYPE_BOX -> DesignerBoxElement(
+                id = input.readUTF(),
+                bounds = readRect(input),
+                strokeWidth = input.readDouble(),
+                locked = input.readBoolean()
+            )
+            TYPE_LINE -> DesignerLineElement(
+                id = input.readUTF(),
+                start = readPoint(input),
+                end = readPoint(input),
+                strokeWidth = input.readDouble(),
+                locked = input.readBoolean()
+            )
+            else -> error("Bilinmeyen görsel tasarım bileşeni.")
+        }
 
     private fun writeStrings(out: DataOutputStream, values: List<String>) {
         out.writeInt(values.size)
@@ -253,7 +276,8 @@ object DesignerDocumentCodec {
     }
 
     private const val MAGIC = 0x4F4D5244 // OMRD
-    private const val SCHEMA_VERSION = 1
+    private const val MIN_SUPPORTED_SCHEMA = 1
+    private const val SCHEMA_VERSION = 2
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3
