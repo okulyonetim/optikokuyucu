@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,9 +26,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -418,7 +417,7 @@ private fun ProductHomeScreen(
             ) {
                 HomeActionCard(Modifier.weight(1f), "◉", "Öğrenciler", onOpenStudents)
                 HomeActionCard(Modifier.weight(1f), "▥", "Sonuçlar", onOpenResults)
-                HomeActionCard(Modifier.weight(1f), "✓", "Bağlı Kağıt", { onOpenExams() }, linkedPapers.toString())
+                HomeActionCard(Modifier.weight(1f), "✓", "Bağlı Kağıt", onOpenExams, linkedPapers.toString())
             }
         }
 

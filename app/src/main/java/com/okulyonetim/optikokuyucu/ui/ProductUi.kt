@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -202,24 +201,25 @@ fun ProductBottomBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProductBottomItem("Anasayfa", "⌂", selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
-            ProductBottomItem("Kamera", "▣", selected == ProductTab.CAMERA) { onSelect(ProductTab.CAMERA) }
-            ProductBottomItem("Öğrenciler", "◉", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
-            ProductBottomItem("Sonuçlar", "▤", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
-            ProductBottomItem("Ayarlar", "⚙", selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
+            ProductBottomItem(Modifier.weight(1f), "Anasayfa", "⌂", selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
+            ProductBottomItem(Modifier.weight(1f), "Kamera", "▣", selected == ProductTab.CAMERA) { onSelect(ProductTab.CAMERA) }
+            ProductBottomItem(Modifier.weight(1f), "Öğrenciler", "◉", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
+            ProductBottomItem(Modifier.weight(1f), "Sonuçlar", "▤", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
+            ProductBottomItem(Modifier.weight(1f), "Ayarlar", "⚙", selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
         }
     }
 }
 
 @Composable
 private fun ProductBottomItem(
+    modifier: Modifier,
     label: String,
     symbol: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
     TextButton(
-        modifier = Modifier.weight(1f),
+        modifier = modifier,
         onClick = onClick,
         contentPadding = ButtonDefaults.TextButtonContentPadding
     ) {
