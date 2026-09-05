@@ -1,5 +1,6 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,11 +52,16 @@ import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 
 @Composable
-fun OmrDesignerScreen(onBack: () -> Unit) {
+fun OmrDesignerScreen(
+    openCvReady: Boolean,
+    selfTest: OmrSelfTestResult,
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val repository = remember(context) {
         FileDesignerDocumentRepository(context.applicationContext)
@@ -67,9 +74,35 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
     var showOmrRegions by remember { mutableStateOf(true) }
     var savedDocuments by remember { mutableStateOf(repository.list()) }
     var saveStatus by remember { mutableStateOf<String?>(null) }
+    var testCamera by remember { mutableStateOf(false) }
 
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
     val readability = remember(compiled) { TemplateReadabilityAnalyzer.analyze(compiled) }
+
+    if (testCamera) {
+        BackHandler { testCamera = false }
+        Box(modifier = Modifier.fillMaxSize()) {
+            OmrCameraScreen(
+                openCvReady = openCvReady,
+                selfTest = selfTest,
+                template = compiled
+            )
+            TextButton(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, end = 16.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
+                        RoundedCornerShape(12.dp)
+                    ),
+                onClick = { testCamera = false }
+            ) {
+                Text("← Tasarımcıya dön")
+            }
+        }
+        return
+    }
 
     fun commit(next: DesignerDocument) {
         document = history.commit(next)
@@ -185,7 +218,7 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                         Text(document.name, style = MaterialTheme.typography.titleMedium)
                         Text(
                             "${compiled.bubbleRows.size} soru · " +
-                                "${compiled.markGrids.size} işaret alanı",
+                                "${compiled.markGrids.size} işaret alanı · v${document.version}",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -281,6 +314,22 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
             }
         }
 
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = readability.canSave && openCvReady,
+            onClick = { testCamera = true }
+        ) {
+            Text("Kamerayla Test Et")
+        }
+
+        if (!openCvReady) {
+            Text(
+                "Kamera testi için OpenCV hazır değil.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -363,9 +412,14 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
             enabled = readability.canSave,
             onClick = {
                 saveStatus = runCatching {
-                    repository.save(document)
+                    val stored = repository.save(document)
+                    if (stored != document) {
+                        history.reset(stored)
+                        document = stored
+                        selectedComponentId = null
+                    }
                     savedDocuments = repository.list()
-                    "Şablon cihazda kaydedildi ✓"
+                    "Şablon cihazda kaydedildi · v${stored.version} ✓"
                 }.getOrElse { error ->
                     "Kaydetme hatası: ${error.message ?: error.javaClass.simpleName}"
                 }
