@@ -2,12 +2,13 @@
 
 Son doğrulama: 2026-09-05
 
-İlk Android iskeleti için kararlı sürümler tercih edilmiştir:
+Android uygulama tabanı:
 
 - Android Gradle Plugin: 9.4.0
 - Gradle: 9.6.0
-- compileSdk: 36
-- targetSdk: 36
+- compileSdk: Android 17 API 37.0
+- targetSdk: Android 16 API 36
+- minSdk: 26
 - Java: 17
 - Kotlin / Compose Compiler plugin: 2.4.10
 - Compose BOM: 2026.08.00
@@ -17,13 +18,26 @@ Son doğrulama: 2026-09-05
 - Android NDK için sonraki native OMR adımında hedef: güncel kararlı NDK
 - OpenCV değerlendirme tabanı: 5.0.0
 
-## Android 17 notu
+## Neden compileSdk 37.0, targetSdk 36?
 
-Android 17, API 37'dir; ancak 2026-09-05 itibarıyla Android Developers güncelleme sayfasında Beta olarak listelenmektedir. Bu nedenle üretim tabanı şimdilik Android 16 / API 36 olarak tutulur. Android 17 kararlı olduğunda ve GitHub CI ortamında standart SDK paketi olarak erişilebilir olduğunda compileSdk / targetSdk yükseltmesi ayrıca yapılacaktır.
+2026-09-05 itibarıyla kullandığımız güncel AndroidX ve Compose bileşenleri derleme sırasında API 37 veya üzerini gerektiriyor. Android 17 halen önizleme/beta kanalında olduğundan uygulamayı yeni Android 17 çalışma zamanı davranışlarına zorla geçirmek istemiyoruz.
+
+Bu nedenle:
+
+- `compileSdk` 37.0: güncel kütüphaneleri derleyebilmek ve API 37 sembollerine erişebilmek için,
+- `targetSdk` 36: kararlı Android 16 davranış tabanını korumak için
+
+ayrı tutulur.
+
+Android build sistemi compileSdk ile targetSdk'nin birbirinden bağımsız yükseltilebilmesini destekler.
+
+## Android 17 SDK paketi
+
+Android 17 platformu komut satırı paket kanalında `platforms;android-37.0` adıyla sağlanabildiği için GitHub CI bu paketi kurar. CI ayrıca güncel Android Command-Line Tools paketini kullanır.
 
 ## Kaynak yaklaşımı
 
-Sürüm ve mimari kararları yalnızca güncel resmi Android, Kotlin ve OpenCV kaynakları doğrulandıktan sonra güncellenecektir. Alfa/beta bağımlılıklar performans veya gerekli bir özellik için açık gerekçe olmadan ana hatta alınmayacaktır.
+Sürüm ve mimari kararları yalnızca güncel resmi Android, Kotlin ve OpenCV kaynakları doğrulandıktan sonra güncellenecektir. Önizleme teknolojileri yalnızca gerekli olduğunda ve çalışma zamanı hedefinden ayrıştırılabildiğinde kullanılacaktır.
 
 ## CI
 
