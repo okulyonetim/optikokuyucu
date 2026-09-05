@@ -12,9 +12,11 @@ Proje sıfırdan geliştirilmektedir. İlk hedef kullanıcı arayüzü değil, g
 - Jetpack Compose
 - CameraX
 - AGP 9.4.0 / Gradle 9.6.0
-- compileSdk / targetSdk 37
+- compileSdk / targetSdk 36 (kararlı Android 16 tabanı)
 - OMR native çekirdeği için Android NDK + C++ (sonraki aşama)
 - OpenCV 5.x değerlendirmesi
+
+Android 17 / API 37, kararlı SDK tabanına geçtiğinde ayrıca değerlendirilecektir.
 
 ## Geliştirme modeli
 
