@@ -51,7 +51,12 @@ data class QuestionGroupComponent(
     val bubbleRadius: Double,
     val choiceGap: Double,
     val rowGap: Double,
-    val columnGap: Double
+    val columnGap: Double,
+    /**
+     * Optional stable internal prefix. Structured multi-course forms use it so every lesson can
+     * display question numbers starting from 1 while recognition/scoring ids stay globally unique.
+     */
+    val questionIdPrefix: String = ""
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -63,7 +68,16 @@ data class QuestionGroupComponent(
         require(columns > 0 && columns <= questionCount)
         require(bubbleRadius > 0.0)
         require(choiceGap > 0.0 && rowGap > 0.0 && columnGap > 0.0)
+        require('\n' !in questionIdPrefix && '\r' !in questionIdPrefix)
     }
+}
+
+enum class NumericGridOrientation {
+    /** Digit positions run left-to-right; 0..9 values run top-to-bottom. */
+    DIGITS_HORIZONTAL,
+
+    /** Digit positions run top-to-bottom; 0..9 values run left-to-right, like common OMR forms. */
+    DIGITS_VERTICAL
 }
 
 data class NumericGridComponent(
@@ -74,7 +88,8 @@ data class NumericGridComponent(
     val bubbleRadius: Double,
     val columnGap: Double,
     val rowGap: Double,
-    val values: List<String> = (0..9).map { it.toString() }
+    val values: List<String> = (0..9).map { it.toString() },
+    val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -127,6 +142,7 @@ data class DesignerTextElement(
     val text: String,
     val fontSize: Double,
     val alignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    val bold: Boolean = false,
     override val locked: Boolean = false
 ) : DesignerVisualElement {
     init {
