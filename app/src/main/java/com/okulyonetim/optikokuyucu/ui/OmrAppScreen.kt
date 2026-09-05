@@ -43,6 +43,8 @@ import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionRead
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
 import com.okulyonetim.optikokuyucu.omr.diagnostics.GalleryTestFormGenerator
+import com.okulyonetim.optikokuyucu.omr.diagnostics.Omr100Benchmark
+import com.okulyonetim.optikokuyucu.omr.diagnostics.Omr100BenchmarkResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmark
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmarkResult
@@ -104,6 +106,7 @@ private fun GalleryTestScreen(
     }
     var result by remember { mutableStateOf<GalleryOmrResult?>(null) }
     var benchmark by remember { mutableStateOf<OmrStressBenchmarkResult?>(null) }
+    var benchmark100 by remember { mutableStateOf<Omr100BenchmarkResult?>(null) }
     var busy by remember { mutableStateOf(false) }
     val latestResult by rememberUpdatedState(result)
 
@@ -265,6 +268,40 @@ private fun GalleryTestScreen(
 
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
+            enabled = !busy && openCvReady,
+            onClick = {
+                busy = true
+                benchmark100 = null
+                status = "100 soruluk hız/doğruluk testi çalışıyor…"
+                worker.execute {
+                    runCatching { Omr100Benchmark.run() }
+                        .onSuccess { value ->
+                            mainExecutor.execute {
+                                benchmark100 = value
+                                busy = false
+                                status = if (value.allPassed) {
+                                    "100 soru testi ✓ ${value.passedRuns}/${value.totalRuns} tur"
+                                } else {
+                                    "100 soru testi: ${value.passedRuns}/${value.totalRuns} tur geçti"
+                                }
+                            }
+                        }
+                        .onFailure { error ->
+                            mainExecutor.execute {
+                                busy = false
+                                status = "100 soru testi hatası: ${error.message ?: error.javaClass.simpleName}"
+                            }
+                        }
+                }
+            }
+        ) {
+            Text("4 · 100 soruluk hız/doğruluk testini çalıştır")
+        }
+
+        benchmark100?.let { Benchmark100ResultCard(it) }
+
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
             enabled = !busy,
             onClick = onOpenCamera
         ) {
@@ -311,6 +348,16 @@ private fun GalleryResultCard(result: GalleryOmrResult) {
                 }
             )
             Text(String.format(Locale.US, "Toplam analiz: %.1f ms", result.elapsedMs))
+            Text(
+                String.format(
+                    Locale.US,
+                    "Marker %.1f · düzeltme %.1f · baloncuk %.1f ms",
+                    result.markerMs,
+                    result.rectificationMs,
+                    result.bubbleMs
+                ),
+                style = MaterialTheme.typography.bodySmall
+            )
             if (result.bubbleResult.questions.isNotEmpty()) {
                 Text(
                     "İşaretli: ${result.bubbleResult.markedCount} · " +
@@ -367,6 +414,67 @@ private fun BenchmarkResultCard(result: OmrStressBenchmarkResult) {
             Text(
                 String.format(Locale.US, "Benchmark toplam: %.0f ms", result.elapsedMs),
                 style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun Benchmark100ResultCard(result: Omr100BenchmarkResult) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                if (result.allPassed) "100 Soru OMR Benchmark ✓" else "100 Soru OMR Benchmark",
+                style = MaterialTheme.typography.titleSmall
+            )
+
+            (result.cleanRuns + result.stressRuns).forEach { run ->
+                val suffix = if (run.mismatchQuestionIds.isEmpty()) "" else
+                    " · Hatalı: ${run.mismatchQuestionIds.joinToString(",")}"
+                Text(
+                    String.format(
+                        Locale.US,
+                        "%s %s · %d/%d · M%d/4 · %.0f ms%s",
+                        if (run.passed) "✓" else "!",
+                        run.name,
+                        run.correctAnswers,
+                        run.totalAnswers,
+                        run.markerCount,
+                        run.timing.totalMs,
+                        suffix
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            val timing = result.medianTiming
+            Text("Temel 3 turun medyanı", style = MaterialTheme.typography.labelMedium)
+            Text(
+                String.format(
+                    Locale.US,
+                    "Ön işleme %.1f ms · Marker %.1f ms · Warp %.1f ms",
+                    timing.preprocessingMs,
+                    timing.markerMs,
+                    timing.rectificationMs
+                ),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                String.format(
+                    Locale.US,
+                    "400 baloncuk / 100 soru: %.1f ms · Toplam %.1f ms",
+                    timing.bubbleMs,
+                    timing.totalMs
+                ),
+                style = MaterialTheme.typography.bodySmall
             )
         }
     }
