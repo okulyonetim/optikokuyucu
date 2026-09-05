@@ -235,7 +235,7 @@ private fun GalleryTestScreen(
             onClick = {
                 busy = true
                 benchmark = null
-                status = "15 senaryolu gelişmiş stres testi çalışıyor…"
+                status = "16 senaryolu gelişmiş stres testi çalışıyor…"
                 worker.execute {
                     runCatching { OmrStressBenchmark.run() }
                         .onSuccess { value ->
