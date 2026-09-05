@@ -15,8 +15,12 @@ enum class PdfPageProfile(
     val marginPoints: Double,
     val displayName: String
 ) {
-    A4(widthPoints = 595, heightPoints = 842, marginPoints = 24.0, displayName = "A4"),
-    A5(widthPoints = 420, heightPoints = 595, marginPoints = 18.0, displayName = "A5")
+    A4(widthPoints = 595, heightPoints = 842, marginPoints = 24.0, displayName = "A4 Dikey"),
+    A4_LANDSCAPE(widthPoints = 842, heightPoints = 595, marginPoints = 24.0, displayName = "A4 Yatay"),
+    A5(widthPoints = 420, heightPoints = 595, marginPoints = 18.0, displayName = "A5 Dikey"),
+    A5_LANDSCAPE(widthPoints = 595, heightPoints = 420, marginPoints = 18.0, displayName = "A5 Yatay"),
+    LETTER(widthPoints = 612, heightPoints = 792, marginPoints = 24.0, displayName = "Letter Dikey"),
+    LETTER_LANDSCAPE(widthPoints = 792, heightPoints = 612, marginPoints = 24.0, displayName = "Letter Yatay")
 }
 
 data class CanonicalPageTransform(
@@ -66,5 +70,23 @@ object DesignerPdfLayout {
             offsetX = (profile.widthPoints - contentWidth) / 2.0,
             offsetY = (profile.heightPoints - contentHeight) / 2.0
         )
+    }
+}
+
+fun StructuredFormConfig.pdfProfile(): PdfPageProfile = when (paperSize) {
+    StructuredPaperSize.A4 -> if (orientation == StructuredOrientation.PORTRAIT) {
+        PdfPageProfile.A4
+    } else {
+        PdfPageProfile.A4_LANDSCAPE
+    }
+    StructuredPaperSize.A5 -> if (orientation == StructuredOrientation.PORTRAIT) {
+        PdfPageProfile.A5
+    } else {
+        PdfPageProfile.A5_LANDSCAPE
+    }
+    StructuredPaperSize.LETTER -> if (orientation == StructuredOrientation.PORTRAIT) {
+        PdfPageProfile.LETTER
+    } else {
+        PdfPageProfile.LETTER_LANDSCAPE
     }
 }
