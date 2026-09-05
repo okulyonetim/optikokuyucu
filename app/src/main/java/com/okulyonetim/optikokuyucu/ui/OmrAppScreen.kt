@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -29,6 +31,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,8 @@ import com.okulyonetim.optikokuyucu.omr.bubble.QuestionRead
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
 import com.okulyonetim.optikokuyucu.omr.diagnostics.GalleryTestFormGenerator
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmark
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmarkResult
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrResult
 import java.util.Locale
@@ -63,7 +68,8 @@ fun OmrAppScreen(
                 TextButton(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 42.dp, end = 16.dp)
+                        .statusBarsPadding()
+                        .padding(top = 8.dp, end = 16.dp)
                         .background(
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
                             RoundedCornerShape(12.dp)
@@ -94,17 +100,17 @@ private fun GalleryTestScreen(
     val worker = remember { Executors.newSingleThreadExecutor() }
 
     var status by remember {
-        mutableStateOf(
-            if (openCvReady) "Galeri testi hazır" else "OpenCV başlatılamadı"
-        )
+        mutableStateOf(if (openCvReady) "Galeri testi hazır" else "OpenCV başlatılamadı")
     }
     var result by remember { mutableStateOf<GalleryOmrResult?>(null) }
+    var benchmark by remember { mutableStateOf<OmrStressBenchmarkResult?>(null) }
     var busy by remember { mutableStateOf(false) }
+    val latestResult by rememberUpdatedState(result)
 
     DisposableEffect(Unit) {
         onDispose {
             worker.shutdown()
-            result?.bitmap?.recycle()
+            latestResult?.bitmap?.recycle()
         }
     }
 
@@ -119,10 +125,10 @@ private fun GalleryTestScreen(
                         result?.bitmap?.recycle()
                         result = newResult
                         busy = false
-                        status = if (newResult.registrationReady) {
-                            "Form kaydedildi ve 20 soru analiz edildi"
-                        } else {
-                            "Dört köşe işareti birlikte bulunamadı"
+                        status = when {
+                            newResult.rectificationReady -> "Canonical düzeltme tamamlandı · 20 soru analiz edildi"
+                            newResult.registrationReady -> "Marker bulundu ancak canonical görüntü üretilemedi"
+                            else -> "Dört köşe işareti birlikte bulunamadı"
                         }
                     }
                 }
@@ -144,14 +150,12 @@ private fun GalleryTestScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 30.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(
-            text = "Optik Okuyucu",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        Text("Optik Okuyucu", style = MaterialTheme.typography.headlineMedium)
         Text(
             text = "Önce Galeri ile OMR Doğruluk Testi",
             style = MaterialTheme.typography.titleMedium
@@ -227,6 +231,40 @@ private fun GalleryTestScreen(
 
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
+            enabled = !busy && openCvReady,
+            onClick = {
+                busy = true
+                benchmark = null
+                status = "5 senaryolu stres testi çalışıyor…"
+                worker.execute {
+                    runCatching { OmrStressBenchmark.run() }
+                        .onSuccess { value ->
+                            mainExecutor.execute {
+                                benchmark = value
+                                busy = false
+                                status = if (value.allPassed) {
+                                    "Stres testi ✓ ${value.passedCount}/${value.scenarios.size} senaryo"
+                                } else {
+                                    "Stres testi: ${value.passedCount}/${value.scenarios.size} senaryo geçti"
+                                }
+                            }
+                        }
+                        .onFailure { error ->
+                            mainExecutor.execute {
+                                busy = false
+                                status = "Stres testi hatası: ${error.message ?: error.javaClass.simpleName}"
+                            }
+                        }
+                }
+            }
+        ) {
+            Text("3 · Otomatik stres testini çalıştır")
+        }
+
+        benchmark?.let { BenchmarkResultCard(it) }
+
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
             enabled = !busy,
             onClick = onOpenCamera
         ) {
@@ -246,10 +284,7 @@ private fun GalleryTestScreen(
             )
 
             if (galleryResult.bubbleResult.questions.isNotEmpty()) {
-                Text(
-                    text = "Okunan Cevaplar",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text("Okunan Cevaplar", style = MaterialTheme.typography.titleMedium)
                 galleryResult.bubbleResult.questions.forEach { question ->
                     QuestionResultRow(question)
                 }
@@ -265,22 +300,74 @@ private fun GalleryResultCard(result: GalleryOmrResult) {
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Text("${result.width} × ${result.height}")
+            Text("Kaynak: ${result.width} × ${result.height}")
             Text("Marker: ${result.markerCount}/4")
             Text(if (result.registrationReady) "Canonical kayıt ✓" else "Canonical kayıt bekleniyor")
             Text(
-                String.format(
-                    Locale.US,
-                    "Toplam analiz: %.1f ms",
-                    result.elapsedMs
-                )
+                if (result.rectificationReady) {
+                    "Düzeltilmiş form: ${result.canonicalWidth} × ${result.canonicalHeight} ✓"
+                } else {
+                    "Düzeltilmiş form üretilemedi"
+                }
             )
+            Text(String.format(Locale.US, "Toplam analiz: %.1f ms", result.elapsedMs))
             if (result.bubbleResult.questions.isNotEmpty()) {
                 Text(
-                    "Kesin işaret: ${result.bubbleResult.markedCount} · " +
-                        "Şüpheli/çift: ${result.bubbleResult.suspiciousCount}"
+                    "İşaretli: ${result.bubbleResult.markedCount} · " +
+                        "Boş: ${result.bubbleResult.blankCount} · " +
+                        "Çift: ${result.bubbleResult.doubleMarkCount} · " +
+                        "Şüpheli: ${result.bubbleResult.suspiciousCount}"
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BenchmarkResultCard(result: OmrStressBenchmarkResult) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (result.allPassed) {
+                    "Otomatik OMR stres testi ✓"
+                } else {
+                    "Otomatik OMR stres testi"
+                },
+                style = MaterialTheme.typography.titleSmall
+            )
+            result.scenarios.forEach { scenario ->
+                val suffix = if (scenario.mismatchQuestionIds.isEmpty()) {
+                    ""
+                } else {
+                    " · Hatalı: ${scenario.mismatchQuestionIds.joinToString(",")}"
+                }
+                Text(
+                    String.format(
+                        Locale.US,
+                        "%s %s · %d/%d · M%d/4 · %.0f ms%s",
+                        if (scenario.passed) "✓" else "!",
+                        scenario.name,
+                        scenario.correctAnswers,
+                        scenario.totalAnswers,
+                        scenario.markerCount,
+                        scenario.elapsedMs,
+                        suffix
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Text(
+                String.format(Locale.US, "Benchmark toplam: %.0f ms", result.elapsedMs),
+                style = MaterialTheme.typography.labelMedium
+            )
         }
     }
 }
@@ -304,7 +391,7 @@ private fun QuestionResultRow(question: QuestionRead) {
         Text(
             String.format(
                 Locale.US,
-                "%s · güven %.0f%%",
+                "%s · karar güveni %.0f%%",
                 resultText,
                 question.confidence * 100.0
             )
