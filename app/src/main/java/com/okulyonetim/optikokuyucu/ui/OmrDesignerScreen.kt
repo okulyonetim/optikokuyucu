@@ -2,6 +2,8 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +37,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
@@ -198,7 +202,25 @@ fun OmrDesignerScreen(onBack: () -> Unit) {
                     document = document,
                     template = compiled,
                     selectedComponentId = selectedComponentId,
-                    showOmrRegions = showOmrRegions
+                    showOmrRegions = showOmrRegions,
+                    onSelectComponent = { selectedComponentId = it },
+                    onDragStart = {
+                        history.beginTransaction()
+                        saveStatus = null
+                    },
+                    onDragUpdate = { id, dx, dy ->
+                        val next = DesignerDocumentEditor.moveComponent(document, id, dx, dy)
+                        document = history.updateTransaction(next)
+                        saveStatus = null
+                    },
+                    onDragEnd = {
+                        document = history.endTransaction()
+                        saveStatus = null
+                    },
+                    onDragCancel = {
+                        document = history.cancelTransaction()
+                        saveStatus = null
+                    }
                 )
             }
         }
@@ -363,19 +385,71 @@ private fun CanonicalTemplatePreview(
     document: DesignerDocument,
     template: OmrTemplate,
     selectedComponentId: String?,
-    showOmrRegions: Boolean
+    showOmrRegions: Boolean,
+    onSelectComponent: (String?) -> Unit,
+    onDragStart: (String) -> Unit,
+    onDragUpdate: (String, Double, Double) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit
 ) {
     val aspect = (template.space.width / template.space.height).toFloat()
     val paperColor = Color.White
     val omrColor = MaterialTheme.colorScheme.primary
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val markerColor = Color.Black
+    val currentDocument by rememberUpdatedState(document)
+    val currentOnSelect by rememberUpdatedState(onSelectComponent)
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragUpdate by rememberUpdatedState(onDragUpdate)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
+    val currentOnDragCancel by rememberUpdatedState(onDragCancel)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspect)
             .background(paperColor, RoundedCornerShape(6.dp))
+            .pointerInput(template.space) {
+                detectTapGestures { offset ->
+                    if (size.width <= 0 || size.height <= 0) return@detectTapGestures
+                    val point = TemplatePoint(
+                        x = offset.x / size.width.toDouble() * template.space.width,
+                        y = offset.y / size.height.toDouble() * template.space.height
+                    )
+                    currentOnSelect(DesignerComponentGeometry.hitTest(currentDocument, point))
+                }
+            }
+            .pointerInput(template.space) {
+                var draggingId: String? = null
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        if (size.width <= 0 || size.height <= 0) return@detectDragGestures
+                        val point = TemplatePoint(
+                            x = offset.x / size.width.toDouble() * template.space.width,
+                            y = offset.y / size.height.toDouble() * template.space.height
+                        )
+                        val id = DesignerComponentGeometry.hitTest(currentDocument, point)
+                        draggingId = id
+                        currentOnSelect(id)
+                        if (id != null) currentOnDragStart(id)
+                    },
+                    onDragEnd = {
+                        if (draggingId != null) currentOnDragEnd()
+                        draggingId = null
+                    },
+                    onDragCancel = {
+                        if (draggingId != null) currentOnDragCancel()
+                        draggingId = null
+                    }
+                ) { change, dragAmount ->
+                    val id = draggingId ?: return@detectDragGestures
+                    change.consume()
+                    if (size.width <= 0 || size.height <= 0) return@detectDragGestures
+                    val dx = dragAmount.x / size.width.toDouble() * template.space.width
+                    val dy = dragAmount.y / size.height.toDouble() * template.space.height
+                    currentOnDragUpdate(id, dx, dy)
+                }
+            }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val scaleX = size.width / template.space.width.toFloat()
