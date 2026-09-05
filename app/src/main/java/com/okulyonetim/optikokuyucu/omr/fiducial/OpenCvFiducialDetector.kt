@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.omr.fiducial
 
 import androidx.camera.core.ImageProxy
+import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalHomographySolver
+import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalRegistration
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
 import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQuality
@@ -25,7 +27,7 @@ import org.opencv.objdetect.Objdetect
  * conversion and no full-frame byte-array copy is required for the common pixelStride=1 case.
  */
 class OpenCvFiducialDetector(
-    template: OmrTemplate = StandardOmrTemplate.DEFAULT
+    private val template: OmrTemplate = StandardOmrTemplate.DEFAULT
 ) {
     private val dictionary = Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50)
     private val parameters = DetectorParameters().apply {
@@ -60,7 +62,7 @@ class OpenCvFiducialDetector(
 
             val markers = buildMap<Int, DetectedFiducial> {
                 for (index in corners.indices) {
-                    val idValue = ids.get(index, 0)?.firstOrNull()?.toInt() ?: continue
+                    val idValue = readFlattenedId(ids, index) ?: continue
                     val markerCorners = readMarkerCorners(corners[index]) ?: continue
                     put(
                         idValue,
@@ -77,17 +79,29 @@ class OpenCvFiducialDetector(
             val quality = anchorQuad?.let {
                 QuadrilateralQualityEvaluator.evaluate(it, image.width, image.height)
             }
+            val registration = anchorQuad?.let {
+                CanonicalHomographySolver.solve(it, template)
+            }
 
             FiducialDetectionResult(
                 detectedMarkers = markers,
                 pageQuadrilateral = anchorQuad,
-                quality = quality
+                quality = quality,
+                canonicalRegistration = registration
             )
         } finally {
             corners.forEach { it.release() }
             ids.release()
             gray.release()
         }
+    }
+
+    private fun readFlattenedId(ids: Mat, index: Int): Int? {
+        if (index < 0 || index >= ids.total()) return null
+        val columns = ids.cols().coerceAtLeast(1)
+        val row = index / columns
+        val column = index % columns
+        return ids.get(row, column)?.firstOrNull()?.toInt()
     }
 
     private fun readMarkerCorners(mat: Mat): List<ImagePoint>? {
@@ -133,13 +147,16 @@ data class FiducialDetectionResult(
     val detectedMarkers: Map<Int, DetectedFiducial>,
     /** Marker-center quadrilateral. It is an anchor frame, not a detected paper edge. */
     val pageQuadrilateral: ImageQuadrilateral?,
-    val quality: QuadrilateralQuality?
+    val quality: QuadrilateralQuality?,
+    /** Image-pixel ↔ canonical-template registration; null until all four expected markers exist. */
+    val canonicalRegistration: CanonicalRegistration?
 ) {
     companion object {
         val Empty = FiducialDetectionResult(
             detectedMarkers = emptyMap(),
             pageQuadrilateral = null,
-            quality = null
+            quality = null,
+            canonicalRegistration = null
         )
     }
 }
