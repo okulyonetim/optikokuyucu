@@ -39,6 +39,15 @@ object DesignerTemplateCompiler {
         )
     }
 
+    fun questionReadId(component: QuestionGroupComponent, questionNumber: Int): String {
+        require(questionNumber >= component.startQuestion)
+        return if (component.questionIdPrefix.isBlank()) {
+            questionNumber.toString()
+        } else {
+            "${component.questionIdPrefix}:$questionNumber"
+        }
+    }
+
     private fun compileQuestionGroup(component: QuestionGroupComponent): List<BubbleRowSpec> {
         val rowsPerColumn = ceil(component.questionCount.toDouble() / component.columns.toDouble())
             .toInt()
@@ -52,7 +61,7 @@ object DesignerTemplateCompiler {
             val questionNumber = component.startQuestion + index
 
             BubbleRowSpec(
-                id = questionNumber.toString(),
+                id = questionReadId(component, questionNumber),
                 bubbles = component.choices.mapIndexed { choiceIndex, choice ->
                     BubbleSpec(
                         id = choice,
@@ -74,12 +83,21 @@ object DesignerTemplateCompiler {
                 MarkGridColumnSpec(
                     id = (position + 1).toString(),
                     marks = component.values.mapIndexed { valueIndex, value ->
+                        val x = when (component.orientation) {
+                            NumericGridOrientation.DIGITS_HORIZONTAL ->
+                                component.startX + position * component.columnGap
+                            NumericGridOrientation.DIGITS_VERTICAL ->
+                                component.startX + valueIndex * component.rowGap
+                        }
+                        val y = when (component.orientation) {
+                            NumericGridOrientation.DIGITS_HORIZONTAL ->
+                                component.topY + valueIndex * component.rowGap
+                            NumericGridOrientation.DIGITS_VERTICAL ->
+                                component.topY + position * component.columnGap
+                        }
                         BubbleSpec(
                             id = value,
-                            center = TemplatePoint(
-                                x = component.startX + position * component.columnGap,
-                                y = component.topY + valueIndex * component.rowGap
-                            ),
+                            center = TemplatePoint(x = x, y = y),
                             radius = component.bubbleRadius
                         )
                     }
