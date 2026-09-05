@@ -11,6 +11,9 @@ import org.opencv.objdetect.Objdetect
 /**
  * Positive detector test that requires no printer, camera target, or external file.
  * Four canonical markers are generated in memory and detected again by OpenCV.
+ *
+ * OpenCV Android builds may expose the returned ids Mat as either Nx1 or 1xN.
+ * Therefore ids are read as one contiguous int buffer instead of iterating rows only.
  */
 object OpenCvOmrSelfTest {
     private val expectedIds = setOf(11, 22, 33, 44)
@@ -50,32 +53,40 @@ object OpenCvOmrSelfTest {
 
             detector.detectMarkers(canvas, corners, ids)
 
-            val detected = buildSet {
-                for (row in 0 until ids.rows()) {
-                    val value = ids.get(row, 0)?.firstOrNull()?.toInt() ?: continue
-                    add(value)
-                }
-            }
+            val detected = readAllIds(ids)
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
 
             OmrSelfTestResult(
                 passed = detected.containsAll(expectedIds),
                 expectedIds = expectedIds,
                 detectedIds = detected,
-                elapsedMs = elapsedMs
+                elapsedMs = elapsedMs,
+                idsRows = ids.rows(),
+                idsCols = ids.cols()
             )
         } catch (_: Throwable) {
             OmrSelfTestResult(
                 passed = false,
                 expectedIds = expectedIds,
                 detectedIds = emptySet(),
-                elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
+                elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
+                idsRows = 0,
+                idsCols = 0
             )
         } finally {
             corners.forEach { it.release() }
             ids.release()
             canvas.release()
         }
+    }
+
+    private fun readAllIds(ids: Mat): Set<Int> {
+        val valueCount = ids.total().toInt() * ids.channels()
+        if (valueCount <= 0) return emptySet()
+
+        val values = IntArray(valueCount)
+        ids.get(0, 0, values)
+        return values.toSet()
     }
 
     private const val FRAME_WIDTH = 960
@@ -87,7 +98,9 @@ data class OmrSelfTestResult(
     val passed: Boolean,
     val expectedIds: Set<Int>,
     val detectedIds: Set<Int>,
-    val elapsedMs: Double
+    val elapsedMs: Double,
+    val idsRows: Int,
+    val idsCols: Int
 ) {
     val detectedExpectedCount: Int
         get() = expectedIds.count { it in detectedIds }
@@ -97,7 +110,9 @@ data class OmrSelfTestResult(
             passed = false,
             expectedIds = setOf(11, 22, 33, 44),
             detectedIds = emptySet(),
-            elapsedMs = 0.0
+            elapsedMs = 0.0,
+            idsRows = 0,
+            idsCols = 0
         )
     }
 }
