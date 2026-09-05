@@ -271,4 +271,23 @@ object StandardOmrTemplate {
             )
         )
     )
+
+    /** Diagnostic form proving the same generic mark-grid reader can handle booklet selection. */
+    val SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB: OmrTemplate = SAMPLE_20_ABCD_STUDENT_6.copy(
+        id = "sample-20-abcd-student-6-booklet-ab",
+        version = 1,
+        markGrids = SAMPLE_20_ABCD_STUDENT_6.markGrids +
+            MarkGridSpec(
+                id = "booklet",
+                columns = listOf(
+                    MarkGridColumnSpec(
+                        id = "type",
+                        marks = listOf(
+                            BubbleSpec("A", TemplatePoint(155.0, 760.0), 12.0),
+                            BubbleSpec("B", TemplatePoint(215.0, 760.0), 12.0)
+                        )
+                    )
+                )
+            )
+    )
 }
