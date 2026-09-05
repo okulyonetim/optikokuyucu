@@ -186,19 +186,20 @@ object StructuredFormDocumentFactory {
         }
 
         val metaTop = 315.0
+        val metaMarkY = metaTop + 62.0
         val bubbleRadius = if (config.orientation == StructuredOrientation.PORTRAIT) 10.5 else 9.5
         val bookletChoices = (0 until config.bookletTypeCount).map { ('A'.code + it).toChar().toString() }
         components += SingleChoiceComponent(
             id = "booklet",
             choices = bookletChoices,
-            start = TemplatePoint(contentLeft + 30.0, metaTop + 45.0),
+            start = TemplatePoint(contentLeft + 30.0, metaMarkY),
             bubbleRadius = bubbleRadius + 1.0,
             gap = 46.0,
             axis = ChoiceAxis.HORIZONTAL
         )
         visuals += DesignerTextElement(
             id = "structured:booklet-title",
-            bounds = TemplateRect(contentLeft, metaTop, min(260.0, contentWidth * 0.28), 28.0),
+            bounds = TemplateRect(contentLeft, metaTop, min(260.0, contentWidth * 0.28), 24.0),
             text = "Kitapçık Türü",
             fontSize = 18.0,
             alignment = DesignerTextAlignment.CENTER,
@@ -213,7 +214,7 @@ object StructuredFormDocumentFactory {
             id = "studentNumber",
             digits = config.studentNumberDigits,
             startX = numberStartX,
-            topY = metaTop + 42.0,
+            topY = metaMarkY,
             bubbleRadius = bubbleRadius,
             columnGap = digitGap,
             rowGap = valueGap,
@@ -221,7 +222,7 @@ object StructuredFormDocumentFactory {
         )
         visuals += DesignerTextElement(
             id = "structured:number-title",
-            bounds = TemplateRect(numberStartX, metaTop, min(330.0, contentRight - numberStartX), 28.0),
+            bounds = TemplateRect(numberStartX, metaTop, min(330.0, contentRight - numberStartX), 24.0),
             text = "Numara",
             fontSize = 18.0,
             alignment = DesignerTextAlignment.CENTER,
@@ -229,7 +230,7 @@ object StructuredFormDocumentFactory {
             locked = true
         )
 
-        val numberBottom = metaTop + 42.0 + (config.studentNumberDigits - 1) * digitGap + bubbleRadius
+        val numberBottom = metaMarkY + (config.studentNumberDigits - 1) * digitGap + bubbleRadius
         val lessonsTop = max(
             if (config.orientation == StructuredOrientation.PORTRAIT) 560.0 else 500.0,
             numberBottom + 74.0
@@ -252,16 +253,6 @@ object StructuredFormDocumentFactory {
             val blockLeft = contentLeft + gridColumn * (blockWidth + lessonGap)
             val blockTop = lessonsTop + gridRow * (blockHeight + lessonGap)
 
-            val lessonBubbleRadius = when {
-                blockWidth < 190.0 -> 8.5
-                blockWidth < 250.0 -> 9.0
-                else -> 9.5
-            }
-            val choiceGap = when {
-                lesson.choices.size >= 6 -> 25.0
-                lesson.choices.size == 5 -> 27.0
-                else -> 30.0
-            }
             val rowGap = when {
                 blockHeight < 310.0 -> 26.0
                 blockHeight < 390.0 -> 29.0
@@ -273,16 +264,32 @@ object StructuredFormDocumentFactory {
                 .toInt()
                 .coerceIn(1, lesson.questionCount)
             val internalColumnGap = blockWidth / internalColumns.toDouble()
-            val requiredChoiceWidth = (lesson.choices.size - 1) * choiceGap + lessonBubbleRadius * 2.0
-            require(internalColumnGap >= requiredChoiceWidth + 28.0) {
+
+            // Compact LGS-style sheets can place many lessons side-by-side. Bubble size and choice
+            // spacing adapt to the actual per-question column width while remaining non-overlapping.
+            val lessonBubbleRadius = min(
+                9.5,
+                max(6.2, internalColumnGap / (lesson.choices.size * 3.0))
+            )
+            val questionNumberRoom = max(14.0, lessonBubbleRadius * 2.0)
+            val maxChoiceGap = if (lesson.choices.size == 1) {
+                0.0
+            } else {
+                (internalColumnGap - questionNumberRoom - lessonBubbleRadius * 2.0) /
+                    (lesson.choices.size - 1).toDouble()
+            }
+            val minChoiceGap = lessonBubbleRadius * 2.0 + 1.5
+            require(maxChoiceGap >= minChoiceGap) {
                 "${lesson.name} için ${lesson.questionCount} soru seçilen kağıt/yön yerleşimine sığmıyor."
             }
+            val choiceGap = min(30.0, maxChoiceGap)
+            val firstChoiceInset = questionNumberRoom + lessonBubbleRadius
 
             visuals += DesignerTextElement(
                 id = "structured:lesson-title:${lesson.id}",
                 bounds = TemplateRect(blockLeft, blockTop, blockWidth, 28.0),
                 text = lesson.name,
-                fontSize = 17.0,
+                fontSize = min(17.0, max(11.0, blockWidth / 14.0)),
                 alignment = DesignerTextAlignment.CENTER,
                 bold = true,
                 locked = true
@@ -293,7 +300,7 @@ object StructuredFormDocumentFactory {
                 questionCount = lesson.questionCount,
                 choices = lesson.choices,
                 columns = internalColumns,
-                firstChoiceX = blockLeft + 34.0,
+                firstChoiceX = blockLeft + firstChoiceInset,
                 topY = blockTop + 52.0,
                 bubbleRadius = lessonBubbleRadius,
                 choiceGap = choiceGap,
@@ -384,16 +391,17 @@ object StructuredFormDocumentFactory {
     private fun buildProtectedZones(document: DesignerDocument): List<TemplateRect> {
         val basePadding = min(document.space.width, document.space.height) * 0.018
         val componentZones = document.components.map { component ->
-            expand(DesignerComponentGeometry.bounds(component), basePadding)
+            expand(DesignerComponentGeometry.bounds(component), basePadding, document.space)
         }
-        val markerZones = document.fiducials.map { expand(it.bounds, basePadding) }
+        val markerZones = document.fiducials.map { expand(it.bounds, basePadding, document.space) }
         return componentZones + markerZones
     }
 
-    private fun expand(rect: TemplateRect, padding: Double): TemplateRect = TemplateRect(
-        left = max(0.0, rect.left - padding),
-        top = max(0.0, rect.top - padding),
-        width = min(rect.right + padding, Double.MAX_VALUE) - max(0.0, rect.left - padding),
-        height = min(rect.bottom + padding, Double.MAX_VALUE) - max(0.0, rect.top - padding)
-    )
+    private fun expand(rect: TemplateRect, padding: Double, space: TemplateSize): TemplateRect {
+        val left = max(0.0, rect.left - padding)
+        val top = max(0.0, rect.top - padding)
+        val right = min(space.width, rect.right + padding)
+        val bottom = min(space.height, rect.bottom + padding)
+        return TemplateRect(left, top, right - left, bottom - top)
+    }
 }
