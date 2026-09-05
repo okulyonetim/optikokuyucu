@@ -6,8 +6,6 @@ import com.okulyonetim.optikokuyucu.omr.template.BubbleSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import org.opencv.core.Mat
 import kotlin.math.hypot
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Confidence-based classical-CV bubble reader.
@@ -76,48 +74,7 @@ class CanonicalBubbleReader(
         gray: Mat,
         center: ImagePoint,
         radius: Double
-    ): Double {
-        val safeRadius = radius.coerceAtLeast(2.0)
-        val innerRadius = safeRadius * 0.58
-        val ringInner = safeRadius * 1.22
-        val ringOuter = safeRadius * 1.75
-
-        var innerSum = 0.0
-        var innerCount = 0
-        var ringSum = 0.0
-        var ringCount = 0
-
-        val left = max(0, (center.x - ringOuter).toInt())
-        val right = min(gray.cols() - 1, (center.x + ringOuter).toInt())
-        val top = max(0, (center.y - ringOuter).toInt())
-        val bottom = min(gray.rows() - 1, (center.y + ringOuter).toInt())
-        if (left > right || top > bottom) return 0.0
-
-        for (y in top..bottom) {
-            for (x in left..right) {
-                val dx = x + 0.5 - center.x
-                val dy = y + 0.5 - center.y
-                val distance = hypot(dx, dy)
-                val value = gray.get(y, x)?.firstOrNull() ?: continue
-
-                when {
-                    distance <= innerRadius -> {
-                        innerSum += value
-                        innerCount++
-                    }
-                    distance in ringInner..ringOuter -> {
-                        ringSum += value
-                        ringCount++
-                    }
-                }
-            }
-        }
-
-        if (innerCount < 6 || ringCount < 6) return 0.0
-        val innerMean = innerSum / innerCount
-        val localBackground = ringSum / ringCount
-        return ((localBackground - innerMean) / 255.0).coerceIn(0.0, 1.0)
-    }
+    ): Double = BubbleInkScorer.score(gray, center, radius)
 
     private fun classifyRow(
         questionId: String,
