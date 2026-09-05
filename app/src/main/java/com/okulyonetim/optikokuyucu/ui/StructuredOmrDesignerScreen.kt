@@ -58,6 +58,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormBuildResult
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormConfig
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormDocumentFactory
+import com.okulyonetim.optikokuyucu.omr.designer.StructuredFormPresets
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredInfoField
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredLesson
 import com.okulyonetim.optikokuyucu.omr.designer.StructuredOrientation
@@ -75,6 +76,7 @@ fun StructuredOmrDesignerScreen(
 ) {
     val context = LocalContext.current
     val repository = remember(context) { FileDesignerDocumentRepository(context.applicationContext) }
+    val presets = remember { StructuredFormPresets.all() }
     var config by remember {
         mutableStateOf(
             StructuredFormConfig(
@@ -129,6 +131,30 @@ fun StructuredOmrDesignerScreen(
             Column(horizontalAlignment = Alignment.End) {
                 Text("Optik Form Tasarımcısı", style = MaterialTheme.typography.titleLarge)
                 Text("Güvenli otomatik yerleşim", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        DesignerSectionCard("Hazır Formlar") {
+            Text(
+                "Bir başlangıç seçin; ders, soru, kitapçık, öğrenci no, kağıt ve metin ayarlarının tamamını sonradan değiştirebilirsiniz.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            presets.forEach { preset ->
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        config = preset.instantiate()
+                        status = "${preset.displayName} düzenlemeye açıldı"
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(preset.displayName)
+                        Text(preset.description, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         }
 
