@@ -51,6 +51,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerResizeHandleGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
@@ -71,6 +72,7 @@ private sealed interface DesignerCanvasSelection {
 
     data class Component(override val id: String) : DesignerCanvasSelection
     data class Visual(override val id: String) : DesignerCanvasSelection
+    data class VisualResize(override val id: String) : DesignerCanvasSelection
 }
 
 @Composable
@@ -287,6 +289,8 @@ fun OmrDesignerScreen(
                                 DesignerDocumentEditor.moveComponent(document, target.id, dx, dy)
                             is DesignerCanvasSelection.Visual ->
                                 DesignerDocumentEditor.moveVisualElement(document, target.id, dx, dy)
+                            is DesignerCanvasSelection.VisualResize ->
+                                DesignerVisualTransform.resize(document, target.id, dx, dy)
                         }
                         document = history.updateTransaction(next)
                         saveStatus = null
@@ -593,6 +597,7 @@ private fun CanonicalTemplatePreview(
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val markerColor = Color.Black
     val currentDocument by rememberUpdatedState(document)
+    val currentSelection by rememberUpdatedState(selection)
     val currentOnSelect by rememberUpdatedState(onSelect)
     val currentOnDragStart by rememberUpdatedState(onDragStart)
     val currentOnDragUpdate by rememberUpdatedState(onDragUpdate)
@@ -604,6 +609,16 @@ private fun CanonicalTemplatePreview(
         if (visualId != null) return DesignerCanvasSelection.Visual(visualId)
         val componentId = DesignerComponentGeometry.hitTest(currentDocument, point)
         return componentId?.let { DesignerCanvasSelection.Component(it) }
+    }
+
+    fun resizeTarget(point: TemplatePoint): DesignerCanvasSelection.VisualResize? {
+        val selectedId = (currentSelection as? DesignerCanvasSelection.Visual)?.id ?: return null
+        val element = currentDocument.visualElements.firstOrNull { it.id == selectedId } ?: return null
+        return if (DesignerResizeHandleGeometry.hitTest(element, point)) {
+            DesignerCanvasSelection.VisualResize(selectedId)
+        } else {
+            null
+        }
     }
 
     Box(
@@ -630,9 +645,16 @@ private fun CanonicalTemplatePreview(
                             x = offset.x / size.width.toDouble() * template.space.width,
                             y = offset.y / size.height.toDouble() * template.space.height
                         )
-                        val target = hitTest(point)
+                        val resize = resizeTarget(point)
+                        val target = resize ?: hitTest(point)
                         dragging = target
-                        currentOnSelect(target)
+                        currentOnSelect(
+                            if (target is DesignerCanvasSelection.VisualResize) {
+                                DesignerCanvasSelection.Visual(target.id)
+                            } else {
+                                target
+                            }
+                        )
                         if (target != null) currentOnDragStart(target)
                     },
                     onDragEnd = {
@@ -740,7 +762,8 @@ private fun CanonicalTemplatePreview(
                 is DesignerCanvasSelection.Component -> document.components
                     .firstOrNull { it.id == selection.id }
                     ?.let { DesignerComponentGeometry.bounds(it) }
-                is DesignerCanvasSelection.Visual -> document.visualElements
+                is DesignerCanvasSelection.Visual,
+                is DesignerCanvasSelection.VisualResize -> document.visualElements
                     .firstOrNull { it.id == selection.id }
                     ?.let { DesignerVisualGeometry.bounds(it) }
                 null -> null
@@ -752,6 +775,15 @@ private fun CanonicalTemplatePreview(
                     size = Size(x(selectedBounds.width), y(selectedBounds.height)),
                     style = Stroke(width = 3f)
                 )
+            }
+
+            val selectedVisual = (selection as? DesignerCanvasSelection.Visual)?.id
+                ?.let { id -> document.visualElements.firstOrNull { it.id == id } }
+            val handle = selectedVisual?.let { DesignerResizeHandleGeometry.handlePoint(it) }
+            if (handle != null) {
+                val center = Offset(x(handle.x), y(handle.y))
+                drawCircle(color = Color.White, radius = 10f, center = center)
+                drawCircle(color = selectionColor, radius = 7f, center = center)
             }
         }
     }
