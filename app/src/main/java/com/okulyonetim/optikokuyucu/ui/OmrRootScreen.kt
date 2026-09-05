@@ -26,6 +26,7 @@ private enum class RootDestination {
     EXAMS,
     NEW_EXAM,
     EXAM_DETAIL,
+    EXAM_SCANNER,
     TOOLS,
     SCANNER,
     RESULTS,
@@ -50,6 +51,7 @@ fun OmrRootScreen(
                 RootDestination.EXAM_DETAIL,
                 RootDestination.TOOLS -> RootDestination.EXAMS
 
+                RootDestination.EXAM_SCANNER -> RootDestination.EXAM_DETAIL
                 RootDestination.ADVANCED_DESIGNER -> RootDestination.DESIGNER
 
                 RootDestination.SCANNER,
@@ -90,10 +92,24 @@ fun OmrRootScreen(
                     ExamDetailScreen(
                         examId = examId,
                         onBack = { destination = RootDestination.EXAMS },
-                        onScan = { destination = RootDestination.SCANNER },
+                        onScan = { destination = RootDestination.EXAM_SCANNER },
                         onOpenPaper = { destination = RootDestination.RESULTS },
                         onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
                         onOpenReports = { destination = RootDestination.RESULTS }
+                    )
+                }
+            }
+
+            RootDestination.EXAM_SCANNER -> {
+                val examId = selectedExamId
+                if (examId == null) {
+                    destination = RootDestination.EXAMS
+                } else {
+                    ExamScannerScreen(
+                        examId = examId,
+                        openCvReady = openCvReady,
+                        selfTest = selfTest,
+                        onBack = { destination = RootDestination.EXAM_DETAIL }
                     )
                 }
             }
