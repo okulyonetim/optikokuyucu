@@ -94,6 +94,8 @@ fun DesignerPropertyPanel(
                     ) { Text("Sil") }
                 }
             }
+
+            DesignerPdfExportCard(document = document)
         }
     }
 }
