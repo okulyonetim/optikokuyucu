@@ -1,6 +1,9 @@
 package com.okulyonetim.optikokuyucu.exam
 
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,6 +25,32 @@ class ExamGalleryBatchProgressTest {
         progress = progress.onImported()
         assertTrue(progress.completed)
         assertEquals(0, progress.remaining)
+    }
+
+    @Test
+    fun duplicateGuardMatchesOnlyNonBlankStudentNumbers() {
+        val exam = Exam(
+            id = "exam-1",
+            name = "Deneme",
+            schoolName = "Okul",
+            templateSelection = ActiveTemplateSelection(
+                source = ActiveTemplateSource.STANDARD,
+                templateId = "template",
+                templateVersion = 1
+            ),
+            examDateEpochDay = 1L,
+            createdAtEpochMs = 1L,
+            papers = listOf(
+                ExamPaperLink(scanRecordId = "scan-1", studentNumber = "123456", linkedAtEpochMs = 1L),
+                ExamPaperLink(scanRecordId = "scan-2", studentNumber = "", linkedAtEpochMs = 2L)
+            )
+        )
+
+        assertTrue(exam.containsStudentNumber("123456"))
+        assertTrue(exam.containsStudentNumber(" 123456 "))
+        assertFalse(exam.containsStudentNumber("654321"))
+        assertFalse(exam.containsStudentNumber(""))
+        assertFalse(exam.containsStudentNumber("   "))
     }
 
     @Test(expected = IllegalArgumentException::class)
