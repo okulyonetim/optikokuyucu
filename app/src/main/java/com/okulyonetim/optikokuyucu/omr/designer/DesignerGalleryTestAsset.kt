@@ -98,7 +98,10 @@ object DesignerGalleryTestAsset {
                         color = Color.BLACK
                         style = Paint.Style.FILL
                         textSize = element.fontSize.toFloat()
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                        typeface = Typeface.create(
+                            Typeface.DEFAULT,
+                            if (element.bold) Typeface.BOLD else Typeface.NORMAL
+                        )
                         textAlign = when (element.alignment) {
                             DesignerTextAlignment.START -> Paint.Align.LEFT
                             DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -158,81 +161,75 @@ object DesignerGalleryTestAsset {
         document.components.forEach { component ->
             when (component) {
                 is QuestionGroupComponent -> repeat(component.questionCount) { index ->
-                    val questionId = (component.startQuestion + index).toString()
+                    val questionNumber = component.startQuestion + index
+                    val questionId = DesignerTemplateCompiler.questionReadId(component, questionNumber)
                     val row = byQuestionId[questionId] ?: return@repeat
                     val first = row.bubbles.firstOrNull() ?: return@repeat
                     drawLabel(
                         canvas,
-                        questionId,
-                        first.center.x - first.radius * LABEL_DISTANCE,
-                        first.center.y + first.radius * 0.42,
+                        questionNumber.toString(),
+                        first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
+                        first.center.y + first.radius * 0.40,
                         Paint.Align.RIGHT,
-                        first.radius * 1.08
+                        first.radius * 1.02
                     )
                     row.bubbles.forEach { bubble ->
-                        drawLabel(
-                            canvas,
-                            bubble.id,
-                            bubble.center.x,
-                            bubble.center.y - bubble.radius * LABEL_DISTANCE,
-                            Paint.Align.CENTER,
-                            bubble.radius * 0.92
+                        drawCenteredBubbleLabel(
+                            canvas = canvas,
+                            text = bubble.id,
+                            x = bubble.center.x,
+                            y = bubble.center.y,
+                            radius = bubble.radius
                         )
                     }
                 }
 
                 is NumericGridComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
-                    val firstColumn = grid.columns.firstOrNull() ?: return@forEach
-                    firstColumn.marks.forEach { mark ->
-                        drawLabel(
-                            canvas,
-                            mark.id,
-                            mark.center.x - mark.radius * LABEL_DISTANCE,
-                            mark.center.y + mark.radius * 0.36,
-                            Paint.Align.RIGHT,
-                            mark.radius * 0.92
-                        )
-                    }
-                    grid.columns.forEachIndexed { index, column ->
-                        val firstMark = column.marks.firstOrNull() ?: return@forEachIndexed
-                        drawLabel(
-                            canvas,
-                            (index + 1).toString(),
-                            firstMark.center.x,
-                            firstMark.center.y - firstMark.radius * LABEL_DISTANCE,
-                            Paint.Align.CENTER,
-                            firstMark.radius * 0.82
-                        )
+                    grid.columns.forEach { column ->
+                        column.marks.forEach { mark ->
+                            drawCenteredBubbleLabel(
+                                canvas = canvas,
+                                text = mark.id,
+                                x = mark.center.x,
+                                y = mark.center.y,
+                                radius = mark.radius
+                            )
+                        }
                     }
                 }
 
                 is SingleChoiceComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
                     grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
-                        if (component.axis == ChoiceAxis.HORIZONTAL) {
-                            drawLabel(
-                                canvas,
-                                mark.id,
-                                mark.center.x,
-                                mark.center.y - mark.radius * LABEL_DISTANCE,
-                                Paint.Align.CENTER,
-                                mark.radius * 0.92
-                            )
-                        } else {
-                            drawLabel(
-                                canvas,
-                                mark.id,
-                                mark.center.x + mark.radius * LABEL_DISTANCE,
-                                mark.center.y + mark.radius * 0.36,
-                                Paint.Align.LEFT,
-                                mark.radius * 0.92
-                            )
-                        }
+                        drawCenteredBubbleLabel(
+                            canvas = canvas,
+                            text = mark.id,
+                            x = mark.center.x,
+                            y = mark.center.y,
+                            radius = mark.radius
+                        )
                     }
                 }
             }
         }
+    }
+
+    private fun drawCenteredBubbleLabel(
+        canvas: Canvas,
+        text: String,
+        x: Double,
+        y: Double,
+        radius: Double
+    ) {
+        drawLabel(
+            canvas = canvas,
+            text = text,
+            x = x,
+            y = y + radius * 0.34,
+            align = Paint.Align.CENTER,
+            textSize = radius * 0.78
+        )
     }
 
     private fun drawLabel(
@@ -247,11 +244,11 @@ object DesignerGalleryTestAsset {
             color = Color.BLACK
             style = Paint.Style.FILL
             textAlign = align
-            this.textSize = max(8.0, textSize).toFloat()
+            this.textSize = max(6.5, textSize).toFloat()
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
         canvas.drawText(text, x.toFloat(), y.toFloat(), paint)
     }
 
-    private const val LABEL_DISTANCE = 2.4
+    private const val QUESTION_NUMBER_DISTANCE = 2.15
 }
