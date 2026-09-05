@@ -12,8 +12,8 @@ import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
  * Normal scanner entry point.
  *
  * Designer camera tests call the template-aware overload directly, so they never persist
- * student scan records. Normal scanning uses the current default recognition template and
- * persists only reads that have already passed live temporal consensus.
+ * student scan records. Normal scanning preserves the pre-refactor default recognition template
+ * and persists only reads that have already passed live temporal consensus.
  */
 @Composable
 fun OmrCameraScreen(
@@ -21,7 +21,7 @@ fun OmrCameraScreen(
     selfTest: OmrSelfTestResult
 ) {
     val context = LocalContext.current
-    val template = StandardOmrTemplate.DEFAULT
+    val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
     val recorder = remember(context) {
         LiveScanRecorder(FileScanRecordRepository(context.applicationContext))
     }
