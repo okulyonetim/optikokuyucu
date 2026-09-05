@@ -53,7 +53,38 @@ object DesignerDocumentEditor {
     )
 
     fun deleteVisualElement(document: DesignerDocument, elementId: String): DesignerDocument =
-        document.copy(visualElements = document.visualElements.filterNot { it.id == elementId && !it.locked })
+        document.copy(
+            visualElements = document.visualElements.filterNot {
+                it.id == elementId && !it.locked
+            }
+        )
+
+    fun duplicateVisualElement(
+        document: DesignerDocument,
+        elementId: String,
+        newId: String,
+        offsetX: Double = 20.0,
+        offsetY: Double = 20.0,
+        snapStep: Double = 5.0
+    ): DesignerDocument {
+        require(newId.isNotBlank())
+        require(document.visualElements.none { it.id == newId }) {
+            "Designer visual element id already exists."
+        }
+        val source = document.visualElements.firstOrNull { it.id == elementId } ?: return document
+        val duplicate = withId(move(source, offsetX, offsetY, snapStep), newId)
+        return document.copy(visualElements = document.visualElements + duplicate)
+    }
+
+    fun setVisualElementLocked(
+        document: DesignerDocument,
+        elementId: String,
+        locked: Boolean
+    ): DesignerDocument = document.copy(
+        visualElements = document.visualElements.map { element ->
+            if (element.id != elementId) element else withLocked(element, locked)
+        }
+    )
 
     fun snap(value: Double, step: Double): Double {
         require(step > 0.0)
@@ -106,6 +137,18 @@ object DesignerDocumentEditor {
                 snap(element.end.y + dy, step)
             )
         )
+    }
+
+    private fun withId(element: DesignerVisualElement, id: String): DesignerVisualElement = when (element) {
+        is DesignerTextElement -> element.copy(id = id)
+        is DesignerBoxElement -> element.copy(id = id)
+        is DesignerLineElement -> element.copy(id = id)
+    }
+
+    private fun withLocked(element: DesignerVisualElement, locked: Boolean): DesignerVisualElement = when (element) {
+        is DesignerTextElement -> element.copy(locked = locked)
+        is DesignerBoxElement -> element.copy(locked = locked)
+        is DesignerLineElement -> element.copy(locked = locked)
     }
 
     private fun move(rect: TemplateRect, dx: Double, dy: Double, step: Double): TemplateRect =
