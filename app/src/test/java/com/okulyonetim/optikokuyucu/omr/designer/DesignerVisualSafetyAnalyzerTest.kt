@@ -29,13 +29,13 @@ class DesignerVisualSafetyAnalyzerTest {
     }
 
     @Test
-    fun `box may surround bubble when its strokes stay clear`() {
+    fun `box may surround question group when its strokes stay clear`() {
         val base = DesignerStarterTemplates.questions20Abcd()
         val document = base.copy(
             visualElements = listOf(
                 DesignerBoxElement(
                     id = "safe-box",
-                    bounds = TemplateRect(375.0, 245.0, 110.0, 110.0),
+                    bounds = TemplateRect(375.0, 245.0, 380.0, 1015.0),
                     strokeWidth = 2.0
                 )
             )
