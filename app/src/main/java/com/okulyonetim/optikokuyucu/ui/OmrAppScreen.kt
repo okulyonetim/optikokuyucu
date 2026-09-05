@@ -52,7 +52,8 @@ import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrResult
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.GalleryScanRecorder
-import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
+import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
+import com.okulyonetim.optikokuyucu.omr.template.resolveActiveOmrTemplate
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -101,7 +102,9 @@ private fun GalleryTestScreen(
     onOpenCamera: () -> Unit
 ) {
     val context = LocalContext.current
-    val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    val activeTemplate = remember(context) { resolveActiveOmrTemplate(context) }
+    val template = activeTemplate.template
+    val defaultDiagnosticTemplate = activeTemplate.selection == ActiveOmrTemplateDefaults.selection
     val galleryRecorder = remember(context) {
         GalleryScanRecorder(FileScanRecordRepository(context.applicationContext))
     }
@@ -138,7 +141,8 @@ private fun GalleryTestScreen(
                         savedGalleryRecordId = null
                         busy = false
                         status = when {
-                            newResult.rectificationReady -> "Canonical düzeltme tamamlandı · 20 soru analiz edildi"
+                            newResult.rectificationReady ->
+                                "Canonical düzeltme tamamlandı · ${newResult.bubbleResult.questions.size} soru analiz edildi"
                             newResult.registrationReady -> "Marker bulundu ancak canonical görüntü üretilemedi"
                             else -> "Dört köşe işareti birlikte bulunamadı"
                         }
@@ -184,6 +188,11 @@ private fun GalleryTestScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(if (openCvReady) "OpenCV 5 ✓" else "OpenCV !")
+                Text("Aktif form: ${activeTemplate.name}")
+                Text(
+                    "${template.bubbleRows.size} soru · ${template.markGrids.size} işaret alanı · v${template.version}",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Text(
                     if (selfTest.passed) {
                         String.format(
@@ -202,7 +211,7 @@ private fun GalleryTestScreen(
 
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && openCvReady,
+            enabled = !busy && openCvReady && defaultDiagnosticTemplate,
             onClick = {
                 busy = true
                 status = "Örnek form oluşturuluyor…"
@@ -224,13 +233,22 @@ private fun GalleryTestScreen(
                 }
             }
         ) {
-            Text("1 · Örnek formu oluştur ve aç")
+            Text(
+                if (defaultDiagnosticTemplate) {
+                    "1 · Örnek formu oluştur ve aç"
+                } else {
+                    "1 · Örnek test formu yalnız varsayılan şablonda"
+                }
+            )
         }
 
         Text(
-            text = "Galeride açılan formda istediğiniz baloncukların içini siyaha boyayın. " +
-                "Köşe karelerini silmeyin; düzenlenmiş görseli kaydedin. Gerçek öğrenci formunu " +
-                "seçtiğinizde öğrenci no ve A/B kitapçık alanı da aynı okumada analiz edilir.",
+            text = if (defaultDiagnosticTemplate) {
+                "Galeride açılan örnek formda istediğiniz baloncukların içini siyaha boyayın. " +
+                    "Köşe karelerini silmeyin; düzenlenmiş görseli kaydedin."
+            } else {
+                "Seçili özel formu galeri veya kameradan okuyabilirsiniz. Örnek test görseli sabit varsayılan forma ait olduğu için bu şablonda devre dışıdır."
+            },
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -323,10 +341,12 @@ private fun GalleryTestScreen(
 
             val studentNumber = galleryResult.markGridResult.grid("studentNumber")?.value
             val booklet = galleryResult.markGridResult.grid("booklet")?.value
-            Text(
-                "Öğrenci No: ${studentNumber ?: "—"} · Kitapçık: ${booklet ?: "—"}",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            if (template.markGrids.any { it.id == "studentNumber" } || template.markGrids.any { it.id == "booklet" }) {
+                Text(
+                    "Öğrenci No: ${studentNumber ?: "—"} · Kitapçık: ${booklet ?: "—"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
             Button(
                 modifier = Modifier.fillMaxWidth(),
