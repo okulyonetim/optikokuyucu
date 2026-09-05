@@ -24,6 +24,7 @@ import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 private enum class RootDestination {
     HOME,
     SCANNER,
+    RESULTS,
     DESIGNER
 }
 
@@ -42,12 +43,17 @@ fun OmrRootScreen(
         when (destination) {
             RootDestination.HOME -> RootHomeScreen(
                 onOpenScanner = { destination = RootDestination.SCANNER },
+                onOpenResults = { destination = RootDestination.RESULTS },
                 onOpenDesigner = { destination = RootDestination.DESIGNER }
             )
 
             RootDestination.SCANNER -> OmrAppScreen(
                 openCvReady = openCvReady,
                 selfTest = selfTest
+            )
+
+            RootDestination.RESULTS -> ScanSessionScreen(
+                onBack = { destination = RootDestination.HOME }
             )
 
             RootDestination.DESIGNER -> OmrDesignerScreen(
@@ -62,6 +68,7 @@ fun OmrRootScreen(
 @Composable
 private fun RootHomeScreen(
     onOpenScanner: () -> Unit,
+    onOpenResults: () -> Unit,
     onOpenDesigner: () -> Unit
 ) {
     Column(
@@ -84,6 +91,15 @@ private fun RootHomeScreen(
             onClick = onOpenScanner
         ) {
             Text("Tara · Kamera ve OMR Testleri")
+        }
+
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            onClick = onOpenResults
+        ) {
+            Text("Tarama Oturumu · Sonuçlar")
         }
 
         OutlinedButton(
