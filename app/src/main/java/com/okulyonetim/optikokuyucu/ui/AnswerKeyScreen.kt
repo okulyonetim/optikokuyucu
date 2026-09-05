@@ -36,7 +36,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeySource
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyXlsxExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
-import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
+import com.okulyonetim.optikokuyucu.omr.template.resolveActiveOmrTemplate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,7 +51,8 @@ fun AnswerKeyScreen(
     val repository = remember(context) {
         FileAnswerKeyRepository(context.applicationContext)
     }
-    val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    val activeTemplate = remember(context) { resolveActiveOmrTemplate(context) }
+    val template = activeTemplate.template
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
 
@@ -192,7 +193,11 @@ fun AnswerKeyScreen(
             ) {
                 Text("Güvenli anahtar yakalama", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Galeriden gerçek optik formu seçin. Tüm sorular tek ve net işaretli olmalı. " +
+                    "Aktif form: ${activeTemplate.name} · ${template.bubbleRows.size} soru · v${template.version}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "Galeriden aktif forma ait gerçek optik formu seçin. Tüm sorular tek ve net işaretli olmalı. " +
                         "A/B kitapçık alanı bulunan formda kitapçık da net okunmadan anahtar kaydedilmez.",
                     style = MaterialTheme.typography.bodyMedium
                 )
