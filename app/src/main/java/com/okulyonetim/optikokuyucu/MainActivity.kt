@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OpenCvOmrSelfTest
-import com.okulyonetim.optikokuyucu.ui.OmrAppScreen
+import com.okulyonetim.optikokuyucu.ui.OmrRootScreen
 import org.opencv.android.OpenCVLoader
 
 class MainActivity : ComponentActivity() {
@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            OmrAppScreen(
+            OmrRootScreen(
                 openCvReady = openCvReady,
                 selfTest = selfTest
             )
