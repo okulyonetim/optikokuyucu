@@ -3,7 +3,6 @@ package com.okulyonetim.optikokuyucu.omr.designer
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.max
-import kotlin.math.min
 
 enum class VisualHorizontalAlignment {
     LEFT,
@@ -75,18 +74,13 @@ object DesignerVisualTransform {
         val element = document.visualElements.firstOrNull { it.id == elementId } ?: return document
         if (element.locked) return document
         val bounds = DesignerVisualGeometry.bounds(element)
+        val maxLeft = max(0.0, document.space.width - bounds.width)
         val targetLeft = when (alignment) {
             VisualHorizontalAlignment.LEFT -> 0.0
-            VisualHorizontalAlignment.CENTER -> (document.space.width - bounds.width) / 2.0
-            VisualHorizontalAlignment.RIGHT -> document.space.width - bounds.width
+            VisualHorizontalAlignment.CENTER -> snapped(maxLeft / 2.0, snapStep).coerceIn(0.0, maxLeft)
+            VisualHorizontalAlignment.RIGHT -> maxLeft
         }
-        return moveBy(
-            document,
-            elementId,
-            deltaX = snapped(targetLeft, snapStep) - bounds.left,
-            deltaY = 0.0,
-            snapStep = snapStep
-        )
+        return translateExact(document, elementId, targetLeft - bounds.left, 0.0)
     }
 
     fun alignVertical(
@@ -99,51 +93,52 @@ object DesignerVisualTransform {
         val element = document.visualElements.firstOrNull { it.id == elementId } ?: return document
         if (element.locked) return document
         val bounds = DesignerVisualGeometry.bounds(element)
+        val maxTop = max(0.0, document.space.height - bounds.height)
         val targetTop = when (alignment) {
             VisualVerticalAlignment.TOP -> 0.0
-            VisualVerticalAlignment.CENTER -> (document.space.height - bounds.height) / 2.0
-            VisualVerticalAlignment.BOTTOM -> document.space.height - bounds.height
+            VisualVerticalAlignment.CENTER -> snapped(maxTop / 2.0, snapStep).coerceIn(0.0, maxTop)
+            VisualVerticalAlignment.BOTTOM -> maxTop
         }
-        return moveBy(
-            document,
-            elementId,
-            deltaX = 0.0,
-            deltaY = snapped(targetTop, snapStep) - bounds.top,
-            snapStep = snapStep
-        )
+        return translateExact(document, elementId, 0.0, targetTop - bounds.top)
     }
 
-    private fun moveBy(
+    private fun translateExact(
         document: DesignerDocument,
         elementId: String,
         deltaX: Double,
-        deltaY: Double,
-        snapStep: Double
-    ): DesignerDocument {
-        val moved = DesignerDocumentEditor.moveVisualElement(
-            document = document,
-            elementId = elementId,
-            deltaX = deltaX,
-            deltaY = deltaY,
-            snapStep = snapStep
-        )
-        return clampInsidePage(moved, elementId, snapStep)
-    }
-
-    private fun clampInsidePage(
-        document: DesignerDocument,
-        elementId: String,
-        snapStep: Double
-    ): DesignerDocument {
-        val element = document.visualElements.firstOrNull { it.id == elementId } ?: return document
-        val bounds = DesignerVisualGeometry.bounds(element)
-        val desiredLeft = bounds.left.coerceIn(0.0, max(0.0, document.space.width - bounds.width))
-        val desiredTop = bounds.top.coerceIn(0.0, max(0.0, document.space.height - bounds.height))
-        val dx = snapped(desiredLeft, snapStep) - bounds.left
-        val dy = snapped(desiredTop, snapStep) - bounds.top
-        if (dx == 0.0 && dy == 0.0) return document
-        return DesignerDocumentEditor.moveVisualElement(document, elementId, dx, dy, snapStep)
-    }
+        deltaY: Double
+    ): DesignerDocument = document.copy(
+        visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked) {
+                element
+            } else {
+                when (element) {
+                    is DesignerTextElement -> element.copy(
+                        bounds = element.bounds.copy(
+                            left = element.bounds.left + deltaX,
+                            top = element.bounds.top + deltaY
+                        )
+                    )
+                    is DesignerBoxElement -> element.copy(
+                        bounds = element.bounds.copy(
+                            left = element.bounds.left + deltaX,
+                            top = element.bounds.top + deltaY
+                        )
+                    )
+                    is DesignerLineElement -> element.copy(
+                        start = TemplatePoint(
+                            element.start.x + deltaX,
+                            element.start.y + deltaY
+                        ),
+                        end = TemplatePoint(
+                            element.end.x + deltaX,
+                            element.end.y + deltaY
+                        )
+                    )
+                }
+            }
+        }
+    )
 
     private fun resizedBounds(
         bounds: TemplateRect,
@@ -153,13 +148,15 @@ object DesignerVisualTransform {
         snapStep: Double,
         minSize: Double
     ): TemplateRect {
-        val maxWidth = max(minSize, document.space.width - bounds.left)
-        val maxHeight = max(minSize, document.space.height - bounds.top)
+        val left = bounds.left.coerceIn(0.0, max(0.0, document.space.width - minSize))
+        val top = bounds.top.coerceIn(0.0, max(0.0, document.space.height - minSize))
+        val maxWidth = max(minSize, document.space.width - left)
+        val maxHeight = max(minSize, document.space.height - top)
         val width = snapped(bounds.width + deltaWidth, snapStep)
             .coerceIn(minSize, maxWidth)
         val height = snapped(bounds.height + deltaHeight, snapStep)
             .coerceIn(minSize, maxHeight)
-        return bounds.copy(width = width, height = height)
+        return bounds.copy(left = left, top = top, width = width, height = height)
     }
 
     private fun snapped(value: Double, step: Double): Double =
