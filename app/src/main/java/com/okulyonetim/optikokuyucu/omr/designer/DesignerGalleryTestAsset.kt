@@ -23,7 +23,11 @@ import kotlin.math.max
  * phone editor later scales or adds margins, the four fiducials recover the canonical geometry.
  */
 object DesignerGalleryTestAsset {
-    fun render(document: DesignerDocument): Bitmap {
+    fun render(
+        document: DesignerDocument,
+        markedChoicesByRow: Map<String, Set<String>> = emptyMap(),
+        markedGridChoices: Map<String, Map<String, Set<String>>> = emptyMap()
+    ): Bitmap {
         val template = DesignerTemplateCompiler.compile(document)
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         require(readability.canSave) {
@@ -32,8 +36,8 @@ object DesignerGalleryTestAsset {
 
         val bitmap = SyntheticOmrRenderer.render(
             template = template,
-            markedChoicesByRow = emptyMap(),
-            markedGridChoices = emptyMap()
+            markedChoicesByRow = markedChoicesByRow,
+            markedGridChoices = markedGridChoices
         )
         val canvas = Canvas(bitmap)
         drawVisualLayer(canvas, document)
