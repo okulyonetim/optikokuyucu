@@ -53,11 +53,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
+import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import java.util.Locale
 import java.util.concurrent.Executors
 
 @Composable
-fun OmrCameraScreen() {
+fun OmrCameraScreen(openCvReady: Boolean) {
     val context = LocalContext.current
     var cameraGranted by remember {
         mutableStateOf(
@@ -80,7 +81,7 @@ fun OmrCameraScreen() {
 
     MaterialTheme {
         if (cameraGranted) {
-            CameraPreviewContent()
+            CameraPreviewContent(openCvReady = openCvReady)
         } else {
             CameraPermissionContent(
                 onRequestPermission = {
@@ -118,7 +119,7 @@ private fun CameraPermissionContent(onRequestPermission: () -> Unit) {
 }
 
 @Composable
-private fun CameraPreviewContent() {
+private fun CameraPreviewContent(openCvReady: Boolean) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
         requireNotNull(context.findActivity() as? LifecycleOwner) {
@@ -137,8 +138,8 @@ private fun CameraPreviewContent() {
     var stats by remember { mutableStateOf(CameraFrameStats.Empty) }
     var cameraMessage by remember { mutableStateOf("Kamera başlatılıyor…") }
 
-    val analyzer = remember {
-        CameraFrameAnalyzer { newStats ->
+    val analyzer = remember(openCvReady) {
+        CameraFrameAnalyzer(openCvReady = openCvReady) { newStats ->
             mainExecutor.execute {
                 stats = newStats
                 cameraMessage = "Canlı analiz aktif"
@@ -221,7 +222,8 @@ private fun CameraPreviewContent() {
                 .systemBarsPadding()
                 .padding(12.dp),
             message = cameraMessage,
-            stats = stats
+            stats = stats,
+            initialOpenCvReady = openCvReady
         )
 
         Text(
@@ -234,7 +236,11 @@ private fun CameraPreviewContent() {
                     shape = RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-            text = "Optik formu A4 çerçevesinin içine getirin",
+            text = when (stats.trackingPhase) {
+                PageTrackingPhase.LOCKED -> "Form kilitlendi"
+                PageTrackingPhase.TRACKING -> "Form takip ediliyor"
+                PageTrackingPhase.SEARCHING -> "Optik formu A4 çerçevesinin içine getirin"
+            },
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
         )
@@ -245,7 +251,8 @@ private fun CameraPreviewContent() {
 private fun CameraTelemetryCard(
     modifier: Modifier,
     message: String,
-    stats: CameraFrameStats
+    stats: CameraFrameStats,
+    initialOpenCvReady: Boolean
 ) {
     Card(
         modifier = modifier,
@@ -256,7 +263,7 @@ private fun CameraTelemetryCard(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "Optik Okuyucu · Kamera Testi",
+                text = "Optik Okuyucu · OMR Motor Testi",
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
@@ -272,19 +279,40 @@ private fun CameraTelemetryCard(
                         .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Text("${stats.width}×${stats.height}", style = MaterialTheme.typography.labelMedium)
                     Text(
-                        text = "${stats.width}×${stats.height}",
+                        String.format(Locale.US, "%.1f FPS", stats.fps),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text("Y ${stats.averageLuma}", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val cvReady = stats.openCvReady || (stats.width == 0 && initialOpenCvReady)
+                    Text(
+                        text = if (cvReady) "OpenCV 5 ✓" else "OpenCV !",
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text(
-                        text = String.format(Locale.US, "%.1f FPS", stats.fps),
+                        text = "Marker ${stats.markerCount}/4",
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text(
-                        text = "Y ${stats.averageLuma}",
+                        text = String.format(Locale.US, "Güven %.0f%%", stats.pageConfidence * 100.0),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
+            } else {
+                Text(
+                    modifier = Modifier.padding(top = 8.dp),
+                    text = if (initialOpenCvReady) "OpenCV 5 hazır" else "OpenCV başlatılamadı",
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
     }
