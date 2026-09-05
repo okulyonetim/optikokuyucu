@@ -17,21 +17,18 @@ import org.opencv.objdetect.DetectorParameters
 import org.opencv.objdetect.Objdetect
 
 /**
- * Detects the four fiducials directly from CameraX's luminance plane.
+ * Shared four-fiducial detector for both CameraX frames and imported gallery images.
  *
  * Page edges and physical paper size are intentionally ignored. The four stable marker IDs
- * define the form coordinate frame. Therefore an identical form printed on A4, A5 or at a
- * different printer scale is still the same OMR template as long as all fiducials remain visible.
- *
- * The Mat wraps the ImageProxy Y ByteBuffer with its native row stride, so no RGB/Bitmap
- * conversion and no full-frame byte-array copy is required for the common pixelStride=1 case.
+ * define the form coordinate frame. Therefore an identical form printed on A4, A5, exported as
+ * an image, resized by a printer or edited on a phone is still the same OMR template as long as
+ * the fiducials and OMR regions remain visible.
  */
 class OpenCvFiducialDetector(
     private val template: OmrTemplate = StandardOmrTemplate.DEFAULT
 ) {
     private val dictionary = Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50)
     private val parameters = DetectorParameters().apply {
-        // Conservative defaults first. We will tune with real captured sheets later.
         set_cornerRefinementMethod(Objdetect.CORNER_REFINE_SUBPIX)
     }
     private val detector = ArucoDetector(dictionary, parameters)
@@ -40,6 +37,7 @@ class OpenCvFiducialDetector(
         it.corner to it.markerId
     }
 
+    /** Zero-copy CameraX path using the luminance plane. */
     fun detect(image: ImageProxy): FiducialDetectionResult {
         val plane = image.planes.firstOrNull() ?: return FiducialDetectionResult.Empty
         if (plane.pixelStride != 1 || image.width <= 0 || image.height <= 0) {
@@ -54,6 +52,21 @@ class OpenCvFiducialDetector(
             buffer,
             plane.rowStride.toLong()
         )
+
+        return try {
+            detectGray(gray)
+        } finally {
+            // Releases only the Mat header; CameraX owns the underlying Y buffer.
+            gray.release()
+        }
+    }
+
+    /** Gallery/test path. Caller retains ownership of [gray]. */
+    fun detectGray(gray: Mat): FiducialDetectionResult {
+        if (gray.empty() || gray.channels() != 1 || gray.cols() <= 0 || gray.rows() <= 0) {
+            return FiducialDetectionResult.Empty
+        }
+
         val ids = Mat()
         val corners = mutableListOf<Mat>()
 
@@ -77,7 +90,7 @@ class OpenCvFiducialDetector(
 
             val anchorQuad = buildAnchorQuadrilateral(markers)
             val quality = anchorQuad?.let {
-                QuadrilateralQualityEvaluator.evaluate(it, image.width, image.height)
+                QuadrilateralQualityEvaluator.evaluate(it, gray.cols(), gray.rows())
             }
             val registration = anchorQuad?.let {
                 CanonicalHomographySolver.solve(it, template)
@@ -92,7 +105,6 @@ class OpenCvFiducialDetector(
         } finally {
             corners.forEach { it.release() }
             ids.release()
-            gray.release()
         }
     }
 
