@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.diagnostics.OpenCvOmrSelfTest
 import com.okulyonetim.optikokuyucu.ui.OmrCameraScreen
 import org.opencv.android.OpenCVLoader
 
@@ -13,9 +15,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val openCvReady = OpenCVLoader.initLocal()
+        val selfTest = if (openCvReady) {
+            OpenCvOmrSelfTest.run()
+        } else {
+            OmrSelfTestResult.NotRun
+        }
 
         setContent {
-            OmrCameraScreen(openCvReady = openCvReady)
+            OmrCameraScreen(
+                openCvReady = openCvReady,
+                selfTest = selfTest
+            )
         }
     }
 }
