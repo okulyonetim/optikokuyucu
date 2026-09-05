@@ -26,6 +26,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerGalleryTestAsset
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfExporter
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateSelfTest
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
@@ -34,7 +36,10 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 @Composable
-fun DesignerPdfExportCard(document: DesignerDocument) {
+fun DesignerPdfExportCard(
+    document: DesignerDocument,
+    openCvReady: Boolean
+) {
     val context = LocalContext.current
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
     val readability = remember(document, compiled) {
@@ -48,6 +53,9 @@ fun DesignerPdfExportCard(document: DesignerDocument) {
     var galleryStatus by remember { mutableStateOf<String?>(null) }
     var galleryBusy by remember { mutableStateOf(false) }
     var gallerySummary by remember { mutableStateOf<DesignerGallerySummary?>(null) }
+    var selfTestBusy by remember { mutableStateOf(false) }
+    var selfTestResult by remember { mutableStateOf<DesignerTemplateSelfTestResult?>(null) }
+    var selfTestStatus by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
         onDispose { worker.shutdown() }
@@ -82,7 +90,7 @@ fun DesignerPdfExportCard(document: DesignerDocument) {
     }
 
     fun analyzeGallery(uri: Uri) {
-        if (galleryBusy || !readability.canSave) return
+        if (galleryBusy || selfTestBusy || !openCvReady || !readability.canSave) return
         galleryBusy = true
         galleryStatus = "Özel şablon galeriden okunuyor…"
         gallerySummary = null
@@ -177,6 +185,85 @@ fun DesignerPdfExportCard(document: DesignerDocument) {
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Text("Otomatik Şablon Self-Test", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Telefon kendi cevap desenini üretir ve aynı marker → canonical → OMR zinciriyle tekrar okur. " +
+                        "Yazıcı, kağıt veya manuel işaretleme gerekmez.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy,
+                    onClick = {
+                        selfTestBusy = true
+                        selfTestResult = null
+                        selfTestStatus = "Round-trip OMR testi çalışıyor…"
+                        val documentAtStart = document
+                        worker.execute {
+                            runCatching { DesignerTemplateSelfTest.run(documentAtStart) }
+                                .onSuccess { result ->
+                                    mainExecutor.execute {
+                                        selfTestResult = result
+                                        selfTestBusy = false
+                                        selfTestStatus = if (result.passed) {
+                                            "Şablon self-test ✓"
+                                        } else {
+                                            "Şablon self-test başarısız"
+                                        }
+                                    }
+                                }
+                                .onFailure { error ->
+                                    mainExecutor.execute {
+                                        selfTestBusy = false
+                                        selfTestStatus = "Self-test hatası: ${error.message ?: error.javaClass.simpleName}"
+                                    }
+                                }
+                        }
+                    }
+                ) {
+                    Text("Otomatik round-trip testi çalıştır")
+                }
+
+                selfTestStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                selfTestResult?.let { result ->
+                    Text(
+                        String.format(
+                            Locale.US,
+                            "Marker %d/4 · soru %d/%d · alan sütunu %d/%d · %.1f ms",
+                            result.markerCount,
+                            result.correctQuestionCount,
+                            result.expectedQuestionCount,
+                            result.correctGridColumnCount,
+                            result.expectedGridColumnCount,
+                            result.elapsedMs
+                        ),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    if (result.failedIds.isNotEmpty()) {
+                        Text(
+                            "Hata: ${result.failedIds.take(8).joinToString(", ")}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                if (!openCvReady) {
+                    Text(
+                        "Self-test için OpenCV hazır değil.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text("Bu Şablonu Galeride Test Et", style = MaterialTheme.typography.titleSmall)
                 Text(
                     "Güncel tasarım markerlar, OMR alanları, etiketler ve görsel öğelerle PNG olarak oluşturulur. " +
@@ -186,7 +273,7 @@ fun DesignerPdfExportCard(document: DesignerDocument) {
 
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && !galleryBusy,
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy,
                     onClick = {
                         galleryBusy = true
                         galleryStatus = "Özel şablon PNG oluşturuluyor…"
@@ -221,7 +308,7 @@ fun DesignerPdfExportCard(document: DesignerDocument) {
 
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && !galleryBusy,
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy,
                     onClick = { imagePicker.launch("image/*") }
                 ) {
                     Text("2 · Galeriden bu şablonla oku")
