@@ -38,12 +38,26 @@ object DesignerComponentGeometry {
     private fun numericBounds(component: NumericGridComponent): TemplateRect {
         val left = component.startX - component.bubbleRadius
         val top = component.topY - component.bubbleRadius
-        val right = component.startX +
-            (component.digits - 1) * component.columnGap +
-            component.bubbleRadius
-        val bottom = component.topY +
-            (component.values.size - 1) * component.rowGap +
-            component.bubbleRadius
+        val right: Double
+        val bottom: Double
+        when (component.orientation) {
+            NumericGridOrientation.DIGITS_HORIZONTAL -> {
+                right = component.startX +
+                    (component.digits - 1) * component.columnGap +
+                    component.bubbleRadius
+                bottom = component.topY +
+                    (component.values.size - 1) * component.rowGap +
+                    component.bubbleRadius
+            }
+            NumericGridOrientation.DIGITS_VERTICAL -> {
+                right = component.startX +
+                    (component.values.size - 1) * component.rowGap +
+                    component.bubbleRadius
+                bottom = component.topY +
+                    (component.digits - 1) * component.columnGap +
+                    component.bubbleRadius
+            }
+        }
         return TemplateRect(left, top, right - left, bottom - top)
     }
 
