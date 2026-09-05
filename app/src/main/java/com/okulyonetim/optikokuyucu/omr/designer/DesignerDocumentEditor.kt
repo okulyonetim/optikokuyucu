@@ -9,6 +9,26 @@ import kotlin.math.round
  * through [DesignerHistory], keeping drag/drop, property-panel edits and undo/redo consistent.
  */
 object DesignerDocumentEditor {
+    /**
+     * Replaces one OMR component while preserving its stable id and list/z-order position.
+     *
+     * Property panels build a validated immutable component instance first; this method prevents a
+     * property edit from silently creating a new component or changing another component's id.
+     */
+    fun replaceComponent(
+        document: DesignerDocument,
+        component: DesignerOmrComponent
+    ): DesignerDocument {
+        require(document.components.any { it.id == component.id }) {
+            "Designer component does not exist."
+        }
+        return document.copy(
+            components = document.components.map { existing ->
+                if (existing.id == component.id) component else existing
+            }
+        )
+    }
+
     fun moveComponent(
         document: DesignerDocument,
         componentId: String,
