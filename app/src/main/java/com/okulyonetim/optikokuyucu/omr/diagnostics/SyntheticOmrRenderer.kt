@@ -20,7 +20,8 @@ object SyntheticOmrRenderer {
     fun render(
         template: OmrTemplate,
         markedChoicesByRow: Map<String, Set<String>>,
-        markGray: Int = 0
+        markGray: Int = 0,
+        markedGridChoices: Map<String, Map<String, Set<String>>> = emptyMap()
     ): Bitmap {
         require(markGray in 0..255)
         val width = template.space.width.roundToInt()
@@ -44,24 +45,41 @@ object SyntheticOmrRenderer {
         template.bubbleRows.forEach { row ->
             val marked = markedChoicesByRow[row.id].orEmpty()
             row.bubbles.forEach { bubble ->
-                canvas.drawCircle(
-                    bubble.center.x.toFloat(),
-                    bubble.center.y.toFloat(),
-                    bubble.radius.toFloat(),
-                    outlinePaint
-                )
-                if (bubble.id in marked) {
-                    canvas.drawCircle(
-                        bubble.center.x.toFloat(),
-                        bubble.center.y.toFloat(),
-                        (bubble.radius * 0.78).toFloat(),
-                        fillPaint
-                    )
+                drawBubble(canvas, bubble.center.x, bubble.center.y, bubble.radius, bubble.id in marked, outlinePaint, fillPaint)
+            }
+        }
+
+        template.markGrids.forEach { grid ->
+            val markedByColumn = markedGridChoices[grid.id].orEmpty()
+            grid.columns.forEach { column ->
+                val marked = markedByColumn[column.id].orEmpty()
+                column.marks.forEach { mark ->
+                    drawBubble(canvas, mark.center.x, mark.center.y, mark.radius, mark.id in marked, outlinePaint, fillPaint)
                 }
             }
         }
 
         return bitmap
+    }
+
+    private fun drawBubble(
+        canvas: Canvas,
+        x: Double,
+        y: Double,
+        radius: Double,
+        filled: Boolean,
+        outlinePaint: Paint,
+        fillPaint: Paint
+    ) {
+        canvas.drawCircle(x.toFloat(), y.toFloat(), radius.toFloat(), outlinePaint)
+        if (filled) {
+            canvas.drawCircle(
+                x.toFloat(),
+                y.toFloat(),
+                (radius * 0.78).toFloat(),
+                fillPaint
+            )
+        }
     }
 
     private fun drawFiducials(canvas: Canvas, template: OmrTemplate) {
