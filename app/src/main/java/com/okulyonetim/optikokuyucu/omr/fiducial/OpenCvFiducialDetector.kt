@@ -6,6 +6,7 @@ import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
 import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQuality
 import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQualityEvaluator
 import com.okulyonetim.optikokuyucu.omr.template.FiducialCorner
+import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import org.opencv.core.CvType
 import org.opencv.core.Mat
@@ -16,10 +17,16 @@ import org.opencv.objdetect.Objdetect
 /**
  * Detects the four fiducials directly from CameraX's luminance plane.
  *
+ * Page edges and physical paper size are intentionally ignored. The four stable marker IDs
+ * define the form coordinate frame. Therefore an identical form printed on A4, A5 or at a
+ * different printer scale is still the same OMR template as long as all fiducials remain visible.
+ *
  * The Mat wraps the ImageProxy Y ByteBuffer with its native row stride, so no RGB/Bitmap
  * conversion and no full-frame byte-array copy is required for the common pixelStride=1 case.
  */
-class OpenCvFiducialDetector {
+class OpenCvFiducialDetector(
+    template: OmrTemplate = StandardOmrTemplate.DEFAULT
+) {
     private val dictionary = Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50)
     private val parameters = DetectorParameters().apply {
         // Conservative defaults first. We will tune with real captured sheets later.
@@ -27,7 +34,7 @@ class OpenCvFiducialDetector {
     }
     private val detector = ArucoDetector(dictionary, parameters)
 
-    private val expectedIdByCorner = StandardOmrTemplate.A4.fiducials.associate {
+    private val expectedIdByCorner = template.fiducials.associate {
         it.corner to it.markerId
     }
 
@@ -66,14 +73,14 @@ class OpenCvFiducialDetector {
                 }
             }
 
-            val pageQuad = buildPageQuadrilateral(markers)
-            val quality = pageQuad?.let {
+            val anchorQuad = buildAnchorQuadrilateral(markers)
+            val quality = anchorQuad?.let {
                 QuadrilateralQualityEvaluator.evaluate(it, image.width, image.height)
             }
 
             FiducialDetectionResult(
                 detectedMarkers = markers,
-                pageQuadrilateral = pageQuad,
+                pageQuadrilateral = anchorQuad,
                 quality = quality
             )
         } finally {
@@ -99,7 +106,7 @@ class OpenCvFiducialDetector {
         y = corners.sumOf { it.y } / corners.size
     )
 
-    private fun buildPageQuadrilateral(
+    private fun buildAnchorQuadrilateral(
         markers: Map<Int, DetectedFiducial>
     ): ImageQuadrilateral? {
         fun center(corner: FiducialCorner): ImagePoint? {
@@ -124,6 +131,7 @@ data class DetectedFiducial(
 
 data class FiducialDetectionResult(
     val detectedMarkers: Map<Int, DetectedFiducial>,
+    /** Marker-center quadrilateral. It is an anchor frame, not a detected paper edge. */
     val pageQuadrilateral: ImageQuadrilateral?,
     val quality: QuadrilateralQuality?
 ) {
