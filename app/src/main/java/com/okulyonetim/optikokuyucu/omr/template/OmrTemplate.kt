@@ -70,12 +70,43 @@ data class BubbleRowSpec(
     val bubbles: List<BubbleSpec>
 )
 
+/**
+ * One selectable mark column. Example: a student-number digit position with marks 0..9.
+ * The same model can later represent booklet A/B, school number, TC/private number, etc.
+ */
+data class MarkGridColumnSpec(
+    val id: String,
+    val marks: List<BubbleSpec>
+) {
+    init {
+        require(id.isNotBlank())
+        require(marks.isNotEmpty())
+        require(marks.map { it.id }.toSet().size == marks.size) {
+            "Mark ids must be unique inside a grid column."
+        }
+    }
+}
+
+data class MarkGridSpec(
+    val id: String,
+    val columns: List<MarkGridColumnSpec>
+) {
+    init {
+        require(id.isNotBlank())
+        require(columns.isNotEmpty())
+        require(columns.map { it.id }.toSet().size == columns.size) {
+            "Mark-grid column ids must be unique."
+        }
+    }
+}
+
 data class OmrTemplate(
     val id: String,
     val version: Int,
     val space: TemplateSize,
     val fiducials: List<FiducialSpec>,
-    val bubbleRows: List<BubbleRowSpec> = emptyList()
+    val bubbleRows: List<BubbleRowSpec> = emptyList(),
+    val markGrids: List<MarkGridSpec> = emptyList()
 ) {
     init {
         require(id.isNotBlank())
@@ -87,15 +118,23 @@ data class OmrTemplate(
         require(fiducials.all { it.bounds.isInside(space) }) {
             "All fiducials must be inside canonical template space."
         }
+        require(markGrids.map { it.id }.toSet().size == markGrids.size) {
+            "Mark-grid ids must be unique."
+        }
+
+        val allMarks = buildList {
+            addAll(bubbleRows.flatMap { it.bubbles })
+            addAll(markGrids.flatMap { grid -> grid.columns.flatMap { it.marks } })
+        }
         require(
-            bubbleRows.flatMap { it.bubbles }.all {
+            allMarks.all {
                 it.radius > 0.0 &&
                     it.center.x - it.radius >= 0.0 &&
                     it.center.y - it.radius >= 0.0 &&
                     it.center.x + it.radius <= space.width &&
                     it.center.y + it.radius <= space.height
             }
-        ) { "All bubbles must be inside canonical template space." }
+        ) { "All marks must be inside canonical template space." }
     }
 }
 
@@ -202,5 +241,34 @@ object StandardOmrTemplate {
                 }
             )
         }
+    )
+
+    /**
+     * Phase-4 student-number test form. Six digits are used only as a diagnostic sample;
+     * production templates may define any number of columns through [MarkGridSpec].
+     */
+    val SAMPLE_20_ABCD_STUDENT_6: OmrTemplate = SAMPLE_20_ABCD.copy(
+        id = "sample-20-abcd-student-6",
+        version = 1,
+        markGrids = listOf(
+            MarkGridSpec(
+                id = "studentNumber",
+                columns = (0 until 6).map { position ->
+                    MarkGridColumnSpec(
+                        id = (position + 1).toString(),
+                        marks = (0..9).map { digit ->
+                            BubbleSpec(
+                                id = digit.toString(),
+                                center = TemplatePoint(
+                                    x = 115.0 + position * 47.0,
+                                    y = 315.0 + digit * 39.0
+                                ),
+                                radius = 10.5
+                            )
+                        }
+                    )
+                }
+            )
+        )
     )
 }
