@@ -7,6 +7,7 @@ import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
+import com.okulyonetim.optikokuyucu.omr.live.LiveReadConsensus
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
@@ -20,6 +21,9 @@ import kotlin.math.max
  *
  * Frames stay in single-channel luminance form. Marker search, canonical rectification and bubble
  * reading all use the Y plane; the live OMR path does not create RGB Bitmaps.
+ *
+ * Acceptance requires both a stable page lock and temporal agreement between consecutive OMR
+ * frames. One physical sheet is then latched until it visibly leaves the camera.
  */
 class CameraFrameAnalyzer(
     openCvReady: Boolean,
@@ -32,6 +36,7 @@ class CameraFrameAnalyzer(
     private val bubbleReader = CanonicalBubbleReader(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
+    private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = 2)
 
     private var frameCount = 0
     private var windowStartedAtNs = System.nanoTime()
@@ -64,18 +69,27 @@ class CameraFrameAnalyzer(
                 latestTrackingConfidence = tracking.confidence
                 latestMotionRatio = tracking.motionRatio
 
-                scanGate.onFrame(
+                val rearmed = scanGate.onFrame(
                     phase = tracking.phase,
                     markerCount = latestDetection.detectedMarkers.size
                 )
+                if (rearmed) readConsensus.reset()
 
-                if (scanGate.canRead(
-                        phase = tracking.phase,
-                        markerCount = latestDetection.detectedMarkers.size,
-                        registrationReady = latestDetection.canonicalRegistration != null,
-                        pageConfidence = tracking.confidence
-                    )
+                val candidateReady = scanGate.canRead(
+                    phase = tracking.phase,
+                    markerCount = latestDetection.detectedMarkers.size,
+                    registrationReady = latestDetection.canonicalRegistration != null,
+                    pageConfidence = tracking.confidence
+                )
+
+                if (!candidateReady &&
+                    (tracking.phase != PageTrackingPhase.LOCKED ||
+                        latestDetection.detectedMarkers.size != 4)
                 ) {
+                    readConsensus.reset()
+                }
+
+                if (candidateReady) {
                     val liveResult = runCatching {
                         readLockedFrame(
                             image = image,
@@ -84,10 +98,16 @@ class CameraFrameAnalyzer(
                         )
                     }.getOrNull()
 
-                    if (liveResult != null) {
-                        scanGate.onAcceptedRead()
-                        liveReadCount += 1
-                        onLiveRead(liveResult.copy(sequence = liveReadCount))
+                    if (liveResult == null) {
+                        readConsensus.reset()
+                    } else {
+                        val confirmed = readConsensus.offer(answerSignature(liveResult.bubbleResult))
+                        if (confirmed) {
+                            scanGate.onAcceptedRead()
+                            readConsensus.reset()
+                            liveReadCount += 1
+                            onLiveRead(liveResult.copy(sequence = liveReadCount))
+                        }
                     }
                 }
             }
@@ -112,6 +132,7 @@ class CameraFrameAnalyzer(
                         trackingPhase = latestTrackingPhase,
                         motionRatio = latestMotionRatio,
                         readArmed = scanGate.isArmed(),
+                        consensusMatches = readConsensus.currentMatches(),
                         liveReadCount = liveReadCount
                     )
                 )
@@ -165,6 +186,11 @@ class CameraFrameAnalyzer(
             gray.release()
         }
     }
+
+    private fun answerSignature(result: BubbleReadResult): String =
+        result.questions.joinToString(separator = "|") { question ->
+            "${question.questionId}:${question.state}:${question.selectedChoice ?: "-"}"
+        }
 
     private fun sampleAverageLuma(image: ImageProxy): Int {
         val yPlane = image.planes.firstOrNull() ?: return 0
@@ -228,6 +254,7 @@ data class CameraFrameStats(
     val trackingPhase: PageTrackingPhase,
     val motionRatio: Double,
     val readArmed: Boolean,
+    val consensusMatches: Int,
     val liveReadCount: Int
 ) {
     companion object {
@@ -243,6 +270,7 @@ data class CameraFrameStats(
             trackingPhase = PageTrackingPhase.SEARCHING,
             motionRatio = 1.0,
             readArmed = true,
+            consensusMatches = 0,
             liveReadCount = 0
         )
     }
