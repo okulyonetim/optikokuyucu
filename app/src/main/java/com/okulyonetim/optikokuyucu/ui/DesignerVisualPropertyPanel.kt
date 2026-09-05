@@ -28,6 +28,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.VisualHorizontalAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.VisualVerticalAlignment
+import com.okulyonetim.optikokuyucu.omr.designer.VisualZOrderAction
 
 @Composable
 fun DesignerVisualPropertyPanel(
@@ -41,6 +42,7 @@ fun DesignerVisualPropertyPanel(
     onResize: (String, Double, Double) -> Unit,
     onAlignHorizontal: (String, VisualHorizontalAlignment) -> Unit,
     onAlignVertical: (String, VisualVerticalAlignment) -> Unit,
+    onZOrder: (String, VisualZOrderAction) -> Unit,
     onDuplicate: (String) -> Unit,
     onDelete: (String) -> Unit,
     onLockedChange: (String, Boolean) -> Unit,
@@ -224,6 +226,33 @@ fun DesignerVisualPropertyPanel(
                             onAlignVertical(selected.id, VisualVerticalAlignment.BOTTOM)
                         }
                     ) { Text("Alt") }
+                }
+
+                Text("Katman sırası", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_TO_BACK) }
+                    ) { Text("En alt") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_BACKWARD) }
+                    ) { Text("Geri") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_FORWARD) }
+                    ) { Text("İleri") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_TO_FRONT) }
+                    ) { Text("En üst") }
                 }
 
                 Text("Konum · 5 canonical birim", style = MaterialTheme.typography.labelMedium)
