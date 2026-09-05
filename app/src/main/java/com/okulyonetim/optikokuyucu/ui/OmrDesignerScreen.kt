@@ -129,7 +129,6 @@ fun OmrDesignerScreen(
     fun commit(next: DesignerDocument) {
         document = history.commit(next)
         saveStatus = null
-
     }
 
     fun openDocument(next: DesignerDocument) {
@@ -315,6 +314,9 @@ fun OmrDesignerScreen(
             onSelect = { selection = DesignerCanvasSelection.Component(it) },
             onMove = { id, dx, dy ->
                 commit(DesignerDocumentEditor.moveComponent(document, id, dx, dy))
+            },
+            onComponentChange = { component ->
+                commit(DesignerDocumentEditor.replaceComponent(document, component))
             },
             onDuplicate = { id ->
                 val newId = nextComponentDuplicateId(id)
