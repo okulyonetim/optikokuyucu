@@ -32,6 +32,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
 import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamReportRowStatus
+import com.okulyonetim.optikokuyucu.exam.ExamReportXlsxExporter
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
@@ -55,6 +56,7 @@ fun ExamReportScreen(
     var keys by remember { mutableStateOf(keyRepository.list()) }
     var status by remember { mutableStateOf("") }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
 
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -73,6 +75,26 @@ fun ExamReportScreen(
             status = "Sınav CSV raporu kaydedildi"
         }.onFailure { error ->
             status = "CSV kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    val xlsxLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ExamReportXlsxExporter.MIME_TYPE)
+    ) { uri ->
+        val workbook = pendingXlsx
+        pendingXlsx = null
+        if (uri == null || workbook == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "Excel çıktı akışı açılamadı." }
+                output.write(workbook)
+                output.flush()
+            }
+        }.onSuccess {
+            status = "Sınav Excel raporu kaydedildi"
+        }.onFailure { error ->
+            status = "Excel kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
     }
 
@@ -130,10 +152,23 @@ fun ExamReportScreen(
                     enabled = report.rows.isNotEmpty(),
                     onClick = {
                         pendingCsv = ExamReportCsvExporter.export(report)
-                        csvLauncher.launch(reportFileName(current.name))
+                        csvLauncher.launch(reportFileName(current.name, "csv"))
                     }
                 ) {
                     Text("CSV Sonuç Raporunu Dışa Aktar")
+                }
+            }
+
+            item {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                    enabled = report.rows.isNotEmpty(),
+                    onClick = {
+                        pendingXlsx = ExamReportXlsxExporter.export(report)
+                        xlsxLauncher.launch(reportFileName(current.name, "xlsx"))
+                    }
+                ) {
+                    Text("Excel (.xlsx) Sonuç Raporunu Dışa Aktar")
                 }
             }
 
@@ -279,13 +314,13 @@ private fun ExamReportRowCard(row: ExamReportRow) {
     }
 }
 
-private fun reportFileName(examName: String): String {
+private fun reportFileName(examName: String, extension: String): String {
     val safe = examName.trim()
         .replace(Regex("[^\\p{L}\\p{N}]+"), "-")
         .trim('-')
         .take(48)
         .ifBlank { "sinav" }
-    return "$safe-sonuclar.csv"
+    return "$safe-sonuclar.$extension"
 }
 
 private fun formatReportNumber(value: Double): String =
