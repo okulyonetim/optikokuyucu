@@ -26,6 +26,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
+import com.okulyonetim.optikokuyucu.omr.designer.VisualHorizontalAlignment
+import com.okulyonetim.optikokuyucu.omr.designer.VisualVerticalAlignment
 
 @Composable
 fun DesignerVisualPropertyPanel(
@@ -36,6 +38,9 @@ fun DesignerVisualPropertyPanel(
     onAddBox: () -> Unit,
     onAddLine: () -> Unit,
     onMove: (String, Double, Double) -> Unit,
+    onResize: (String, Double, Double) -> Unit,
+    onAlignHorizontal: (String, VisualHorizontalAlignment) -> Unit,
+    onAlignVertical: (String, VisualVerticalAlignment) -> Unit,
     onDuplicate: (String) -> Unit,
     onDelete: (String) -> Unit,
     onLockedChange: (String, Boolean) -> Unit,
@@ -136,6 +141,89 @@ fun DesignerVisualPropertyPanel(
                         locked = selected.locked,
                         onStrokeWidthChange = onStrokeWidthChange
                     )
+                }
+
+                if (selected is DesignerTextElement || selected is DesignerBoxElement) {
+                    Text("Boyut · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !selected.locked,
+                            onClick = { onResize(selected.id, -10.0, 0.0) }
+                        ) { Text("W−") }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !selected.locked,
+                            onClick = { onResize(selected.id, 10.0, 0.0) }
+                        ) { Text("W+") }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !selected.locked,
+                            onClick = { onResize(selected.id, 0.0, -10.0) }
+                        ) { Text("H−") }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !selected.locked,
+                            onClick = { onResize(selected.id, 0.0, 10.0) }
+                        ) { Text("H+") }
+                    }
+                }
+
+                Text("Sayfaya hizala", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.LEFT)
+                        }
+                    ) { Text("Sol") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.CENTER)
+                        }
+                    ) { Text("Orta") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.RIGHT)
+                        }
+                    ) { Text("Sağ") }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignVertical(selected.id, VisualVerticalAlignment.TOP)
+                        }
+                    ) { Text("Üst") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignVertical(selected.id, VisualVerticalAlignment.CENTER)
+                        }
+                    ) { Text("Orta") }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !selected.locked,
+                        onClick = {
+                            onAlignVertical(selected.id, VisualVerticalAlignment.BOTTOM)
+                        }
+                    ) { Text("Alt") }
                 }
 
                 Text("Konum · 5 canonical birim", style = MaterialTheme.typography.labelMedium)
