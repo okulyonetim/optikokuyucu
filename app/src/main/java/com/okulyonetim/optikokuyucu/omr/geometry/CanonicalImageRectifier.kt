@@ -1,11 +1,10 @@
 package com.okulyonetim.optikokuyucu.omr.geometry
 
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
-import com.okulyonetim.optikokuyucu.omr.template.FiducialCorner
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
+import org.opencv.core.Core
+import org.opencv.core.CvType
 import org.opencv.core.Mat
-import org.opencv.core.MatOfPoint2f
-import org.opencv.core.Point
 import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
@@ -24,34 +23,12 @@ object CanonicalImageRectifier {
         template: OmrTemplate
     ): Mat? {
         if (gray.empty() || gray.channels() != 1) return null
+        val registration = detection.canonicalRegistration ?: return null
 
-        val templateByCorner = template.fiducials.associateBy { it.corner }
-        fun detectedCenter(corner: FiducialCorner): ImagePoint? {
-            val spec = templateByCorner[corner] ?: return null
-            return detection.detectedMarkers[spec.markerId]?.center
-        }
-        fun templateCenter(corner: FiducialCorner): Point? {
-            val center = templateByCorner[corner]?.bounds?.center ?: return null
-            return Point(center.x, center.y)
-        }
-
-        val source = MatOfPoint2f(
-            detectedCenter(FiducialCorner.TOP_LEFT)?.toCvPoint() ?: return null,
-            detectedCenter(FiducialCorner.TOP_RIGHT)?.toCvPoint() ?: return null,
-            detectedCenter(FiducialCorner.BOTTOM_RIGHT)?.toCvPoint() ?: return null,
-            detectedCenter(FiducialCorner.BOTTOM_LEFT)?.toCvPoint() ?: return null
-        )
-        val target = MatOfPoint2f(
-            templateCenter(FiducialCorner.TOP_LEFT) ?: return null,
-            templateCenter(FiducialCorner.TOP_RIGHT) ?: return null,
-            templateCenter(FiducialCorner.BOTTOM_RIGHT) ?: return null,
-            templateCenter(FiducialCorner.BOTTOM_LEFT) ?: return null
-        )
-        val transform = Mat()
+        val transform = Mat(3, 3, CvType.CV_64FC1)
         val canonical = Mat()
-
         return try {
-            Imgproc.getPerspectiveTransform(source, target).copyTo(transform)
+            transform.put(0, 0, registration.imageToTemplate.coefficients())
             Imgproc.warpPerspective(
                 gray,
                 canonical,
@@ -61,7 +38,7 @@ object CanonicalImageRectifier {
                     template.space.height.roundToInt().toDouble()
                 ),
                 Imgproc.INTER_LINEAR,
-                org.opencv.core.Core.BORDER_CONSTANT,
+                Core.BORDER_CONSTANT,
                 Scalar(255.0)
             )
             canonical
@@ -70,10 +47,6 @@ object CanonicalImageRectifier {
             null
         } finally {
             transform.release()
-            target.release()
-            source.release()
         }
     }
-
-    private fun ImagePoint.toCvPoint() = Point(x, y)
 }
