@@ -25,6 +25,7 @@ object OpenCvOmrSelfTest {
         val detector = ArucoDetector(dictionary, DetectorParameters())
         val ids = Mat()
         val corners = mutableListOf<Mat>()
+        val registrationTest = CanonicalRegistrationSelfTest.run()
 
         return try {
             val placements = listOf(
@@ -55,23 +56,32 @@ object OpenCvOmrSelfTest {
 
             val detected = readAllIds(ids)
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
+            val markerPassed = detected.containsAll(expectedIds)
 
             OmrSelfTestResult(
-                passed = detected.containsAll(expectedIds),
+                passed = markerPassed && registrationTest.passed,
+                markerPassed = markerPassed,
                 expectedIds = expectedIds,
                 detectedIds = detected,
                 elapsedMs = elapsedMs,
                 idsRows = ids.rows(),
-                idsCols = ids.cols()
+                idsCols = ids.cols(),
+                registrationPassedScenarios = registrationTest.passedScenarios,
+                registrationTotalScenarios = registrationTest.totalScenarios,
+                registrationMaxRoundTripError = registrationTest.maxRoundTripError
             )
         } catch (_: Throwable) {
             OmrSelfTestResult(
                 passed = false,
+                markerPassed = false,
                 expectedIds = expectedIds,
                 detectedIds = emptySet(),
                 elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
                 idsRows = 0,
-                idsCols = 0
+                idsCols = 0,
+                registrationPassedScenarios = registrationTest.passedScenarios,
+                registrationTotalScenarios = registrationTest.totalScenarios,
+                registrationMaxRoundTripError = registrationTest.maxRoundTripError
             )
         } finally {
             corners.forEach { it.release() }
@@ -96,11 +106,15 @@ object OpenCvOmrSelfTest {
 
 data class OmrSelfTestResult(
     val passed: Boolean,
+    val markerPassed: Boolean,
     val expectedIds: Set<Int>,
     val detectedIds: Set<Int>,
     val elapsedMs: Double,
     val idsRows: Int,
-    val idsCols: Int
+    val idsCols: Int,
+    val registrationPassedScenarios: Int,
+    val registrationTotalScenarios: Int,
+    val registrationMaxRoundTripError: Double
 ) {
     val detectedExpectedCount: Int
         get() = expectedIds.count { it in detectedIds }
@@ -108,11 +122,15 @@ data class OmrSelfTestResult(
     companion object {
         val NotRun = OmrSelfTestResult(
             passed = false,
+            markerPassed = false,
             expectedIds = setOf(11, 22, 33, 44),
             detectedIds = emptySet(),
             elapsedMs = 0.0,
             idsRows = 0,
-            idsCols = 0
+            idsCols = 0,
+            registrationPassedScenarios = 0,
+            registrationTotalScenarios = 3,
+            registrationMaxRoundTripError = Double.NaN
         )
     }
 }
