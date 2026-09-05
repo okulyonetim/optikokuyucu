@@ -360,11 +360,11 @@ private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sınav Raporları", style = MaterialTheme.typography.titleMedium)
                 Text("${exam.papers.size} kağıt bu sınava bağlı.")
-                Text("Toplu XLSX/PDF raporları sonraki rapor paketinde sınav bazında burada üretilecek.")
+                Text("Öğrenci sonuçlarını inceleyebilir; CSV, Excel (.xlsx) veya PDF olarak dışa aktarabilirsiniz.")
             }
         }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenReports) {
-            Text("Mevcut Sonuç / CSV Ekranını Aç")
+            Text("Sınav Raporunu Aç")
         }
     }
 }
