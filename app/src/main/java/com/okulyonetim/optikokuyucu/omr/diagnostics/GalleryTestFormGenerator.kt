@@ -46,7 +46,8 @@ object GalleryTestFormGenerator {
         }
         val choicePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
-            textSize = 17f
+            textSize = 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
         val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -71,16 +72,32 @@ object GalleryTestFormGenerator {
 
         drawFiducials(canvas)
 
+        val firstRow = template.bubbleRows.first()
+        firstRow.bubbles.forEach { bubble ->
+            canvas.drawText(
+                bubble.id,
+                bubble.center.x.toFloat(),
+                258f,
+                choicePaint
+            )
+        }
+
         template.bubbleRows.forEach { row ->
             val first = row.bubbles.first()
-            canvas.drawText("${row.id}.", first.center.x.toFloat() - 68f, first.center.y.toFloat() + 8f, questionPaint)
+            canvas.drawText(
+                "${row.id}.",
+                first.center.x.toFloat() - 68f,
+                first.center.y.toFloat() + 8f,
+                questionPaint
+            )
 
             row.bubbles.forEach { bubble ->
-                val cx = bubble.center.x.toFloat()
-                val cy = bubble.center.y.toFloat()
-                val radius = bubble.radius.toFloat()
-                canvas.drawCircle(cx, cy, radius, bubblePaint)
-                canvas.drawText(bubble.id, cx, cy - radius - 8f, choicePaint)
+                canvas.drawCircle(
+                    bubble.center.x.toFloat(),
+                    bubble.center.y.toFloat(),
+                    bubble.radius.toFloat(),
+                    bubblePaint
+                )
             }
         }
 
