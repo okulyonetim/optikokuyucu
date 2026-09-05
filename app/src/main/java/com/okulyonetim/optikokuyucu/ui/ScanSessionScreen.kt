@@ -30,6 +30,14 @@ import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
 import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkState
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.results.ScanSource
+import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyCapture
+import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
+import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeySource
+import com.okulyonetim.optikokuyucu.omr.scoring.ExamScore
+import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
+import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
+import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
+import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,8 +48,50 @@ fun ScanSessionScreen(onBack: () -> Unit) {
     val repository = remember(context) {
         FileScanRecordRepository(context.applicationContext)
     }
+    val answerKeyRepository = remember(context) {
+        FileAnswerKeyRepository(context.applicationContext)
+    }
     var records by remember { mutableStateOf(repository.list()) }
+    var answerKeys by remember { mutableStateOf(answerKeyRepository.list()) }
     var expandedRecordId by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf("") }
+
+    fun refresh() {
+        records = repository.list()
+        answerKeys = answerKeyRepository.list()
+    }
+
+    fun saveAsAnswerKey(record: ScanRecord) {
+        val capture = AnswerKeyCapture.fromRecord(record)
+        if (!capture.successful) {
+            status = "Anahtar oluşturulamadı. Boş/çift/şüpheli sorular: " +
+                capture.invalidQuestionIds.joinToString(", ")
+            return
+        }
+
+        val bookletGridPresent = record.markGrids.any { it.gridId == BOOKLET_GRID_ID }
+        val booklet = record.grid(BOOKLET_GRID_ID)?.value
+        if (bookletGridPresent && booklet.isNullOrBlank()) {
+            status = "Anahtar oluşturulamadı. Kitapçık alanı net okunmadı."
+            return
+        }
+
+        answerKeyRepository.save(
+            StoredAnswerKey(
+                answerKey = requireNotNull(capture.answerKey),
+                variantGridId = booklet?.let { BOOKLET_GRID_ID },
+                variantValue = booklet,
+                source = AnswerKeySource.SCAN_RECORD,
+                sourceRecordId = record.id
+            )
+        )
+        answerKeys = answerKeyRepository.list()
+        status = buildString {
+            append("Cevap anahtarı kaydedildi")
+            booklet?.let { append(" · Kitapçık $it") }
+            append(" · ${record.answers.size} soru")
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -70,20 +120,26 @@ fun ScanSessionScreen(onBack: () -> Unit) {
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Cihazdaki ham OMR kayıtları", style = MaterialTheme.typography.titleSmall)
+                Text("Cihazdaki OMR kayıtları", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${records.size} kayıt · internet bağlantısı gerekmez",
+                    "${records.size} kayıt · ${answerKeys.size} cevap anahtarı · internet gerekmez",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "Ham okuma sonucu cevap anahtarından bağımsız saklanır; daha sonra yeniden puanlanabilir.",
+                    "Ham okuma korunur. Uygun şablon/sürüm ve kitapçık anahtarı bulunduğunda kayıt otomatik yeniden puanlanır.",
                     style = MaterialTheme.typography.bodySmall
                 )
+                if (status.isNotBlank()) {
+                    Text(status, style = MaterialTheme.typography.bodySmall)
+                }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { records = repository.list() }
+                    onClick = {
+                        refresh()
+                        status = "Kayıtlar ve cevap anahtarları yenilendi"
+                    }
                 ) {
-                    Text("Kayıtları yenile")
+                    Text("Kayıtları ve anahtarları yenile")
                 }
             }
         }
@@ -103,10 +159,13 @@ fun ScanSessionScreen(onBack: () -> Unit) {
             }
         } else {
             records.forEachIndexed { index, record ->
+                val matchingKey = AnswerKeyResolver.resolve(record, answerKeys)
                 ScanRecordCard(
                     ordinal = records.size - index,
                     record = record,
+                    answerKey = matchingKey,
                     expanded = expandedRecordId == record.id,
+                    onMakeAnswerKey = { saveAsAnswerKey(record) },
                     onToggleExpanded = {
                         expandedRecordId = if (expandedRecordId == record.id) null else record.id
                     }
@@ -120,15 +179,20 @@ fun ScanSessionScreen(onBack: () -> Unit) {
 private fun ScanRecordCard(
     ordinal: Int,
     record: ScanRecord,
+    answerKey: StoredAnswerKey?,
     expanded: Boolean,
+    onMakeAnswerKey: () -> Unit,
     onToggleExpanded: () -> Unit
 ) {
     val studentNumber = record.grid("studentNumber")?.value
-    val booklet = record.grid("booklet")?.value
+    val booklet = record.grid(BOOKLET_GRID_ID)?.value
     val marked = record.answers.count { it.state == RecordedAnswerState.MARKED }
     val blank = record.answers.count { it.state == RecordedAnswerState.BLANK }
     val doubleMark = record.answers.count { it.state == RecordedAnswerState.DOUBLE_MARK }
     val suspicious = record.answers.count { it.state == RecordedAnswerState.SUSPICIOUS }
+    val score = answerKey?.let { key ->
+        runCatching { OmrScorer.score(record, key.answerKey) }.getOrNull()
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -163,8 +227,24 @@ private fun ScanRecordCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
+            if (score == null) {
+                Text(
+                    "Puanlama: uygun cevap anahtarı yok",
+                    style = MaterialTheme.typography.titleSmall
+                )
+            } else {
+                ScoreSummary(score, answerKey)
+            }
+
+            if (answerKey?.sourceRecordId == record.id) {
+                Text(
+                    "Bu okuma aktif cevap anahtarının kaynağıdır.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
             record.markGrids
-                .filterNot { it.gridId == "studentNumber" || it.gridId == "booklet" }
+                .filterNot { it.gridId == "studentNumber" || it.gridId == BOOKLET_GRID_ID }
                 .forEach { grid ->
                     Text(
                         "${grid.gridId}: ${grid.value ?: markGridStateSummary(grid.columns.map { it.state })}",
@@ -174,15 +254,29 @@ private fun ScanRecordCard(
 
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
+                onClick = onMakeAnswerKey
+            ) {
+                Text("Bu okumayı cevap anahtarı yap")
+            }
+
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
                 onClick = onToggleExpanded
             ) {
-                Text(if (expanded) "Ham cevapları gizle" else "Ham cevapları göster")
+                Text(if (expanded) "Detayları gizle" else "Ham ve puanlama detaylarını göster")
             }
 
             if (expanded) {
                 Text("Ham cevaplar", style = MaterialTheme.typography.titleSmall)
                 answerLines(record.answers).forEach { line ->
                     Text(line, style = MaterialTheme.typography.bodySmall)
+                }
+
+                score?.let {
+                    Text("Puanlama detayı", style = MaterialTheme.typography.titleSmall)
+                    evaluationLines(it).forEach { line ->
+                        Text(line, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
 
                 if (record.markGrids.isNotEmpty()) {
@@ -200,6 +294,26 @@ private fun ScanRecordCard(
     }
 }
 
+@Composable
+private fun ScoreSummary(score: ExamScore, answerKey: StoredAnswerKey) {
+    val maximum = answerKey.answerKey.answers.size.toDouble()
+    Text(
+        "Doğru ${score.correctCount} · Yanlış ${score.wrongCount} · Boş ${score.blankCount} · " +
+            "Çift ${score.doubleMarkCount} · Şüpheli ${score.suspiciousCount}",
+        style = MaterialTheme.typography.titleSmall
+    )
+    Text(
+        String.format(
+            Locale.US,
+            "Puan %.1f / %.0f%s",
+            score.totalPoints,
+            maximum,
+            if (score.noKeyCount > 0) " · Anahtarsız ${score.noKeyCount}" else ""
+        ),
+        style = MaterialTheme.typography.bodyMedium
+    )
+}
+
 private fun answerLines(answers: List<RecordedAnswer>): List<String> =
     answers.chunked(10).map { chunk ->
         chunk.joinToString("  ") { answer ->
@@ -210,6 +324,23 @@ private fun answerLines(answers: List<RecordedAnswer>): List<String> =
                 RecordedAnswerState.SUSPICIOUS -> "?"
             }
             "${answer.questionId}:$value"
+        }
+    }
+
+private fun evaluationLines(score: ExamScore): List<String> =
+    score.evaluations.chunked(5).map { chunk ->
+        chunk.joinToString("  ") { evaluation ->
+            val marker = when (evaluation.state) {
+                QuestionEvaluationState.CORRECT -> "✓"
+                QuestionEvaluationState.WRONG -> "×"
+                QuestionEvaluationState.BLANK -> "-"
+                QuestionEvaluationState.DOUBLE_MARK -> "Ç"
+                QuestionEvaluationState.SUSPICIOUS -> "?"
+                QuestionEvaluationState.NO_KEY -> "!"
+            }
+            val selected = evaluation.selectedChoice ?: "-"
+            val expected = evaluation.expectedChoice ?: "-"
+            "${evaluation.questionId}:$selected/$expected$marker"
         }
     }
 
@@ -237,3 +368,5 @@ private fun markGridStateSummary(states: List<RecordedMarkState>): String {
     val suspicious = states.count { it == RecordedMarkState.SUSPICIOUS }
     return "belirsiz · boş $blank · çift $doubleMark · şüpheli $suspicious"
 }
+
+private const val BOOKLET_GRID_ID = "booklet"
