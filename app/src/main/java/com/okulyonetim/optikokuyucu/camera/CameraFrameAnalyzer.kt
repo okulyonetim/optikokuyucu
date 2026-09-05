@@ -13,6 +13,7 @@ import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
 import com.okulyonetim.optikokuyucu.omr.live.LiveSessionDeduplicator
 import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
+import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
@@ -31,14 +32,17 @@ import kotlin.math.max
  * frames. One physical sheet is then latched until it visibly leaves the camera. When a stable
  * student number exists, a session fingerprint also prevents the same completed sheet from being
  * accepted again after it is removed and reinserted.
+ *
+ * The analyzer accepts any compiled [OmrTemplate]. The default keeps the existing diagnostic
+ * scanner behavior while the form designer can pass its currently edited template to "Test Et".
  */
 class CameraFrameAnalyzer(
     openCvReady: Boolean,
     private val onStats: (CameraFrameStats) -> Unit,
-    private val onLiveRead: (LiveOmrReadResult) -> Unit = {}
+    private val onLiveRead: (LiveOmrReadResult) -> Unit = {},
+    private val template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
 ) : ImageAnalysis.Analyzer {
 
-    private val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
     private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
     private val bubbleReader = CanonicalBubbleReader(template)
     private val markGridReader = CanonicalMarkGridReader(template)
