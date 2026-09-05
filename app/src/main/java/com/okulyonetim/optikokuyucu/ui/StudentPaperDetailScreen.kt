@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -25,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetadataEditor
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetrics
+import com.okulyonetim.optikokuyucu.exam.ExamPaperRemoval
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.questionDisplayNumber
@@ -47,6 +50,7 @@ import com.okulyonetim.optikokuyucu.exam.questionLessonPrefix
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
+import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
@@ -75,6 +79,7 @@ fun StudentPaperDetailScreen(
     val appContext = context.applicationContext
     val examRepository = remember(context) { FileExamRepository(appContext) }
     val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
+    val imageRepository = remember(context) { FileScanImageRepository(appContext) }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
 
     var exam by remember(examId) { mutableStateOf(examRepository.load(examId)) }
@@ -107,6 +112,7 @@ fun StudentPaperDetailScreen(
         mutableStateOf(link.bookletCode.ifBlank { record.grid("booklet")?.value.orEmpty() })
     }
     var status by remember { mutableStateOf("") }
+    var deleteDialogOpen by remember { mutableStateOf(false) }
 
     val matchingKey = remember(record.id, keys) { AnswerKeyResolver.resolve(record, keys) }
     val score = remember(record.id, matchingKey, currentExam.wrongAnswerPolicy) {
@@ -154,6 +160,50 @@ fun StudentPaperDetailScreen(
         }.onFailure { error ->
             status = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
+    }
+
+    fun deletePaper() {
+        runCatching {
+            val updated = ExamPaperRemoval.unlink(currentExam, scanRecordId)
+            examRepository.save(updated)
+
+            val referencedElsewhere = examRepository.list().any { otherExam ->
+                otherExam.id != examId && otherExam.paperForScan(scanRecordId) != null
+            }
+            if (!referencedElsewhere) {
+                runCatching { scanRepository.delete(scanRecordId) }
+                runCatching { imageRepository.delete(scanRecordId) }
+            }
+        }.onSuccess {
+            deleteDialogOpen = false
+            onBack()
+        }.onFailure { error ->
+            deleteDialogOpen = false
+            status = "Silinemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { deleteDialogOpen = false },
+            title = { Text("Kağıt silinsin mi?") },
+            text = {
+                Text(
+                    "Bu kağıt sınavdan kaldırılacak. Tarama başka bir sınava bağlı değilse " +
+                        "ham OMR kaydı ve saklanan görüntü de cihazdan silinecek. Bu işlem geri alınamaz."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = ::deletePaper) {
+                    Text("Sil", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }) {
+                    Text("Vazgeç")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -290,12 +340,23 @@ fun StudentPaperDetailScreen(
                             if (status.isNotBlank()) {
                                 Text(
                                     status,
-                                    color = if (status.startsWith("Kaydedilemedi")) {
+                                    color = if (
+                                        status.startsWith("Kaydedilemedi") ||
+                                        status.startsWith("Silinemedi")
+                                    ) {
                                         MaterialTheme.colorScheme.error
                                     } else {
                                         CorrectGreen
                                     }
                                 )
+                            }
+
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { deleteDialogOpen = true },
+                                shape = RoundedCornerShape(28.dp)
+                            ) {
+                                Text("Kağıdı Sınavdan Sil", color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
