@@ -86,6 +86,55 @@ object DesignerDocumentEditor {
         }
     )
 
+    fun setVisualText(
+        document: DesignerDocument,
+        elementId: String,
+        text: String
+    ): DesignerDocument {
+        require(text.isNotEmpty())
+        return document.copy(
+            visualElements = document.visualElements.map { element ->
+                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
+                else element.copy(text = text)
+            }
+        )
+    }
+
+    fun setVisualFontSize(
+        document: DesignerDocument,
+        elementId: String,
+        fontSize: Double
+    ): DesignerDocument {
+        require(fontSize > 0.0)
+        return document.copy(
+            visualElements = document.visualElements.map { element ->
+                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
+                else element.copy(fontSize = fontSize)
+            }
+        )
+    }
+
+    fun setVisualStrokeWidth(
+        document: DesignerDocument,
+        elementId: String,
+        strokeWidth: Double
+    ): DesignerDocument {
+        require(strokeWidth > 0.0)
+        return document.copy(
+            visualElements = document.visualElements.map { element ->
+                if (element.id != elementId || element.locked) {
+                    element
+                } else {
+                    when (element) {
+                        is DesignerBoxElement -> element.copy(strokeWidth = strokeWidth)
+                        is DesignerLineElement -> element.copy(strokeWidth = strokeWidth)
+                        is DesignerTextElement -> element
+                    }
+                }
+            }
+        )
+    }
+
     fun snap(value: Double, step: Double): Double {
         require(step > 0.0)
         return round(value / step) * step
