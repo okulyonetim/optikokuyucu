@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,6 +55,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
+import com.okulyonetim.optikokuyucu.camera.LiveOmrReadResult
+import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
@@ -139,6 +143,7 @@ private fun CameraPreviewContent(
     }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 78) }
     val previewView = remember(context) {
         PreviewView(context).apply {
             implementationMode = PreviewView.ImplementationMode.PERFORMANCE
@@ -147,20 +152,34 @@ private fun CameraPreviewContent(
     }
 
     var stats by remember { mutableStateOf(CameraFrameStats.Empty) }
+    var liveRead by remember { mutableStateOf<LiveOmrReadResult?>(null) }
     var cameraMessage by remember { mutableStateOf("Kamera başlatılıyor…") }
 
     val analyzer = remember(openCvReady) {
-        CameraFrameAnalyzer(openCvReady = openCvReady) { newStats ->
-            mainExecutor.execute {
-                stats = newStats
-                cameraMessage = "Canlı analiz aktif"
+        CameraFrameAnalyzer(
+            openCvReady = openCvReady,
+            onStats = { newStats ->
+                mainExecutor.execute {
+                    stats = newStats
+                    if (newStats.readArmed) {
+                        cameraMessage = "Canlı analiz aktif"
+                    }
+                }
+            },
+            onLiveRead = { result ->
+                mainExecutor.execute {
+                    liveRead = result
+                    cameraMessage = "Form okundu #${result.sequence}"
+                    toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+                }
             }
-        }
+        )
     }
 
     DisposableEffect(Unit) {
         onDispose {
             analysisExecutor.shutdown()
+            toneGenerator.release()
         }
     }
 
@@ -238,20 +257,32 @@ private fun CameraPreviewContent(
             selfTest = selfTest
         )
 
+        liveRead?.let { result ->
+            LiveReadResultCard(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .systemBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 82.dp),
+                result = result
+            )
+        }
+
         Text(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .systemBarsPadding()
                 .padding(20.dp)
                 .background(
-                    color = Color.Black.copy(alpha = 0.62f),
+                    color = Color.Black.copy(alpha = 0.68f),
                     shape = RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-            text = when (stats.trackingPhase) {
-                PageTrackingPhase.LOCKED -> "Form kilitlendi"
-                PageTrackingPhase.TRACKING -> "Form takip ediliyor"
-                PageTrackingPhase.SEARCHING -> "Dört köşe işaretini görüntüye alın"
+            text = when {
+                !stats.readArmed -> "Okundu ✓ · sonraki form için bu formu kameradan çıkarın"
+                stats.trackingPhase == PageTrackingPhase.LOCKED -> "Form kilitlendi · okunuyor"
+                stats.trackingPhase == PageTrackingPhase.TRACKING -> "Form takip ediliyor · sabit tutun"
+                else -> "Dört köşe işaretini görüntüye alın"
             },
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
@@ -276,7 +307,7 @@ private fun CameraTelemetryCard(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "Optik Okuyucu · OMR Motor Testi",
+                text = "Optik Okuyucu · Canlı OMR",
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
@@ -335,6 +366,19 @@ private fun CameraTelemetryCard(
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        if (stats.readArmed) "Okuma hazır ✓" else "Yeni form bekleniyor",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text("Okunan ${stats.liveReadCount}", style = MaterialTheme.typography.labelMedium)
+                }
             } else {
                 Text(
                     modifier = Modifier.padding(top = 8.dp),
@@ -342,6 +386,57 @@ private fun CameraTelemetryCard(
                     style = MaterialTheme.typography.labelMedium
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LiveReadResultCard(
+    modifier: Modifier,
+    result: LiveOmrReadResult
+) {
+    val bubbles = result.bubbleResult
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black.copy(alpha = 0.78f),
+            contentColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                "OKUNDU #${result.sequence} ✓",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                String.format(
+                    Locale.US,
+                    "%.1f ms · geometri %.0f%% · karar %.0f%%",
+                    result.elapsedMs,
+                    result.pageConfidence * 100.0,
+                    result.decisionConfidence * 100.0
+                ),
+                style = MaterialTheme.typography.labelMedium
+            )
+            Text(
+                "İşaretli ${bubbles.markedCount} · Boş ${bubbles.blankCount} · " +
+                    "Çift ${bubbles.doubleMarkCount} · Şüpheli ${bubbles.suspiciousCount}",
+                style = MaterialTheme.typography.labelMedium
+            )
+            val summaries = bubbles.questions.map { question ->
+                val answer = when (question.state) {
+                    QuestionState.MARKED -> question.selectedChoice ?: "?"
+                    QuestionState.BLANK -> "-"
+                    QuestionState.DOUBLE_MARK -> "Ç"
+                    QuestionState.SUSPICIOUS -> "?"
+                }
+                "${question.questionId}:$answer"
+            }
+            Text(summaries.take(10).joinToString("  "), style = MaterialTheme.typography.bodySmall)
+            Text(summaries.drop(10).joinToString("  "), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
