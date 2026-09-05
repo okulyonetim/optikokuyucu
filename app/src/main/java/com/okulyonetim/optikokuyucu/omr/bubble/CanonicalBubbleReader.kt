@@ -133,11 +133,26 @@ class CanonicalBubbleReader(
         val bestScore = best.value
         val secondScore = second?.value ?: 0.0
         val gap = bestScore - secondScore
+        val strongMarkCount = sorted.count { it.value >= STRONG_MARK_SCORE }
 
         return when {
             bestScore < MIN_MARK_SCORE ->
                 QuestionRead(questionId, QuestionState.BLANK, null, 1.0 - bestScore, scores)
 
+            // Two independently strong fills are a double mark even if glare/shadow makes one
+            // visibly lighter than the other. Requiring nearly equal darkness caused real double
+            // marks to collapse into a single answer when illumination was spatially uneven.
+            strongMarkCount >= 2 ->
+                QuestionRead(
+                    questionId,
+                    QuestionState.DOUBLE_MARK,
+                    null,
+                    (secondScore / STRONG_MARK_SCORE).coerceIn(0.0, 1.0),
+                    scores
+                )
+
+            // A weaker second candidate is accepted as double only when it is close to the winner.
+            // This preserves rejection of erase residue, print dirt and other weak secondary traces.
             secondScore >= DOUBLE_MARK_SCORE && gap < DOUBLE_GAP ->
                 QuestionRead(
                     questionId,
@@ -169,6 +184,7 @@ class CanonicalBubbleReader(
 
     companion object {
         private const val MIN_MARK_SCORE = 0.12
+        private const val STRONG_MARK_SCORE = 0.20
         private const val DOUBLE_MARK_SCORE = 0.11
         private const val DOUBLE_GAP = 0.055
         private const val CONFIDENT_GAP = 0.045
