@@ -2,25 +2,36 @@ package com.okulyonetim.optikokuyucu.camera
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
+import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
+import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
+import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
+import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
+import org.opencv.core.CvType
+import org.opencv.core.Mat
 import kotlin.math.max
 
 /**
  * Live CameraX analyzer.
  *
- * Frames stay in single-channel luminance form. When OpenCV is available, the same Y-plane
- * ByteBuffer is wrapped by OpenCV for fiducial detection; no RGB/Bitmap conversion is used.
+ * Frames stay in single-channel luminance form. Marker search, canonical rectification and bubble
+ * reading all use the Y plane; the live OMR path does not create RGB Bitmaps.
  */
 class CameraFrameAnalyzer(
     openCvReady: Boolean,
-    private val onStats: (CameraFrameStats) -> Unit
+    private val onStats: (CameraFrameStats) -> Unit,
+    private val onLiveRead: (LiveOmrReadResult) -> Unit = {}
 ) : ImageAnalysis.Analyzer {
 
-    private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector() else null
+    private val template = StandardOmrTemplate.SAMPLE_20_ABCD
+    private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
+    private val bubbleReader = CanonicalBubbleReader(template)
     private val pageTracker = PageLockTracker()
+    private val scanGate = LiveScanGate()
 
     private var frameCount = 0
     private var windowStartedAtNs = System.nanoTime()
@@ -29,6 +40,7 @@ class CameraFrameAnalyzer(
     private var latestTrackingConfidence = 0.0
     private var latestMotionRatio = 1.0
     private var detectorHealthy = openCvReady
+    private var liveReadCount = 0
 
     override fun analyze(image: ImageProxy) {
         try {
@@ -51,6 +63,33 @@ class CameraFrameAnalyzer(
                 latestTrackingPhase = tracking.phase
                 latestTrackingConfidence = tracking.confidence
                 latestMotionRatio = tracking.motionRatio
+
+                scanGate.onFrame(
+                    phase = tracking.phase,
+                    markerCount = latestDetection.detectedMarkers.size
+                )
+
+                if (scanGate.canRead(
+                        phase = tracking.phase,
+                        markerCount = latestDetection.detectedMarkers.size,
+                        registrationReady = latestDetection.canonicalRegistration != null,
+                        pageConfidence = tracking.confidence
+                    )
+                ) {
+                    val liveResult = runCatching {
+                        readLockedFrame(
+                            image = image,
+                            detection = latestDetection,
+                            pageConfidence = tracking.confidence
+                        )
+                    }.getOrNull()
+
+                    if (liveResult != null) {
+                        scanGate.onAcceptedRead()
+                        liveReadCount += 1
+                        onLiveRead(liveResult.copy(sequence = liveReadCount))
+                    }
+                }
             }
 
             val nowNs = System.nanoTime()
@@ -71,7 +110,9 @@ class CameraFrameAnalyzer(
                         markerCount = latestDetection.detectedMarkers.size,
                         pageConfidence = latestTrackingConfidence,
                         trackingPhase = latestTrackingPhase,
-                        motionRatio = latestMotionRatio
+                        motionRatio = latestMotionRatio,
+                        readArmed = scanGate.isArmed(),
+                        liveReadCount = liveReadCount
                     )
                 )
 
@@ -80,6 +121,48 @@ class CameraFrameAnalyzer(
             }
         } finally {
             image.close()
+        }
+    }
+
+    private fun readLockedFrame(
+        image: ImageProxy,
+        detection: FiducialDetectionResult,
+        pageConfidence: Double
+    ): LiveOmrReadResult? {
+        val plane = image.planes.firstOrNull() ?: return null
+        if (plane.pixelStride != 1 || image.width <= 0 || image.height <= 0) return null
+
+        val startedAt = System.nanoTime()
+        val buffer = plane.buffer.duplicate().apply { rewind() }
+        val gray = Mat(
+            image.height,
+            image.width,
+            CvType.CV_8UC1,
+            buffer,
+            plane.rowStride.toLong()
+        )
+        var canonical: Mat? = null
+
+        return try {
+            canonical = CanonicalImageRectifier.rectify(gray, detection, template) ?: return null
+            val bubbles = bubbleReader.readCanonical(canonical)
+            if (bubbles.questions.size != template.bubbleRows.size) return null
+
+            LiveOmrReadResult(
+                sequence = 0,
+                bubbleResult = bubbles,
+                pageConfidence = pageConfidence,
+                decisionConfidence = bubbles.questions
+                    .map { it.confidence }
+                    .average()
+                    .coerceIn(0.0, 1.0),
+                elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
+                sourceWidth = image.width,
+                sourceHeight = image.height
+            )
+        } finally {
+            canonical?.release()
+            gray.release()
         }
     }
 
@@ -123,6 +206,16 @@ class CameraFrameAnalyzer(
     }
 }
 
+data class LiveOmrReadResult(
+    val sequence: Int,
+    val bubbleResult: BubbleReadResult,
+    val pageConfidence: Double,
+    val decisionConfidence: Double,
+    val elapsedMs: Double,
+    val sourceWidth: Int,
+    val sourceHeight: Int
+)
+
 data class CameraFrameStats(
     val width: Int,
     val height: Int,
@@ -133,7 +226,9 @@ data class CameraFrameStats(
     val markerCount: Int,
     val pageConfidence: Double,
     val trackingPhase: PageTrackingPhase,
-    val motionRatio: Double
+    val motionRatio: Double,
+    val readArmed: Boolean,
+    val liveReadCount: Int
 ) {
     companion object {
         val Empty = CameraFrameStats(
@@ -146,7 +241,9 @@ data class CameraFrameStats(
             markerCount = 0,
             pageConfidence = 0.0,
             trackingPhase = PageTrackingPhase.SEARCHING,
-            motionRatio = 1.0
+            motionRatio = 1.0,
+            readArmed = true,
+            liveReadCount = 0
         )
     }
 }
