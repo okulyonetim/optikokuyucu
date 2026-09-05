@@ -54,6 +54,7 @@ import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -250,7 +251,7 @@ private fun CameraPreviewContent(
             text = when (stats.trackingPhase) {
                 PageTrackingPhase.LOCKED -> "Form kilitlendi"
                 PageTrackingPhase.TRACKING -> "Form takip ediliyor"
-                PageTrackingPhase.SEARCHING -> "Optik formu A4 çerçevesinin içine getirin"
+                PageTrackingPhase.SEARCHING -> "Dört köşe işaretini görüntüye alın"
             },
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
@@ -348,18 +349,18 @@ private fun CameraTelemetryCard(
 @Composable
 private fun OmrGuideOverlay(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val a4Aspect = 210f / 297f
+        val templateAspect = StandardOmrTemplate.DEFAULT.space.aspectRatio.toFloat()
         val maxWidth = size.width * 0.84f
         val maxHeight = size.height * 0.70f
 
         val width: Float
         val height: Float
-        if (maxWidth / maxHeight > a4Aspect) {
+        if (maxWidth / maxHeight > templateAspect) {
             height = maxHeight
-            width = height * a4Aspect
+            width = height * templateAspect
         } else {
             width = maxWidth
-            height = width / a4Aspect
+            height = width / templateAspect
         }
 
         val left = (size.width - width) / 2f
