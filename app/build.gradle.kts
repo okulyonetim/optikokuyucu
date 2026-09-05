@@ -5,7 +5,12 @@ plugins {
 
 android {
     namespace = "com.okulyonetim.optikokuyucu"
-    compileSdk = 36
+
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 0
+        }
+    }
 
     defaultConfig {
         applicationId = "com.okulyonetim.optikokuyucu"
