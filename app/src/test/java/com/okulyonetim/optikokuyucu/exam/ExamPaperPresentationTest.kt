@@ -6,6 +6,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExamPaperPresentationTest {
@@ -50,6 +51,28 @@ class ExamPaperPresentationTest {
         assertEquals("8A", link.className)
         assertEquals("16", link.studentNumber)
         assertEquals("B", link.bookletCode)
+    }
+
+    @Test
+    fun paperRemovalUnlinksOnlyRequestedScan() {
+        val exam = Exam(
+            id = "exam",
+            name = "LGS",
+            schoolName = "Okul",
+            templateSelection = selection,
+            examDateEpochDay = 1L,
+            createdAtEpochMs = 1L,
+            papers = listOf(
+                ExamPaperLink(scanRecordId = "scan-1", linkedAtEpochMs = 10L),
+                ExamPaperLink(scanRecordId = "scan-2", linkedAtEpochMs = 20L)
+            )
+        )
+
+        val updated = ExamPaperRemoval.unlink(exam, "scan-1")
+
+        assertEquals(listOf("scan-2"), updated.papers.map { it.scanRecordId })
+        assertEquals(null, updated.paperForScan("scan-1"))
+        assertTrue(runCatching { ExamPaperRemoval.unlink(updated, "missing") }.isFailure)
     }
 
     @Test
