@@ -58,6 +58,7 @@ import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
 import com.okulyonetim.optikokuyucu.camera.LiveOmrReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import java.util.Locale
@@ -66,7 +67,8 @@ import java.util.concurrent.Executors
 @Composable
 fun OmrCameraScreen(
     openCvReady: Boolean,
-    selfTest: OmrSelfTestResult
+    selfTest: OmrSelfTestResult,
+    template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
 ) {
     val context = LocalContext.current
     var cameraGranted by remember {
@@ -92,7 +94,8 @@ fun OmrCameraScreen(
         if (cameraGranted) {
             CameraPreviewContent(
                 openCvReady = openCvReady,
-                selfTest = selfTest
+                selfTest = selfTest,
+                template = template
             )
         } else {
             CameraPermissionContent(
@@ -133,7 +136,8 @@ private fun CameraPermissionContent(onRequestPermission: () -> Unit) {
 @Composable
 private fun CameraPreviewContent(
     openCvReady: Boolean,
-    selfTest: OmrSelfTestResult
+    selfTest: OmrSelfTestResult,
+    template: OmrTemplate
 ) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
@@ -155,7 +159,7 @@ private fun CameraPreviewContent(
     var liveRead by remember { mutableStateOf<LiveOmrReadResult?>(null) }
     var cameraMessage by remember { mutableStateOf("Kamera başlatılıyor…") }
 
-    val analyzer = remember(openCvReady) {
+    val analyzer = remember(openCvReady, template) {
         CameraFrameAnalyzer(
             openCvReady = openCvReady,
             onStats = { newStats ->
@@ -172,7 +176,8 @@ private fun CameraPreviewContent(
                     cameraMessage = "Form okundu #${result.sequence}"
                     toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
                 }
-            }
+            },
+            template = template
         )
     }
 
@@ -183,7 +188,7 @@ private fun CameraPreviewContent(
         }
     }
 
-    DisposableEffect(lifecycleOwner, previewView) {
+    DisposableEffect(lifecycleOwner, previewView, analyzer) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         val listener = Runnable {
@@ -219,7 +224,7 @@ private fun CameraPreviewContent(
                     preview,
                     analysis
                 )
-                cameraMessage = "Kamera hazır"
+                cameraMessage = "Kamera hazır · ${template.id} v${template.version}"
             } catch (error: Exception) {
                 cameraMessage = "Kamera başlatılamadı: ${error.message ?: error.javaClass.simpleName}"
             }
@@ -244,7 +249,10 @@ private fun CameraPreviewContent(
             factory = { previewView }
         )
 
-        OmrGuideOverlay(modifier = Modifier.fillMaxSize())
+        OmrGuideOverlay(
+            modifier = Modifier.fillMaxSize(),
+            templateAspect = template.space.aspectRatio.toFloat()
+        )
 
         CameraTelemetryCard(
             modifier = Modifier
@@ -378,6 +386,9 @@ private fun CameraTelemetryCard(
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text("Okunan ${stats.liveReadCount}", style = MaterialTheme.typography.labelMedium)
+                    if (stats.duplicateReadCount > 0) {
+                        Text("Tekrar ${stats.duplicateReadCount}", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             } else {
                 Text(
@@ -426,6 +437,15 @@ private fun LiveReadResultCard(
                     "Çift ${bubbles.doubleMarkCount} · Şüpheli ${bubbles.suspiciousCount}",
                 style = MaterialTheme.typography.labelMedium
             )
+
+            result.markGridResult.grids.forEach { grid ->
+                val value = grid.value ?: "?"
+                Text(
+                    "${grid.gridId}: $value",
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+
             val summaries = bubbles.questions.map { question ->
                 val answer = when (question.state) {
                     QuestionState.MARKED -> question.selectedChoice ?: "?"
@@ -442,9 +462,11 @@ private fun LiveReadResultCard(
 }
 
 @Composable
-private fun OmrGuideOverlay(modifier: Modifier = Modifier) {
+private fun OmrGuideOverlay(
+    modifier: Modifier = Modifier,
+    templateAspect: Float = StandardOmrTemplate.DEFAULT.space.aspectRatio.toFloat()
+) {
     Canvas(modifier = modifier) {
-        val templateAspect = StandardOmrTemplate.DEFAULT.space.aspectRatio.toFloat()
         val maxWidth = size.width * 0.84f
         val maxHeight = size.height * 0.70f
 
