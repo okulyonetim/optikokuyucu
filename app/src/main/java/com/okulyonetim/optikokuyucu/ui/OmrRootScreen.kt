@@ -51,6 +51,8 @@ fun OmrRootScreen(
             )
 
             RootDestination.DESIGNER -> OmrDesignerScreen(
+                openCvReady = openCvReady,
+                selfTest = selfTest,
                 onBack = { destination = RootDestination.HOME }
             )
         }
