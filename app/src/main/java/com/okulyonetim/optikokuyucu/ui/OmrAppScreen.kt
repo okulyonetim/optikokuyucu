@@ -50,6 +50,9 @@ import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmark
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrStressBenchmarkResult
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrResult
+import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
+import com.okulyonetim.optikokuyucu.omr.results.GalleryScanRecorder
+import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -98,6 +101,10 @@ private fun GalleryTestScreen(
     onOpenCamera: () -> Unit
 ) {
     val context = LocalContext.current
+    val template = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    val galleryRecorder = remember(context) {
+        GalleryScanRecorder(FileScanRecordRepository(context.applicationContext))
+    }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
 
@@ -105,6 +112,7 @@ private fun GalleryTestScreen(
         mutableStateOf(if (openCvReady) "Galeri testi hazır" else "OpenCV başlatılamadı")
     }
     var result by remember { mutableStateOf<GalleryOmrResult?>(null) }
+    var savedGalleryRecordId by remember { mutableStateOf<String?>(null) }
     var benchmark by remember { mutableStateOf<OmrStressBenchmarkResult?>(null) }
     var benchmark100 by remember { mutableStateOf<Omr100BenchmarkResult?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -122,11 +130,12 @@ private fun GalleryTestScreen(
         busy = true
         status = "Görsel okunuyor…"
         worker.execute {
-            runCatching { GalleryOmrReader.read(context, uri) }
+            runCatching { GalleryOmrReader.read(context, uri, template) }
                 .onSuccess { newResult ->
                     mainExecutor.execute {
                         result?.bitmap?.recycle()
                         result = newResult
+                        savedGalleryRecordId = null
                         busy = false
                         status = when {
                             newResult.rectificationReady -> "Canonical düzeltme tamamlandı · 20 soru analiz edildi"
@@ -160,7 +169,7 @@ private fun GalleryTestScreen(
     ) {
         Text("Optik Okuyucu", style = MaterialTheme.typography.headlineMedium)
         Text(
-            text = "Önce Galeri ile OMR Doğruluk Testi",
+            text = "Galeri ile OMR Okuma",
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -220,7 +229,8 @@ private fun GalleryTestScreen(
 
         Text(
             text = "Galeride açılan formda istediğiniz baloncukların içini siyaha boyayın. " +
-                "Köşe karelerini silmeyin; düzenlenmiş görseli kaydedin.",
+                "Köşe karelerini silmeyin; düzenlenmiş görseli kaydedin. Gerçek öğrenci formunu " +
+                "seçtiğinizde öğrenci no ve A/B kitapçık alanı da aynı okumada analiz edilir.",
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -310,6 +320,49 @@ private fun GalleryTestScreen(
 
         result?.let { galleryResult ->
             GalleryResultCard(galleryResult)
+
+            val studentNumber = galleryResult.markGridResult.grid("studentNumber")?.value
+            val booklet = galleryResult.markGridResult.grid("booklet")?.value
+            Text(
+                "Öğrenci No: ${studentNumber ?: "—"} · Kitapçık: ${booklet ?: "—"}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = galleryResult.rectificationReady &&
+                    galleryResult.bubbleResult.questions.isNotEmpty() &&
+                    savedGalleryRecordId == null,
+                onClick = {
+                    runCatching { galleryRecorder.record(template, galleryResult) }
+                        .onSuccess { record ->
+                            savedGalleryRecordId = record.id
+                            val savedStudent = record.grid("studentNumber")?.value
+                            val savedBooklet = record.grid("booklet")?.value
+                            status = buildString {
+                                append("Galeri okuması tarama kaydına eklendi")
+                                savedStudent?.let { append(" · Öğrenci $it") }
+                                savedBooklet?.let { append(" · Kitapçık $it") }
+                            }
+                        }
+                        .onFailure { error ->
+                            status = "Tarama kaydı oluşturulamadı: ${error.message ?: error.javaClass.simpleName}"
+                        }
+                }
+            ) {
+                Text(
+                    if (savedGalleryRecordId == null) {
+                        "Tarama kaydı olarak kaydet"
+                    } else {
+                        "Tarama kaydı kaydedildi ✓"
+                    }
+                )
+            }
+
+            Text(
+                "Galeri analizi otomatik kaydedilmez. Yalnız bu düğmeye bastığınız okumalar Sonuçlar ekranına eklenir.",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Image(
                 bitmap = galleryResult.bitmap.asImageBitmap(),
