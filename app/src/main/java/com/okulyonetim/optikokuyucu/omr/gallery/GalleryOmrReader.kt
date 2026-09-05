@@ -10,34 +10,45 @@ import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
+import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
 
-/** Offline gallery path that uses the same fiducial/registration geometry as the live camera. */
+/**
+ * Offline gallery path that shares marker, registration, rectification and bubble engines with
+ * the future stable-frame camera path.
+ */
 object GalleryOmrReader {
     private val template = StandardOmrTemplate.SAMPLE_20_ABCD
 
     fun read(context: Context, uri: Uri): GalleryOmrResult {
-        val startedAt = System.nanoTime()
         val decoded = decodeBitmap(context, uri)
-        val bitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
-        if (decoded !== bitmap) decoded.recycle()
+        return try {
+            readBitmap(decoded)
+        } finally {
+            decoded.recycle()
+        }
+    }
+
+    /** Useful for phone-side synthetic/stress benchmarks without creating temporary files. */
+    fun readBitmap(source: Bitmap): GalleryOmrResult {
+        val startedAt = System.nanoTime()
+        val bitmap = source.copy(Bitmap.Config.ARGB_8888, false)
 
         val rgba = Mat()
         val gray = Mat()
+        var canonical: Mat? = null
         try {
             Utils.bitmapToMat(bitmap, rgba)
             Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
 
             val detection = OpenCvFiducialDetector(template).detectGray(gray)
-            val registration = detection.canonicalRegistration
-            val bubbles = if (registration != null) {
-                CanonicalBubbleReader(template).read(gray, registration)
-            } else {
-                BubbleReadResult(emptyList())
-            }
+            canonical = CanonicalImageRectifier.rectify(gray, detection, template)
+            val bubbles = canonical?.let {
+                CanonicalBubbleReader(template).readCanonical(it)
+            } ?: BubbleReadResult(emptyList())
 
             return GalleryOmrResult(
                 bitmap = bitmap,
@@ -45,12 +56,15 @@ object GalleryOmrReader {
                 height = gray.rows(),
                 detection = detection,
                 bubbleResult = bubbles,
+                canonicalWidth = canonical?.cols() ?: 0,
+                canonicalHeight = canonical?.rows() ?: 0,
                 elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
             )
         } catch (error: Throwable) {
             bitmap.recycle()
             throw error
         } finally {
+            canonical?.release()
             gray.release()
             rgba.release()
         }
@@ -88,8 +102,11 @@ data class GalleryOmrResult(
     val height: Int,
     val detection: FiducialDetectionResult,
     val bubbleResult: BubbleReadResult,
+    val canonicalWidth: Int,
+    val canonicalHeight: Int,
     val elapsedMs: Double
 ) {
     val markerCount: Int get() = detection.detectedMarkers.size
     val registrationReady: Boolean get() = detection.canonicalRegistration != null
+    val rectificationReady: Boolean get() = canonicalWidth > 0 && canonicalHeight > 0
 }
