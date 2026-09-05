@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +69,8 @@ import java.util.concurrent.Executors
 fun OmrCameraScreen(
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
-    template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    template: OmrTemplate,
+    onAcceptedRead: (LiveOmrReadResult) -> Unit = {}
 ) {
     val context = LocalContext.current
     var cameraGranted by remember {
@@ -95,7 +97,8 @@ fun OmrCameraScreen(
             CameraPreviewContent(
                 openCvReady = openCvReady,
                 selfTest = selfTest,
-                template = template
+                template = template,
+                onAcceptedRead = onAcceptedRead
             )
         } else {
             CameraPermissionContent(
@@ -137,7 +140,8 @@ private fun CameraPermissionContent(onRequestPermission: () -> Unit) {
 private fun CameraPreviewContent(
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
-    template: OmrTemplate
+    template: OmrTemplate,
+    onAcceptedRead: (LiveOmrReadResult) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
@@ -154,6 +158,7 @@ private fun CameraPreviewContent(
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
+    val currentOnAcceptedRead by rememberUpdatedState(onAcceptedRead)
 
     var stats by remember { mutableStateOf(CameraFrameStats.Empty) }
     var liveRead by remember { mutableStateOf<LiveOmrReadResult?>(null) }
@@ -171,6 +176,7 @@ private fun CameraPreviewContent(
                 }
             },
             onLiveRead = { result ->
+                currentOnAcceptedRead(result)
                 mainExecutor.execute {
                     liveRead = result
                     cameraMessage = "Form okundu #${result.sequence}"
