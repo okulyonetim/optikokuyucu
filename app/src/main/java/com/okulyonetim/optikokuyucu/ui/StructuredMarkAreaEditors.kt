@@ -80,11 +80,15 @@ internal fun NumberAreaEditorScreen(
                 onHorizontal = { onDraftChange(normalized.copy(orientation = NumericGridOrientation.DIGITS_HORIZONTAL)) },
                 onVertical = { onDraftChange(normalized.copy(orientation = NumericGridOrientation.DIGITS_VERTICAL)) }
             )
-            LabelControls(normalized.label, normalized.showLabel, "Etiket", { onDraftChange(normalized.copy(showLabel = it)) }) {
-                onDraftChange(normalized.copy(label = it))
-            }
+            LabelControls(normalized.label, normalized.showLabel, "Etiket", { onDraftChange(normalized.copy(showLabel = it)) }) { onDraftChange(normalized.copy(label = it)) }
             Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
             AlignmentButtons(normalized.labelAlignment) { onDraftChange(normalized.copy(labelAlignment = it)) }
+            ComponentLabelTypographyControls(
+                normalized.labelFontSize,
+                normalized.labelBold,
+                { onDraftChange(normalized.copy(labelFontSize = it)) },
+                { onDraftChange(normalized.copy(labelBold = it)) }
+            )
             PatternField(patternText, patternIssue, DesignerAreaCatalog.numberPatternPresets, onPatternTextChange)
             IntInput("Veri / Hane Sayısı", normalized.digits, 1, 16) { onDraftChange(normalized.copy(digits = it)) }
             NumberInput("Hane Aralığı", normalized.columnGap, 18.0, 80.0, 1.0) { onDraftChange(normalized.copy(columnGap = it)) }
@@ -120,11 +124,15 @@ internal fun AnswerAreaEditorScreen(
     MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
         MarkCard {
             ReadOnlyField("Tür", "Cevaplar")
-            LabelControls(normalized.label, normalized.showLabel, "Ders Adı", { onDraftChange(normalized.copy(showLabel = it)) }) {
-                onDraftChange(normalized.copy(label = it))
-            }
+            LabelControls(normalized.label, normalized.showLabel, "Ders Adı", { onDraftChange(normalized.copy(showLabel = it)) }) { onDraftChange(normalized.copy(label = it)) }
             Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
             AlignmentButtons(normalized.labelAlignment) { onDraftChange(normalized.copy(labelAlignment = it)) }
+            ComponentLabelTypographyControls(
+                normalized.labelFontSize,
+                normalized.labelBold,
+                { onDraftChange(normalized.copy(labelFontSize = it)) },
+                { onDraftChange(normalized.copy(labelBold = it)) }
+            )
             PatternField(patternText, patternIssue, DesignerAreaCatalog.answerPatternPresets, onPatternTextChange)
             IntInput("İlk Soru Numarası", normalized.startQuestion, 1, 9999) { onDraftChange(normalized.copy(startQuestion = it)) }
             Text("Yön", style = MaterialTheme.typography.labelSmall)
@@ -137,9 +145,7 @@ internal fun AnswerAreaEditorScreen(
                 val total = perBlock * columns
                 onDraftChange(normalized.copy(columns = columns, questionCount = total))
             }
-            IntInput("Sütundaki Soru Sayısı", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count ->
-                onDraftChange(normalized.copy(questionCount = count * normalized.columns))
-            }
+            IntInput("Sütundaki Soru Sayısı", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count -> onDraftChange(normalized.copy(questionCount = count * normalized.columns)) }
             Text("Toplam: ${effective.questionCount} soru · Baloncuk boyutu ve aralıklar standart.", style = MaterialTheme.typography.bodySmall)
         }
         issue?.let { IssueText(it) }
@@ -164,17 +170,14 @@ private fun MarkScaffold(completeEnabled: Boolean, onCancel: () -> Unit, onCompl
 @Composable
 private fun MarkCard(content: @Composable () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Optik Form Alanı Bilgileri", style = MaterialTheme.typography.labelLarge); content()
-        }
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("Optik Form Alanı Bilgileri", style = MaterialTheme.typography.labelLarge); content() }
     }
 }
 
 @Composable
 private fun LabelControls(label: String, showLabel: Boolean, title: String, onShowLabelChange: (Boolean) -> Unit, onLabelChange: (String) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Etiketi Gizle", modifier = Modifier.weight(1f))
-        Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
+        Text("Etiketi Gizle", modifier = Modifier.weight(1f)); Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
     }
     OutlinedTextField(value = label, onValueChange = { if ('\n' !in it && '\r' !in it && it.length <= 60) onLabelChange(it) }, modifier = Modifier.fillMaxWidth(), label = { Text(title) }, enabled = showLabel, singleLine = true)
 }
@@ -193,15 +196,13 @@ private fun PatternField(text: String, issue: String?, presets: List<String>, on
 @Composable
 private fun DirectionButtons(horizontal: Boolean, onHorizontal: () -> Unit, onVertical: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChoiceButton(Modifier.weight(1f), "Yatay", horizontal, onHorizontal)
-        ChoiceButton(Modifier.weight(1f), "Dikey", !horizontal, onVertical)
+        ChoiceButton(Modifier.weight(1f), "Yatay", horizontal, onHorizontal); ChoiceButton(Modifier.weight(1f), "Dikey", !horizontal, onVertical)
     }
 }
 
 @Composable
 private fun ChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") }
-    else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
+    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") } else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
 }
 
 @Composable
@@ -214,8 +215,7 @@ private fun NumberInput(label: String, value: Double, min: Double, max: Double, 
     var text by remember(value) { mutableStateOf(formatNumber(value)) }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(value = text, onValueChange = { input -> text = input; input.replace(',', '.').toDoubleOrNull()?.let { if (it in min..max) onValueChange(it) } }, modifier = Modifier.weight(1f), label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-        OutlinedButton(enabled = value - step >= min, onClick = { onValueChange(value - step) }) { Text("−") }
-        OutlinedButton(enabled = value + step <= max, onClick = { onValueChange(value + step) }) { Text("+") }
+        OutlinedButton(enabled = value - step >= min, onClick = { onValueChange(value - step) }) { Text("−") }; OutlinedButton(enabled = value + step <= max, onClick = { onValueChange(value + step) }) { Text("+") }
     }
 }
 
@@ -224,8 +224,7 @@ private fun IntInput(label: String, value: Int, min: Int, max: Int, onValueChang
     var text by remember(value) { mutableStateOf(value.toString()) }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(value = text, onValueChange = { input -> text = input; input.toIntOrNull()?.let { if (it in min..max) onValueChange(it) } }, modifier = Modifier.weight(1f), label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        OutlinedButton(enabled = value > min, onClick = { onValueChange(value - 1) }) { Text("−") }
-        OutlinedButton(enabled = value < max, onClick = { onValueChange(value + 1) }) { Text("+") }
+        OutlinedButton(enabled = value > min, onClick = { onValueChange(value - 1) }) { Text("−") }; OutlinedButton(enabled = value < max, onClick = { onValueChange(value + 1) }) { Text("+") }
     }
 }
 
@@ -236,36 +235,26 @@ private fun IssueText(message: String) { Text(message, color = MaterialTheme.col
 private fun NumberPreview(document: DesignerDocument, component: NumericGridComponent) {
     val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
     val template = remember(preview) { DesignerTemplateCompiler.compile(preview) }
-    PreviewCard(document) {
-        val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
-        drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy)
-    }
+    PreviewCard(document) { val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat(); drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy) }
 }
 
 @Composable
 private fun AnswerPreview(document: DesignerDocument, component: QuestionGroupComponent) {
     val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
     val template = remember(preview) { DesignerTemplateCompiler.compile(preview) }; val rows = remember(template) { template.bubbleRows.associateBy { it.id } }
-    PreviewCard(document) {
-        val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
-        drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy)
-    }
+    PreviewCard(document) { val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat(); drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy) }
 }
 
 @Composable
 private fun PreviewCard(document: DesignerDocument, draw: DrawScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().padding(10.dp).aspectRatio((document.space.width / document.space.height).toFloat()).background(Color.White)) { Canvas(Modifier.fillMaxSize(), onDraw = draw) }
-    }
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) { Box(modifier = Modifier.fillMaxWidth().padding(10.dp).aspectRatio((document.space.width / document.space.height).toFloat()).background(Color.White)) { Canvas(Modifier.fillMaxSize(), onDraw = draw) } }
 }
 
 internal fun DrawScope.drawNumberGrid(component: NumericGridComponent, grid: MarkGridSpec, scaleX: Float, scaleY: Float, bubbleColor: Color) {
     val averageScale = (scaleX + scaleY) / 2f
     val textPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.CENTER; textSize = (component.bubbleRadius * 0.82).toFloat() * averageScale }
     grid.columns.forEach { column -> column.marks.forEach { mark ->
-        val center = Offset(mark.center.x.toFloat() * scaleX, mark.center.y.toFloat() * scaleY)
-        drawCircle(bubbleColor, mark.radius.toFloat() * averageScale, center, style = Stroke(1.05f))
-        drawIntoCanvas { val m = textPaint.fontMetrics; it.nativeCanvas.drawText(mark.id, center.x, center.y - (m.ascent + m.descent) / 2f, textPaint) }
+        val center = Offset(mark.center.x.toFloat() * scaleX, mark.center.y.toFloat() * scaleY); drawCircle(bubbleColor, mark.radius.toFloat() * averageScale, center, style = Stroke(1.05f)); drawIntoCanvas { val m = textPaint.fontMetrics; it.nativeCanvas.drawText(mark.id, center.x, center.y - (m.ascent + m.descent) / 2f, textPaint) }
     } }
 }
 
@@ -274,8 +263,7 @@ internal fun DrawScope.drawAnswerGroup(component: QuestionGroupComponent, rowsBy
     val choicePaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.CENTER; textSize = (component.bubbleRadius * appearance.choiceLabelScale).toFloat() * averageScale }
     val numberPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.RIGHT; textSize = (component.bubbleRadius * appearance.questionNumberScale).toFloat() * averageScale }
     repeat(component.questionCount) { index ->
-        val number = component.startQuestion + index; val row = rowsById[DesignerTemplateCompiler.questionReadId(component, number)] ?: return@repeat; val first = row.bubbles.firstOrNull() ?: return@repeat
-        val cy = first.center.y.toFloat() * scaleY
+        val number = component.startQuestion + index; val row = rowsById[DesignerTemplateCompiler.questionReadId(component, number)] ?: return@repeat; val first = row.bubbles.firstOrNull() ?: return@repeat; val cy = first.center.y.toFloat() * scaleY
         drawIntoCanvas { val m = numberPaint.fontMetrics; it.nativeCanvas.drawText(number.toString(), (first.center.x - first.radius * appearance.questionNumberDistanceInRadii).toFloat() * scaleX, cy - (m.ascent + m.descent) / 2f, numberPaint) }
         row.bubbles.forEach { bubble -> val center = Offset(bubble.center.x.toFloat() * scaleX, bubble.center.y.toFloat() * scaleY); drawCircle(bubbleColor, bubble.radius.toFloat() * averageScale, center, style = Stroke(appearance.bubbleOutlineWidth.toFloat().coerceAtLeast(0.8f))); drawIntoCanvas { val m = choicePaint.fontMetrics; it.nativeCanvas.drawText(bubble.id, center.x, center.y - (m.ascent + m.descent) / 2f, choicePaint) } }
     }
