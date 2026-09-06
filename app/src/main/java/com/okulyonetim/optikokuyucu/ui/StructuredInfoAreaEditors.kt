@@ -44,6 +44,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageGeometry
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedTextBinding
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 
@@ -55,6 +56,7 @@ internal fun DescriptionAreaEditorScreen(
     onCancel: () -> Unit,
     onComplete: (DesignerTextElement) -> Unit
 ) {
+    val personalizedField = DesignerPersonalizedTextBinding.fieldForId(draft.id)
     val issue = DesignerAreaCatalog.descriptionAreaIssue(document, draft)
     InfoAreaScaffold(
         completeEnabled = issue == null,
@@ -62,15 +64,49 @@ internal fun DescriptionAreaEditorScreen(
         onComplete = { onComplete(draft) }
     ) {
         InfoEditorCard {
-            InfoReadOnlyField("Tür", "Açıklama")
+            InfoReadOnlyField("Tür", personalizedField?.displayName ?: "Açıklama")
+            if (personalizedField != null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Etiketi Göster", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (draft.showPersonalizedLabel) {
+                                "Kişisel formda etiket ve değer birlikte yazılır."
+                            } else {
+                                "Kişisel formda yalnızca otomatik değer yazılır."
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = draft.showPersonalizedLabel,
+                        onCheckedChange = { onDraftChange(draft.copy(showPersonalizedLabel = it)) }
+                    )
+                }
+            }
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = draft.text,
-                onValueChange = { if (it.length <= 2_000) onDraftChange(draft.copy(text = it)) },
-                label = { Text("Metin / Açıklama") },
-                supportingText = { Text("${draft.text.length}/2000") },
-                minLines = 4,
-                maxLines = 8,
+                onValueChange = {
+                    if (it.isNotEmpty() && it.length <= 2_000) onDraftChange(draft.copy(text = it))
+                },
+                label = { Text(if (personalizedField == null) "Metin / Açıklama" else "Etiket Metni") },
+                supportingText = {
+                    if (personalizedField == null) {
+                        Text("${draft.text.length}/2000")
+                    } else {
+                        Text(
+                            if (draft.showPersonalizedLabel) {
+                                "Örnek: ${DesignerPersonalizedTextBinding.render(draft, "ÖRNEK DEĞER")}" 
+                            } else {
+                                "Örnek: ÖRNEK DEĞER"
+                            }
+                        )
+                    }
+                },
+                minLines = if (personalizedField == null) 4 else 1,
+                maxLines = if (personalizedField == null) 8 else 2,
                 shape = RoundedCornerShape(14.dp)
             )
             InfoNumberStepper("Yazı Boyutu", draft.fontSize.toInt(), 8, 72) {

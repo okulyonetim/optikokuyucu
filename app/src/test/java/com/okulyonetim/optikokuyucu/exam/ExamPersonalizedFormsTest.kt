@@ -44,13 +44,37 @@ class ExamPersonalizedFormsTest {
 
         val pages = ExamPersonalizedForms.pages(exam, document)
         assertEquals(2, pages.size)
-        assertEquals("Örnek Öğrenci", pages[0].textOverrides[name.id])
-        assertEquals("8-A", pages[0].textOverrides[clazz.id])
-        assertEquals("16", pages[0].textOverrides[numberText.id])
-        assertEquals("Deneme 1", pages[0].textOverrides[examName.id])
-        assertEquals("Örnek Ortaokulu", pages[0].textOverrides[schoolName.id])
+        assertEquals("Ad Soyad: Örnek Öğrenci", pages[0].textOverrides[name.id])
+        assertEquals("Sınıf: 8-A", pages[0].textOverrides[clazz.id])
+        assertEquals("Öğrenci No: 16", pages[0].textOverrides[numberText.id])
+        assertEquals("Sınav: Deneme 1", pages[0].textOverrides[examName.id])
+        assertEquals("Okul: Örnek Ortaokulu", pages[0].textOverrides[schoolName.id])
         assertEquals("16".padStart(numberGrid.digits, '0'), pages[0].numericHeaderValues[numberGrid.id])
         assertEquals(numberGrid.digits, pages[0].filledMarks.size)
         assertTrue(pages[0].filledMarks.any { it.columnId == numberGrid.digits.toString() && it.markId == "6" })
+    }
+
+    @Test
+    fun optionalIdentityLabelCanBeHiddenWithoutChangingAutoFilledValue() {
+        var document = DesignerDocument(id = "plain-personalized", version = 1, name = "Etiketsiz Form")
+        val name = DesignerAreaCatalog.createStudentNameArea(document).copy(showPersonalizedLabel = false)
+        document = document.copy(visualElements = listOf(name))
+        val exam = ExamFactory.create(
+            name = "Deneme",
+            schoolName = "Örnek Okulu",
+            templateSelection = ActiveTemplateSelection(
+                ActiveTemplateSource.DESIGNER_DOCUMENT,
+                document.id,
+                document.version
+            ),
+            examDateEpochDay = 21000L,
+            participants = listOf(ExamParticipant("42", "Örnek Öğrenci", "7-A")),
+            personalizedFormsEnabled = true,
+            createdAtEpochMs = 1L
+        )
+
+        val page = ExamPersonalizedForms.pages(exam, document).single()
+
+        assertEquals("Örnek Öğrenci", page.textOverrides[name.id])
     }
 }

@@ -3,6 +3,8 @@ package com.okulyonetim.optikokuyucu.exam
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerFilledMark
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfPageData
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedField
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedTextBinding
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 
@@ -26,15 +28,15 @@ object ExamPersonalizedForms {
         document: DesignerDocument
     ): Map<String, String> = buildMap {
         document.visualElements.filterIsInstance<DesignerTextElement>().forEach { element ->
-            val value = when {
-                element.id.startsWith("student-name-") -> participant.studentName
-                element.id.startsWith("student-class-") -> participant.className
-                element.id.startsWith("student-number-text-") -> participant.studentNumber
-                element.id.startsWith("exam-name-") -> exam.name
-                element.id.startsWith("school-name-") -> exam.schoolName
-                else -> null
+            val field = DesignerPersonalizedTextBinding.fieldForId(element.id) ?: return@forEach
+            val value = when (field) {
+                DesignerPersonalizedField.STUDENT_NAME -> participant.studentName
+                DesignerPersonalizedField.STUDENT_CLASS -> participant.className
+                DesignerPersonalizedField.STUDENT_NUMBER -> participant.studentNumber
+                DesignerPersonalizedField.EXAM_NAME -> exam.name
+                DesignerPersonalizedField.SCHOOL_NAME -> exam.schoolName
             }
-            if (value != null) put(element.id, value)
+            put(element.id, DesignerPersonalizedTextBinding.render(element, value))
         }
     }
 

@@ -6,6 +6,7 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplateSize
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -104,6 +105,63 @@ class DesignerDocumentCodecTest {
         assertEquals(document, decoded)
         val decodedImage = decoded.visualElements.filterIsInstance<DesignerImageElement>().single()
         assertTrue(decodedImage.image.copyBytes().contentEquals(image.copyBytes()))
+    }
+
+    @Test
+    fun `schema eight preserves explicitly hidden personalized label`() {
+        val text = DesignerTextElement(
+            id = "student-name-1",
+            bounds = TemplateRect(120.0, 180.0, 300.0, 60.0),
+            text = "Ad Soyad:",
+            fontSize = 18.0,
+            showPersonalizedLabel = false
+        )
+        val document = DesignerDocument(
+            id = "label-visibility",
+            version = 1,
+            name = "Label Visibility",
+            visualElements = listOf(text)
+        )
+
+        val decoded = DesignerDocumentCodec.decode(DesignerDocumentCodec.encode(document))
+        val decodedText = decoded.visualElements.single() as DesignerTextElement
+
+        assertFalse(decodedText.showPersonalizedLabel)
+    }
+
+    @Test
+    fun `schema seven semantic text gains backward compatible personalized label`() {
+        val bytes = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { out ->
+                out.writeInt(0x4F4D5244)
+                out.writeInt(7)
+                out.writeUTF("legacy-personalized")
+                out.writeInt(1)
+                out.writeUTF("Legacy Personalized")
+                out.writeDouble(1000.0)
+                out.writeDouble(1414.0)
+                out.writeInt(0)
+                out.writeInt(0)
+                out.writeInt(1)
+                out.writeByte(11)
+                out.writeUTF("student-name-1")
+                out.writeDouble(120.0)
+                out.writeDouble(180.0)
+                out.writeDouble(300.0)
+                out.writeDouble(60.0)
+                out.writeUTF("Öğrenci Adı Soyadı")
+                out.writeDouble(18.0)
+                out.writeUTF(DesignerTextAlignment.START.name)
+                out.writeBoolean(false)
+                out.writeBoolean(false)
+                writeLegacyFormSpec(out)
+            }
+        }.toByteArray()
+
+        val decoded = DesignerDocumentCodec.decode(bytes)
+        val text = decoded.visualElements.single() as DesignerTextElement
+
+        assertTrue(text.showPersonalizedLabel)
     }
 
     @Test
