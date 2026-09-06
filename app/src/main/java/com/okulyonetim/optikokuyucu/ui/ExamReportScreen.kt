@@ -21,7 +21,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,8 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.okulyonetim.optikokuyucu.exam.ExamPersonalizedForms
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
@@ -41,18 +38,11 @@ import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamReportRowStatus
 import com.okulyonetim.optikokuyucu.exam.ExamReportXlsxExporter
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfExporter
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
-import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
-import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
-import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 
 private data class SavedExamReport(
     val uri: Uri,
@@ -69,9 +59,6 @@ fun ExamReportScreen(
     val examRepository = remember(context) { FileExamRepository(appContext) }
     val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
-    val designerRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
-    val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
-    val worker = remember { Executors.newSingleThreadExecutor() }
 
     var exam by remember(examId) { mutableStateOf(examRepository.load(examId)) }
     var records by remember { mutableStateOf(scanRepository.list()) }
@@ -81,11 +68,6 @@ fun ExamReportScreen(
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
     var pendingPdf by remember { mutableStateOf<ExamReport?>(null) }
     var lastSavedReport by remember { mutableStateOf<SavedExamReport?>(null) }
-    var personalizedBusy by remember { mutableStateOf(false) }
-
-    DisposableEffect(Unit) {
-        onDispose { worker.shutdown() }
-    }
 
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -149,46 +131,6 @@ fun ExamReportScreen(
         }
     }
 
-    val personalizedPdfLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri ->
-        val examAtStart = exam
-        if (uri == null || examAtStart == null) return@rememberLauncherForActivityResult
-        val document = resolveExamDesignerDocument(examAtStart.templateSelection.source, examAtStart.templateSelection.templateId, examAtStart.templateSelection.templateVersion, designerRepository.list())
-        val profile = document?.formSpec?.pdfProfile()
-        if (document == null || profile == null) {
-            status = "Seçili form öğrenciye özel PDF üretimini desteklemiyor."
-            return@rememberLauncherForActivityResult
-        }
-
-        personalizedBusy = true
-        status = "${examAtStart.participants.size} öğrenci için optik formlar hazırlanıyor…"
-        worker.execute {
-            runCatching {
-                context.contentResolver.openOutputStream(uri, "w").use { output ->
-                    requireNotNull(output) { "Öğrenci formu PDF çıktı akışı açılamadı." }
-                    DesignerPdfExporter.exportBatch(
-                        document = document,
-                        pages = ExamPersonalizedForms.pages(examAtStart, document),
-                        output = output,
-                        profile = profile
-                    )
-                }
-            }.onSuccess {
-                mainExecutor.execute {
-                    personalizedBusy = false
-                    lastSavedReport = SavedExamReport(uri, "application/pdf")
-                    status = "${examAtStart.participants.size} öğrenci için kişisel optik form PDF'i oluşturuldu · paylaşmaya hazır"
-                }
-            }.onFailure { error ->
-                mainExecutor.execute {
-                    personalizedBusy = false
-                    status = "Öğrenci formları oluşturulamadı: ${error.message ?: error.javaClass.simpleName}"
-                }
-            }
-        }
-    }
-
     val current = exam
     if (current == null) {
         Column(
@@ -209,15 +151,6 @@ fun ExamReportScreen(
             answerKeys = keys
         )
     }
-    val personalizedDocument = remember(current.templateSelection, designerRepository) {
-        resolveExamDesignerDocument(
-            current.templateSelection.source,
-            current.templateSelection.templateId,
-            current.templateSelection.templateVersion,
-            designerRepository.list()
-        )
-    }
-    val personalizedProfile = personalizedDocument?.formSpec?.pdfProfile()
 
     fun refresh() {
         exam = examRepository.load(examId)
@@ -260,23 +193,6 @@ fun ExamReportScreen(
         ) {
             item {
                 ExamReportSummary(report = report, status = status)
-            }
-
-            if (current.personalizedFormsEnabled) {
-                item {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                        enabled = !personalizedBusy && current.participants.isNotEmpty() && personalizedDocument != null && personalizedProfile != null,
-                        onClick = {
-                            personalizedPdfLauncher.launch(reportFileName(current.name + "-ogrenci-formlari", "pdf"))
-                        }
-                    ) {
-                        Text(
-                            if (personalizedBusy) "Öğrenci Formları Hazırlanıyor…"
-                            else "Öğrenciye Özel Optik Formları PDF Oluştur (${current.participants.size})"
-                        )
-                    }
-                }
             }
 
             item {
@@ -355,17 +271,6 @@ fun ExamReportScreen(
             }
         }
     }
-}
-
-private fun resolveExamDesignerDocument(
-    source: ActiveTemplateSource,
-    templateId: String,
-    templateVersion: Int,
-    saved: List<DesignerDocument>
-): DesignerDocument? {
-    if (source != ActiveTemplateSource.DESIGNER_DOCUMENT) return null
-    return saved.firstOrNull { it.id == templateId && it.version == templateVersion }
-        ?: DesignerStarterTemplates.all().firstOrNull { it.id == templateId && it.version == templateVersion }
 }
 
 @Composable
