@@ -106,19 +106,19 @@ object DesignerAreaCatalog {
     }
 
     fun createStudentNameArea(document: DesignerDocument): DesignerTextElement =
-        createPresetTextArea(document, "student-name", "Öğrenci Adı Soyadı")
+        createPresetTextArea(document, "student-name", "Öğrenci Adı Soyadı", "Ad Soyad:")
 
     fun createStudentClassArea(document: DesignerDocument): DesignerTextElement =
-        createPresetTextArea(document, "student-class", "Sınıfı")
+        createPresetTextArea(document, "student-class", "Sınıfı", "Sınıf:")
 
     fun createStudentNumberTextArea(document: DesignerDocument): DesignerTextElement =
-        createPresetTextArea(document, "student-number-text", "Öğrenci Numarası")
+        createPresetTextArea(document, "student-number-text", "Öğrenci Numarası", "No:")
 
     fun createExamNameArea(document: DesignerDocument): DesignerTextElement =
-        createPresetTextArea(document, "exam-name", "Sınav Adı")
+        createPresetTextArea(document, "exam-name", "Sınav Adı", "Sınav:")
 
     fun createSchoolNameArea(document: DesignerDocument): DesignerTextElement =
-        createPresetTextArea(document, "school-name", "Okul Adı")
+        createPresetTextArea(document, "school-name", "Okul Adı", "Okul:")
 
     fun createDescriptionArea(document: DesignerDocument): DesignerTextElement {
         val safe = DesignerPageGeometry.safeArea(document.space)
@@ -198,6 +198,10 @@ object DesignerAreaCatalog {
         if (element.text.isBlank()) return "Açıklama metni boş olamaz."
         if (element.text.length > 2_000) return "Açıklama en fazla 2000 karakter olabilir."
         if (element.fontSize !in 8.0..72.0) return "Yazı boyutu 8–72 arasında olmalıdır."
+        if (DesignerDynamicText.fieldForId(element.id) != null && element.showLabel && element.label.isBlank()) {
+            return "Etiket görünürken etiket metni boş olamaz."
+        }
+        if (element.label.length > 80) return "Etiket en fazla 80 karakter olabilir."
         return visualBoundsIssue(document, element.bounds, "Metin")
     }
 
@@ -209,7 +213,8 @@ object DesignerAreaCatalog {
     private fun createPresetTextArea(
         document: DesignerDocument,
         prefix: String,
-        placeholder: String
+        placeholder: String,
+        label: String
     ): DesignerTextElement {
         val safe = DesignerPageGeometry.safeArea(document.space)
         val id = nextVisualId(document, prefix)
@@ -225,7 +230,9 @@ object DesignerAreaCatalog {
             text = placeholder,
             fontSize = 18.0,
             alignment = DesignerTextAlignment.START,
-            bold = false
+            bold = false,
+            label = label,
+            showLabel = true
         )
     }
 
