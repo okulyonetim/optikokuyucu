@@ -21,7 +21,7 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
             val digest = MessageDigest.getInstance("SHA-1")
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             digest.update(bytes)
-            return digest.digest().joinToString("") { byte: Byte ->
+            return digest.digest().joinToString("") { byte ->
                 "%02x".format(byte.toInt() and 0xff)
             }
         }
@@ -55,8 +55,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.12.8"
+        versionCode = 22
+        versionName = "0.12.9"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -117,6 +117,7 @@ dependencies {
     implementation(libs.androidx.camera.view)
 
     implementation(libs.opencv)
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     testImplementation(libs.junit4)
 

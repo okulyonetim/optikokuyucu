@@ -27,6 +27,27 @@ class StudentRosterBackendTest {
     }
 
     @Test
+    fun `e okul parser accepts pdf text where sequence number is on a separate line`() {
+        val text = """
+            5. Sınıf / A Şubesi Sınıf Listesi
+            S.No Öğrenci No Adı Soyadı Cinsiyeti
+            1
+            16 ALİ TEST ÖĞRENCİ Erkek
+            2
+            44 AYŞE TEST ÖĞRENCİ Kız
+        """.trimIndent()
+
+        val students = EschoolClassListParser.parse(text, importedAtEpochMs = 321L)
+
+        assertEquals(2, students.size)
+        assertEquals("16", students[0].studentNumber)
+        assertEquals("ALİ TEST ÖĞRENCİ", students[0].fullName)
+        assertEquals("5-A", students[0].className)
+        assertEquals("44", students[1].studentNumber)
+        assertEquals(StudentGender.GIRL, students[1].gender)
+    }
+
+    @Test
     fun `student number normalization matches fixed width omr digits`() {
         assertEquals("16", StudentNumber.normalize("000016"))
         assertEquals("16", StudentNumber.normalize(" 16 "))
