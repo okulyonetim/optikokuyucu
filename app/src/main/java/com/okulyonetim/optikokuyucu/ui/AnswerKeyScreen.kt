@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -128,10 +129,27 @@ fun AnswerKeyScreen(
     }
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-    var bookletSelection by remember(bookletChoices) { mutableStateOf(bookletChoices.firstOrNull()) }
+    var bookletSelection by remember(template.id, template.version, bookletChoices) {
+        mutableStateOf(bookletChoices.firstOrNull())
+    }
     var bookletMenuOpen by remember { mutableStateOf(false) }
     var manualEntries by remember(manualSections) {
-        mutableStateOf(manualSections.associate { it.id to "" })
+        mutableStateOf(ManualAnswerKeyBuilder.entriesFor(null, manualSections))
+    }
+
+    val matchingKeys = keys.filter {
+        it.templateId == template.id && it.templateVersion == template.version
+    }
+
+    LaunchedEffect(bookletSelection, matchingKeys, manualSections) {
+        val selectedKey = matchingKeys.firstOrNull { key ->
+            if (bookletSelection.isNullOrBlank()) {
+                key.variantGridId == null && key.variantValue == null
+            } else {
+                key.variantGridId == bookletGridId && key.variantValue == bookletSelection
+            }
+        }
+        manualEntries = ManualAnswerKeyBuilder.entriesFor(selectedKey?.answerKey, manualSections)
     }
 
     DisposableEffect(Unit) {
@@ -181,6 +199,7 @@ fun AnswerKeyScreen(
             }.onSuccess { stored ->
                 mainExecutor.execute {
                     keys = repository.list()
+                    if (stored.variantValue != null) bookletSelection = stored.variantValue
                     busy = false
                     status = buildString {
                         append("Cevap anahtarı kaydedildi")
@@ -243,8 +262,14 @@ fun AnswerKeyScreen(
 
     val spreadsheetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null || busy) return@rememberLauncherForActivityResult
+        val requestedBooklet = bookletSelection
+        if (bookletGridId != null && requestedBooklet.isNullOrBlank()) {
+            status = "Excel içe aktarmadan önce kitapçık türünü seçin."
+            return@rememberLauncherForActivityResult
+        }
         busy = true
-        status = "Excel cevap anahtarı içe aktarılıyor…"
+        status = requestedBooklet?.let { "Kitapçık $it Excel cevap anahtarı içe aktarılıyor…" }
+            ?: "Excel cevap anahtarı içe aktarılıyor…"
         worker.execute {
             runCatching {
                 val fileName = contentDisplayName(context, uri) ?: "cevap-anahtari.xlsx"
@@ -254,7 +279,7 @@ fun AnswerKeyScreen(
                         input = input,
                         fileName = fileName,
                         template = template,
-                        fallbackVariant = bookletSelection
+                        fallbackVariant = requestedBooklet
                     )
                 }
                 if (bookletGridId != null) {
@@ -263,6 +288,10 @@ fun AnswerKeyScreen(
                     }
                     require(imported.variantValue in bookletChoices) {
                         "Excel'deki kitapçık türü seçili formda yok: ${imported.variantValue}"
+                    }
+                    require(imported.variantValue == requestedBooklet) {
+                        "Excel Kitapçık ${imported.variantValue} için; ekranda Kitapçık $requestedBooklet seçili. " +
+                            "Doğru kitapçığı seçip tekrar içe aktarın."
                     }
                 }
                 StoredAnswerKey(
@@ -274,6 +303,7 @@ fun AnswerKeyScreen(
             }.onSuccess { stored ->
                 mainExecutor.execute {
                     keys = repository.list()
+                    if (stored.variantValue != null) bookletSelection = stored.variantValue
                     busy = false
                     status = buildString {
                         append("Excel anahtarı içe aktarıldı · ${stored.answerKey.answers.size} soru")
@@ -343,10 +373,6 @@ fun AnswerKeyScreen(
             }
     }
 
-    val matchingKeys = keys.filter {
-        it.templateId == template.id && it.templateVersion == template.version
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -373,7 +399,10 @@ fun AnswerKeyScreen(
                 Text("${template.bubbleRows.size} soru · v${template.version}")
                 Text("Cevap anahtarı manuel, Excel (.xls/.xlsx), galeri veya kamera ile oluşturulabilir.")
                 if (bookletChoices.isNotEmpty()) {
-                    Text("Kitapçık türü bu form için zorunlu ve puanlamada ayrı tutulur.")
+                    Text(
+                        "Her kitapçık ayrı cevap anahtarıdır. Seçili kitapçığın manuel ve Excel işlemleri " +
+                            "diğer kitapçıkları değiştirmez."
+                    )
                 }
                 Text(status, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
             }
@@ -385,7 +414,7 @@ fun AnswerKeyScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { bookletMenuOpen = true }
                 ) {
-                    Text("Kitapçık: ${bookletSelection ?: "Seçiniz"}")
+                    Text("Düzenlenen Kitapçık: ${bookletSelection ?: "Seçiniz"}")
                 }
                 DropdownMenu(
                     expanded = bookletMenuOpen,
@@ -397,6 +426,14 @@ fun AnswerKeyScreen(
                             onClick = {
                                 bookletSelection = value
                                 bookletMenuOpen = false
+                                val hasSaved = matchingKeys.any {
+                                    it.variantGridId == bookletGridId && it.variantValue == value
+                                }
+                                status = if (hasSaved) {
+                                    "Kitapçık $value kayıtlı anahtarı düzenlemeye yüklendi."
+                                } else {
+                                    "Kitapçık $value için yeni cevap anahtarı giriliyor."
+                                }
                             }
                         )
                     }
@@ -406,9 +443,13 @@ fun AnswerKeyScreen(
 
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Manuel Cevap Girişi", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Her ders için cevapları sırayla girin. ABCD… şeklinde veya virgülle ayırarak girebilirsiniz.",
+                    bookletSelection?.let { "Kitapçık $it · Manuel Cevap Girişi" } ?: "Manuel Cevap Girişi",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    "Her ders için cevapları sırayla girin. ABCD… şeklinde veya virgülle ayırarak girebilirsiniz. " +
+                        "Daha önce kaydedilmiş seçili kitapçık varsa cevapları otomatik yüklenir ve düzenlenebilir.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 manualSections.forEach { section ->
@@ -429,7 +470,9 @@ fun AnswerKeyScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !busy,
                     onClick = ::saveManual
-                ) { Text("Manuel Anahtarı Kaydet") }
+                ) {
+                    Text(bookletSelection?.let { "Kitapçık $it Anahtarını Kaydet" } ?: "Manuel Anahtarı Kaydet")
+                }
             }
         }
 
@@ -444,7 +487,12 @@ fun AnswerKeyScreen(
                             arrayOf(XLS_MIME_TYPE, XLSX_MIME_TYPE, "application/octet-stream")
                         )
                     }
-                ) { Text("Excel (.xls / .xlsx) İçe Aktar") }
+                ) {
+                    Text(
+                        bookletSelection?.let { "Kitapçık $it için Excel (.xls / .xlsx) İçe Aktar" }
+                            ?: "Excel (.xls / .xlsx) İçe Aktar"
+                    )
+                }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = openCvReady && !busy,
@@ -475,22 +523,25 @@ fun AnswerKeyScreen(
                 Text("Henüz bu forma ait cevap anahtarı yok.", modifier = Modifier.padding(16.dp))
             }
         } else {
-            matchingKeys.forEach { key ->
-                AnswerKeyCard(
-                    key = key,
-                    onExportXlsx = { exportXlsx(key) },
-                    onDelete = {
-                        repository.delete(
-                            key.templateId,
-                            key.templateVersion,
-                            key.variantGridId,
-                            key.variantValue
-                        )
-                        keys = repository.list()
-                        status = "Cevap anahtarı silindi"
-                    }
-                )
-            }
+            matchingKeys
+                .sortedBy { it.variantValue ?: "" }
+                .forEach { key ->
+                    AnswerKeyCard(
+                        key = key,
+                        onExportXlsx = { exportXlsx(key) },
+                        onDelete = {
+                            repository.delete(
+                                key.templateId,
+                                key.templateVersion,
+                                key.variantGridId,
+                                key.variantValue
+                            )
+                            keys = repository.list()
+                            status = key.variantValue?.let { "Kitapçık $it cevap anahtarı silindi" }
+                                ?: "Cevap anahtarı silindi"
+                        }
+                    )
+                }
         }
     }
 }
@@ -531,9 +582,11 @@ private fun AnswerKeyCard(
                 style = MaterialTheme.typography.bodySmall
             )
             OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onExportXlsx) {
-                Text("XLSX olarak dışa aktar")
+                Text(key.variantValue?.let { "Kitapçık $it XLSX olarak dışa aktar" } ?: "XLSX olarak dışa aktar")
             }
-            TextButton(onClick = onDelete) { Text("Bu anahtarı sil") }
+            TextButton(onClick = onDelete) {
+                Text(key.variantValue?.let { "Kitapçık $it anahtarını sil" } ?: "Bu anahtarı sil")
+            }
         }
     }
 }
