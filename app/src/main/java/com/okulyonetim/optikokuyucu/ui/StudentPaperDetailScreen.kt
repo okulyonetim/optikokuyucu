@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetadataEditor
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetrics
 import com.okulyonetim.optikokuyucu.exam.ExamPaperRemoval
+import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.questionDisplayNumber
@@ -54,7 +55,6 @@ import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
-import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
@@ -131,7 +131,10 @@ fun StudentPaperDetailScreen(
     var status by remember { mutableStateOf("") }
     var deleteDialogOpen by remember { mutableStateOf(false) }
 
-    val matchingKey = remember(record.id, keys) { AnswerKeyResolver.resolve(record, keys) }
+    val scoringLink = remember(link, bookletCode) { link.copy(bookletCode = bookletCode.trim()) }
+    val matchingKey = remember(record.id, keys, scoringLink.bookletCode) {
+        ExamPaperResolution.answerKey(scoringLink, record, keys)
+    }
     val score = remember(record.id, matchingKey, currentExam.wrongAnswerPolicy) {
         matchingKey?.let { stored ->
             runCatching {
@@ -361,6 +364,7 @@ fun StudentPaperDetailScreen(
                                     value = bookletCode,
                                     onValueChange = { bookletCode = it.uppercase().take(2) },
                                     label = { Text("Kitapçık") },
+                                    supportingText = { Text("Değişince puan anında bu kitapçığın anahtarıyla hesaplanır") },
                                     singleLine = true,
                                     shape = RoundedCornerShape(28.dp)
                                 )

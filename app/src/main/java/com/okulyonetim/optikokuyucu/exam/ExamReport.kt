@@ -1,7 +1,6 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
-import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import java.text.SimpleDateFormat
@@ -81,7 +80,8 @@ object ExamReportBuilder {
                 )
             }
 
-            val key = AnswerKeyResolver.resolve(record, answerKeys)
+            val metadata = ExamPaperResolution.metadata(link, record)
+            val key = ExamPaperResolution.answerKey(link, record, answerKeys)
             val score = key?.let { stored ->
                 runCatching {
                     OmrScorer.score(record, stored.answerKey, scoringPolicy)
@@ -97,13 +97,9 @@ object ExamReportBuilder {
                 ordinal = index + 1,
                 scanRecordId = record.id,
                 studentName = link.studentName,
-                className = link.className.ifBlank { record.grid("class")?.value.orEmpty() },
-                studentNumber = link.studentNumber.ifBlank {
-                    record.grid("studentNumber")?.value.orEmpty()
-                },
-                bookletCode = link.bookletCode.ifBlank {
-                    record.grid("booklet")?.value.orEmpty()
-                },
+                className = metadata.className,
+                studentNumber = metadata.studentNumber,
+                bookletCode = metadata.bookletCode,
                 capturedAtEpochMs = record.capturedAtEpochMs,
                 correct = score?.correctCount,
                 wrong = score?.wrongCount,
