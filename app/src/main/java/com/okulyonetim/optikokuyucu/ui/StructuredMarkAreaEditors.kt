@@ -72,6 +72,16 @@ internal fun NumberAreaEditorScreen(
     val effective = parsed?.let { normalized.copy(values = it) } ?: normalized
     val patternIssue = if (parsed == null) "Desen en az 2 benzersiz değer içermelidir." else null
     val issue = patternIssue ?: DesignerAreaCatalog.numberAreaIssue(document, effective)
+    val horizontalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+        normalized.columnGap
+    } else {
+        normalized.rowGap
+    }
+    val verticalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+        normalized.rowGap
+    } else {
+        normalized.columnGap
+    }
     MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
         MarkCard {
             ReadOnlyField("Tür", "Numara")
@@ -87,9 +97,25 @@ internal fun NumberAreaEditorScreen(
             AlignmentButtons(normalized.labelAlignment) { onDraftChange(normalized.copy(labelAlignment = it)) }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.numberPatternPresets, onPatternTextChange)
             IntInput("Veri / Hane Sayısı", normalized.digits, 1, 16) { onDraftChange(normalized.copy(digits = it)) }
-            NumberInput("Hane Aralığı", normalized.columnGap, 18.0, 80.0, 1.0) { onDraftChange(normalized.copy(columnGap = it)) }
-            NumberInput("Değer Aralığı", normalized.rowGap, 18.0, 80.0, 1.0) { onDraftChange(normalized.copy(rowGap = it)) }
-            Text("Baloncuk boyutu tüm işaretleme alanlarında sabittir.", style = MaterialTheme.typography.bodySmall)
+            NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
+                onDraftChange(
+                    if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+                        normalized.copy(columnGap = gap)
+                    } else {
+                        normalized.copy(rowGap = gap)
+                    }
+                )
+            }
+            NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
+                onDraftChange(
+                    if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+                        normalized.copy(rowGap = gap)
+                    } else {
+                        normalized.copy(columnGap = gap)
+                    }
+                )
+            }
+            Text("Baloncuk boyutu sabittir; yatay ve dikey aralıklar ayrı ayrı ayarlanabilir.", style = MaterialTheme.typography.bodySmall)
         }
         issue?.let { IssueText(it) }
         NumberPreview(document, effective)
@@ -106,17 +132,22 @@ internal fun AnswerAreaEditorScreen(
     onCancel: () -> Unit,
     onComplete: (QuestionGroupComponent) -> Unit
 ) {
-    val normalized = draft.copy(
-        bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
-        choiceGap = DesignerEditorLayout.ANSWER_CHOICE_GAP,
-        rowGap = DesignerEditorLayout.ANSWER_ROW_GAP,
-        columnGap = DesignerEditorLayout.compactAnswerColumnGap(document)
-    )
+    val normalized = draft.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
     val parsed = DesignerAreaCatalog.parseAnswerPattern(patternText)
     val effective = parsed?.let { normalized.copy(choices = it) } ?: normalized
     val patternIssue = if (parsed == null) "Desen 2–8 benzersiz şık içermelidir." else null
     val issue = patternIssue ?: DesignerAreaCatalog.answerAreaIssue(document, effective)
     val perBlock = DesignerAreaCatalog.answerQuestionsPerBlock(effective)
+    val horizontalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
+        normalized.choiceGap
+    } else {
+        normalized.rowGap
+    }
+    val verticalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
+        normalized.rowGap
+    } else {
+        normalized.choiceGap
+    }
     MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
         MarkCard {
             ReadOnlyField("Tür", "Cevaplar")
@@ -140,7 +171,28 @@ internal fun AnswerAreaEditorScreen(
             IntInput("Sütundaki Soru Sayısı", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count ->
                 onDraftChange(normalized.copy(questionCount = count * normalized.columns))
             }
-            Text("Toplam: ${effective.questionCount} soru · Baloncuk boyutu ve aralıklar standart.", style = MaterialTheme.typography.bodySmall)
+            NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
+                onDraftChange(
+                    if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
+                        normalized.copy(choiceGap = gap)
+                    } else {
+                        normalized.copy(rowGap = gap)
+                    }
+                )
+            }
+            NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
+                onDraftChange(
+                    if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
+                        normalized.copy(rowGap = gap)
+                    } else {
+                        normalized.copy(choiceGap = gap)
+                    }
+                )
+            }
+            NumberInput("Sütunlar Arası Boşluk", normalized.columnGap, 20.0, 600.0, 5.0) { gap ->
+                onDraftChange(normalized.copy(columnGap = gap))
+            }
+            Text("Toplam: ${effective.questionCount} soru · Baloncuk boyutu sabit, aralıklar ayarlanabilir.", style = MaterialTheme.typography.bodySmall)
         }
         issue?.let { IssueText(it) }
         AnswerPreview(document, effective)

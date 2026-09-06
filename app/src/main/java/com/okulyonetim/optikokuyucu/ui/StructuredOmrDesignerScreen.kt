@@ -251,12 +251,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                     numberPatternText = DesignerAreaCatalog.numberPatternText(component.values)
                 }
                 is QuestionGroupComponent -> {
-                    answerDraft = component.copy(
-                        bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
-                        choiceGap = DesignerEditorLayout.ANSWER_CHOICE_GAP,
-                        rowGap = DesignerEditorLayout.ANSWER_ROW_GAP,
-                        columnGap = DesignerEditorLayout.compactAnswerColumnGap(document)
-                    )
+                    answerDraft = component.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
                     answerPatternText = DesignerAreaCatalog.answerPatternText(component.choices)
                 }
                 is SingleChoiceComponent -> {

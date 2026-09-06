@@ -111,7 +111,14 @@ internal fun BookletAreaEditorScreen(
                     CoordinateButtons("Üst Boşluk", draft.start.y, 0.0, document.space.height) {
                         onDraftChange(draft.copy(start = TemplatePoint(draft.start.x, it)))
                     }
-                    Text("Baloncuk boyutu diğer tüm işaretleme alanlarıyla aynıdır.", style = MaterialTheme.typography.bodySmall)
+                    CoordinateButtons(
+                        if (draft.axis == ChoiceAxis.HORIZONTAL) "Yatay Baloncuk Aralığı" else "Dikey Baloncuk Aralığı",
+                        draft.gap,
+                        18.0,
+                        120.0,
+                        step = 1.0
+                    ) { onDraftChange(draft.copy(gap = it)) }
+                    Text("Baloncuk boyutu sabittir; seçili yöndeki baloncuk aralığı ayarlanabilir.", style = MaterialTheme.typography.bodySmall)
                 }
             }
             issue?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -131,11 +138,18 @@ internal fun AlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerT
 }
 
 @Composable
-private fun CoordinateButtons(label: String, value: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
+private fun CoordinateButtons(
+    label: String,
+    value: Double,
+    min: Double,
+    max: Double,
+    step: Double = 5.0,
+    onChange: (Double) -> Unit
+) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("$label: ${value.toInt()}", modifier = Modifier.weight(1f))
-        OutlinedButton(enabled = value > min, onClick = { onChange((value - 5.0).coerceAtLeast(min)) }) { Text("−") }
-        OutlinedButton(enabled = value < max, onClick = { onChange((value + 5.0).coerceAtMost(max)) }) { Text("+") }
+        Text("$label: ${formatBookletNumber(value)}", modifier = Modifier.weight(1f))
+        OutlinedButton(enabled = value - step >= min, onClick = { onChange((value - step).coerceAtLeast(min)) }) { Text("−") }
+        OutlinedButton(enabled = value + step <= max, onClick = { onChange((value + step).coerceAtMost(max)) }) { Text("+") }
     }
 }
 
@@ -163,3 +177,6 @@ private fun BookletPreview(document: DesignerDocument, component: SingleChoiceCo
         }
     }
 }
+
+private fun formatBookletNumber(value: Double): String =
+    if (value == value.toInt().toDouble()) value.toInt().toString() else String.format(java.util.Locale.US, "%.1f", value)
