@@ -92,13 +92,13 @@ internal fun InteractivePaperWorkspace(
     val currentSelection by rememberUpdatedState(selection)
     val currentOnSelectionChange by rememberUpdatedState(onSelectionChange)
     val currentOnDocumentChange by rememberUpdatedState(onDocumentChange)
-    val omrColor = Color(0xFFB54848)
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val safeFill = MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
     val safeStroke = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
     val guideColor = MaterialTheme.colorScheme.secondary
     val density = LocalDensity.current
 
+    var displayMode by remember(document.id) { mutableStateOf(StructuredPaperDisplayMode.EDIT) }
     var zoom by remember(document.id) { mutableStateOf(DesignerMobileViewport.FIT_ZOOM.toFloat()) }
     var pan by remember(document.id) { mutableStateOf(Offset.Zero) }
     var panMode by remember(document.id) { mutableStateOf(false) }
@@ -106,6 +106,18 @@ internal fun InteractivePaperWorkspace(
     var activeGuides by remember(document.id) { mutableStateOf(DesignerAlignmentGuideMatch()) }
     val currentZoom by rememberUpdatedState(zoom)
     val currentPan by rememberUpdatedState(pan)
+    val editorChromeVisible = displayMode.editorChromeVisible
+    val directEditingEnabled = displayMode.directEditingEnabled
+    val navigationEnabled = displayMode.viewportNavigationAlwaysEnabled || panMode
+    val omrColor = if (displayMode.usesPrintInk) Color.Black else Color(0xFFB54848)
+
+    fun switchMode(mode: StructuredPaperDisplayMode) {
+        if (displayMode == mode) return
+        displayMode = mode
+        panMode = false
+        activeGuides = DesignerAlignmentGuideMatch()
+        if (mode == StructuredPaperDisplayMode.PREVIEW) currentOnSelectionChange(null)
+    }
 
     fun clampPanFor(newZoom: Float, proposed: Offset): Offset {
         val clamped = DesignerMobileViewport.clampPan(
@@ -180,7 +192,23 @@ internal fun InteractivePaperWorkspace(
                 Text("${document.formSpec.paperSize.displayName} · $physical", style = MaterialTheme.typography.labelMedium)
                 Text(document.formSpec.orientation.displayName, style = MaterialTheme.typography.labelSmall)
             }
-            Text("Canonical ${document.space.width.roundToInt()} × ${document.space.height.roundToInt()} · Grid 2,5 mm · Snap 1 mm", style = MaterialTheme.typography.labelSmall)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                if (displayMode == StructuredPaperDisplayMode.EDIT) {
+                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.EDIT) }) { Text("Düzenle ✓") }
+                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.PREVIEW) }) { Text("Önizleme") }
+                } else {
+                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.EDIT) }) { Text("Düzenle") }
+                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.PREVIEW) }) { Text("Önizleme ✓") }
+                }
+            }
+            Text(
+                if (displayMode == StructuredPaperDisplayMode.EDIT) {
+                    "Canonical ${document.space.width.roundToInt()} × ${document.space.height.roundToInt()} · Grid 2,5 mm · Snap 1 mm"
+                } else {
+                    "Baskı önizlemesi · Grid, seçim çerçeveleri ve taşıma kılavuzları gizli"
+                },
+                style = MaterialTheme.typography.labelSmall
+            )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
@@ -191,10 +219,12 @@ internal fun InteractivePaperWorkspace(
                     enabled = hundredZoom != null,
                     onClick = { hundredZoom?.let(::setZoom); pan = clampPanFor(zoom, Offset.Zero) }
                 ) { Text("100%") }
-                if (panMode) {
-                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = { panMode = false }) { Text("Gezdir ✓") }
-                } else {
-                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { panMode = true; activeGuides = DesignerAlignmentGuideMatch() }) { Text("Gezdir") }
+                if (displayMode == StructuredPaperDisplayMode.EDIT) {
+                    if (panMode) {
+                        FilledTonalButton(modifier = Modifier.weight(1f), onClick = { panMode = false }) { Text("Gezdir ✓") }
+                    } else {
+                        OutlinedButton(modifier = Modifier.weight(1f), onClick = { panMode = true; activeGuides = DesignerAlignmentGuideMatch() }) { Text("Gezdir") }
+                    }
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -207,16 +237,16 @@ internal fun InteractivePaperWorkspace(
                     .clip(RoundedCornerShape(6.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .onSizeChanged { viewportSize = it; pan = clampPanFor(zoom, pan) }
-                    .transformable(state = transformableState, enabled = panMode)
-                    .pointerInput(document.space, document.components.size, document.visualElements.size, panMode) {
-                        if (!panMode) {
+                    .transformable(state = transformableState, enabled = navigationEnabled)
+                    .pointerInput(document.space, document.components.size, document.visualElements.size, panMode, displayMode) {
+                        if (directEditingEnabled && !panMode) {
                             detectTapGestures { offset ->
                                 if (size.width > 0 && size.height > 0) currentOnSelectionChange(hitTest(toCanonical(offset, size.width, size.height)))
                             }
                         }
                     }
-                    .pointerInput(document.space, document.components, document.visualElements, selection, panMode) {
-                        if (!panMode) {
+                    .pointerInput(document.space, document.components, document.visualElements, selection, panMode, displayMode) {
+                        if (directEditingEnabled && !panMode) {
                             var target: StructuredPaperSelection? = null
                             var resizeVisual = false
                             var baseline: DesignerDocument? = null
@@ -292,56 +322,63 @@ internal fun InteractivePaperWorkspace(
                     Canvas(Modifier.fillMaxSize()) {
                         val sx = size.width / document.space.width.toFloat()
                         val sy = size.height / document.space.height.toFloat()
-                        val minorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MINOR_MM)
-                        val majorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MAJOR_MM)
-                        val minorColor = Color(0xFFE9ECF3)
-                        val majorColor = Color(0xFFD2D8E4)
-                        var gx = minorStep
-                        while (gx < document.space.width) {
-                            val major = abs((gx / majorStep) - (gx / majorStep).roundToInt()) < 0.02
-                            drawLine(if (major) majorColor else minorColor, Offset(gx.toFloat() * sx, 0f), Offset(gx.toFloat() * sx, size.height), if (major) 1.05f else 0.55f)
-                            gx += minorStep
+                        if (editorChromeVisible) {
+                            val minorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MINOR_MM)
+                            val majorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MAJOR_MM)
+                            val minorColor = Color(0xFFE9ECF3)
+                            val majorColor = Color(0xFFD2D8E4)
+                            var gx = minorStep
+                            while (gx < document.space.width) {
+                                val major = abs((gx / majorStep) - (gx / majorStep).roundToInt()) < 0.02
+                                drawLine(if (major) majorColor else minorColor, Offset(gx.toFloat() * sx, 0f), Offset(gx.toFloat() * sx, size.height), if (major) 1.05f else 0.55f)
+                                gx += minorStep
+                            }
+                            var gy = minorStep
+                            while (gy < document.space.height) {
+                                val major = abs((gy / majorStep) - (gy / majorStep).roundToInt()) < 0.02
+                                drawLine(if (major) majorColor else minorColor, Offset(0f, gy.toFloat() * sy), Offset(size.width, gy.toFloat() * sy), if (major) 1.05f else 0.55f)
+                                gy += minorStep
+                            }
+                            drawRect(safeFill, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy))
+                            drawRect(safeStroke, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy), style = Stroke(1.1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))))
                         }
-                        var gy = minorStep
-                        while (gy < document.space.height) {
-                            val major = abs((gy / majorStep) - (gy / majorStep).roundToInt()) < 0.02
-                            drawLine(if (major) majorColor else minorColor, Offset(0f, gy.toFloat() * sy), Offset(size.width, gy.toFloat() * sy), if (major) 1.05f else 0.55f)
-                            gy += minorStep
-                        }
-                        drawRect(safeFill, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy))
-                        drawRect(safeStroke, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy), style = Stroke(1.1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))))
                         drawDesignerVisualElements(document.visualElements, images, sx, sy)
                         document.components.filterIsInstance<QuestionGroupComponent>().forEach { drawAnswerGroup(it, rows, document.formSpec.answerAppearance, sx, sy, omrColor) }
                         document.components.filterIsInstance<NumericGridComponent>().forEach { component -> compiled.markGrids.firstOrNull { it.id == component.id }?.let { drawNumberGrid(component, it, sx, sy, omrColor) } }
                         document.components.filterIsInstance<SingleChoiceComponent>().forEach { component -> compiled.markGrids.firstOrNull { it.id == component.id }?.let { drawSingleChoice(component, it, sx, sy, omrColor) } }
                         drawComponentDecorations(document, sx, sy)
                         document.fiducials.forEach { marker -> drawRect(Color.Black, Offset(marker.bounds.left.toFloat() * sx, marker.bounds.top.toFloat() * sy), Size(marker.bounds.width.toFloat() * sx, marker.bounds.height.toFloat() * sy)) }
-                        val selectedBounds = selection?.let { selected -> boundsFor(document, selected) }
-                        selectedBounds?.let { drawRect(selectionColor, Offset(it.left.toFloat() * sx, it.top.toFloat() * sy), Size(it.width.toFloat() * sx, it.height.toFloat() * sy), style = Stroke(2.3f)) }
-                        selection?.takeIf { it.kind == StructuredSelectionKind.VISUAL }
-                            ?.let { selected -> document.visualElements.firstOrNull { it.id == selected.id } }
-                            ?.let(DesignerResizeHandleGeometry::handlePoint)
-                            ?.let { handle ->
-                                val center = Offset(handle.x.toFloat() * sx, handle.y.toFloat() * sy)
-                                drawCircle(Color.White, 8f, center)
-                                drawCircle(selectionColor, 5.5f, center)
+                        if (editorChromeVisible) {
+                            val selectedBounds = selection?.let { selected -> boundsFor(document, selected) }
+                            selectedBounds?.let { drawRect(selectionColor, Offset(it.left.toFloat() * sx, it.top.toFloat() * sy), Size(it.width.toFloat() * sx, it.height.toFloat() * sy), style = Stroke(2.3f)) }
+                            selection?.takeIf { it.kind == StructuredSelectionKind.VISUAL }
+                                ?.let { selected -> document.visualElements.firstOrNull { it.id == selected.id } }
+                                ?.let(DesignerResizeHandleGeometry::handlePoint)
+                                ?.let { handle ->
+                                    val center = Offset(handle.x.toFloat() * sx, handle.y.toFloat() * sy)
+                                    drawCircle(Color.White, 8f, center)
+                                    drawCircle(selectionColor, 5.5f, center)
+                                }
+                            activeGuides.verticalGuideX?.let { x ->
+                                drawLine(guideColor, Offset(x.toFloat() * sx, safe.top.toFloat() * sy), Offset(x.toFloat() * sx, safe.bottom.toFloat() * sy), 1.5f)
                             }
-                        activeGuides.verticalGuideX?.let { x ->
-                            drawLine(guideColor, Offset(x.toFloat() * sx, safe.top.toFloat() * sy), Offset(x.toFloat() * sx, safe.bottom.toFloat() * sy), 1.5f)
+                            activeGuides.horizontalGuideY?.let { y ->
+                                drawLine(guideColor, Offset(safe.left.toFloat() * sx, y.toFloat() * sy), Offset(safe.right.toFloat() * sx, y.toFloat() * sy), 1.5f)
+                            }
+                            drawRect(Color(0xFFBFC5D0), style = Stroke(1.1f))
                         }
-                        activeGuides.horizontalGuideY?.let { y ->
-                            drawLine(guideColor, Offset(safe.left.toFloat() * sx, y.toFloat() * sy), Offset(safe.right.toFloat() * sx, y.toFloat() * sy), 1.5f)
-                        }
-                        drawRect(Color(0xFFBFC5D0), style = Stroke(1.1f))
                     }
                 }
             }
             Text(
-                if (panMode) "Gezdir modu: tek parmakla kaydırın, iki parmakla pinch zoom yapın. Düzenlemeye dönmek için Gezdir düğmesine dokunun."
-                else "Düzenle modu: öğeyi seçip sürükleyin. Grid snap 1 mm; yakın hizalamalarda kılavuz otomatik devreye girer.",
+                when {
+                    displayMode == StructuredPaperDisplayMode.PREVIEW -> "Önizleme modu: baskı mürekkebi gösterilir; grid, seçim ve taşıma işaretleri kapalıdır. Yakınlaştırıp sayfayı gezdirebilirsiniz."
+                    panMode -> "Gezdir modu: tek parmakla kaydırın, iki parmakla pinch zoom yapın. Düzenlemeye dönmek için Gezdir düğmesine dokunun."
+                    else -> "Düzenle modu: öğeyi seçip sürükleyin. Grid snap 1 mm; yakın hizalamalarda kılavuz otomatik devreye girer."
+                },
                 style = MaterialTheme.typography.labelSmall
             )
-            selection?.let { PrecisionGeometryCard(document, it, currentOnDocumentChange) }
+            if (editorChromeVisible) selection?.let { PrecisionGeometryCard(document, it, currentOnDocumentChange) }
         }
     }
 }
