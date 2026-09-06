@@ -7,7 +7,8 @@ object DesignerStarterTemplates {
         questions40Abcd(),
         questions50Abcde(),
         questions80Abcd(),
-        questions100Abcd()
+        questions100Abcd(),
+        DesignerPhysicalTestPack.document()
     )
 
     fun questions20Abcd(): DesignerDocument = DesignerDocument(

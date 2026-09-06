@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import org.opencv.android.Utils
@@ -54,7 +53,7 @@ object DesignerPdfExporter {
         val rect = transform.map(element.bounds)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK; style = Paint.Style.FILL; textSize = max(5.5f, transform.length(element.fontSize).toFloat())
-            typeface = Typeface.create(Typeface.DEFAULT, if (element.bold) Typeface.BOLD else Typeface.NORMAL)
+            typeface = DesignerTypography.typeface(element.bold)
             textAlign = when (element.alignment) { DesignerTextAlignment.START -> Paint.Align.LEFT; DesignerTextAlignment.CENTER -> Paint.Align.CENTER; DesignerTextAlignment.END -> Paint.Align.RIGHT }
         }
         val x = when (element.alignment) { DesignerTextAlignment.START -> rect.left.toFloat(); DesignerTextAlignment.CENTER -> rect.center.x.toFloat(); DesignerTextAlignment.END -> rect.right.toFloat() }
@@ -143,7 +142,7 @@ object DesignerPdfExporter {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = transform.length(text.textSize).toFloat().coerceAtLeast(0.1f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            typeface = DesignerTypography.typeface()
             textAlign = when (text.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -169,7 +168,7 @@ object DesignerPdfExporter {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK; style = Paint.Style.FILL; textAlign = align
             textSize = max(4.2f, transform.length(canonicalTextSize).toFloat())
-            typeface = Typeface.create(Typeface.DEFAULT, if (bold) Typeface.BOLD else Typeface.NORMAL)
+            typeface = DesignerTypography.typeface(bold)
         }
         canvas.drawText(text, point.x.toFloat(), point.y.toFloat(), paint)
     }

@@ -1,9 +1,8 @@
 package com.okulyonetim.optikokuyucu.exam
 
-import com.okulyonetim.optikokuyucu.omr.designer.ChoiceAxis
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfLayout
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPhysicalTestPack
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPrintRenderer
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
@@ -25,7 +24,6 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.AnswerKeyTemplateTargetResolver
-import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -69,7 +67,7 @@ class Stage15DeviceWorkflowReadinessTest {
     }
 
     @Test
-    fun `printable designer source reaches linked student booklet and scored report`() {
+    fun `physical Turkish designer source reaches linked student booklet and scored report`() {
         val document = printableDocument()
         val renderPlan = DesignerPrintRenderer.render(document)
         val template = DesignerTemplateCompiler.compile(document)
@@ -85,6 +83,7 @@ class Stage15DeviceWorkflowReadinessTest {
         val booklet = document.components.filterIsInstance<SingleChoiceComponent>().single()
         val answers = document.components.filterIsInstance<QuestionGroupComponent>().single()
         val questionId = DesignerTemplateCompiler.questionReadId(answers, answers.startQuestion)
+        val expectedChoice = DesignerPhysicalTestPack.answerFor(answers.startQuestion)
 
         val record = ScanRecord(
             id = "stage15-scan",
@@ -101,22 +100,22 @@ class Stage15DeviceWorkflowReadinessTest {
                 RecordedAnswer(
                     questionId = questionId,
                     state = RecordedAnswerState.MARKED,
-                    selectedChoice = "A",
+                    selectedChoice = expectedChoice,
                     confidence = 0.96,
-                    choiceScores = mapOf("A" to 0.42)
+                    choiceScores = mapOf(expectedChoice to 0.42)
                 )
             ),
             markGrids = listOf(
-                grid(number.id, "123456"),
-                grid(booklet.id, "B")
+                grid(number.id, DesignerPhysicalTestPack.STUDENT_NUMBER),
+                grid(booklet.id, DesignerPhysicalTestPack.BOOKLET_CODE)
             )
         )
 
         val repository = MemoryExamRepository(
             Exam(
                 id = "stage15-exam",
-                name = "Uçtan Uca",
-                schoolName = "Okul",
+                name = "Türkçe Uçtan Uca",
+                schoolName = "Örnek Okul",
                 templateSelection = selection(document),
                 examDateEpochDay = 1L,
                 createdAtEpochMs = 1L
@@ -131,63 +130,23 @@ class Stage15DeviceWorkflowReadinessTest {
             answerKey = AnswerKey(
                 templateId = document.id,
                 templateVersion = document.version,
-                answers = mapOf(questionId to "A")
+                answers = mapOf(questionId to expectedChoice)
             ),
             variantGridId = booklet.id,
-            variantValue = "B",
+            variantValue = DesignerPhysicalTestPack.BOOKLET_CODE,
             createdAtEpochMs = 300L,
             source = AnswerKeySource.GALLERY
         )
         val row = ExamReportBuilder.build(linked, listOf(record), listOf(key)).rows.single()
 
-        assertEquals("123456", linked.papers.single().studentNumber)
-        assertEquals("B", linked.papers.single().bookletCode)
+        assertEquals(DesignerPhysicalTestPack.STUDENT_NUMBER, linked.papers.single().studentNumber)
+        assertEquals(DesignerPhysicalTestPack.BOOKLET_CODE, linked.papers.single().bookletCode)
         assertEquals(ExamReportRowStatus.SCORED, row.status)
         assertEquals(1, row.correct)
         assertEquals(0, row.wrong)
     }
 
-    private fun printableDocument(): DesignerDocument = DesignerDocument(
-        id = "stage15-form",
-        version = 5,
-        name = "Aşama 15 Formu",
-        components = listOf(
-            NumericGridComponent(
-                id = "number-1",
-                digits = 6,
-                startX = 180.0,
-                topY = 260.0,
-                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
-                columnGap = DesignerEditorLayout.NUMBER_POSITION_GAP,
-                rowGap = DesignerEditorLayout.NUMBER_VALUE_GAP,
-                label = "Öğrenci No"
-            ),
-            SingleChoiceComponent(
-                id = "booklet-1",
-                choices = listOf("A", "B"),
-                start = TemplatePoint(180.0, 620.0),
-                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
-                gap = DesignerEditorLayout.BOOKLET_GAP,
-                axis = ChoiceAxis.HORIZONTAL,
-                label = "Kitapçık Türü"
-            ),
-            QuestionGroupComponent(
-                id = "answers-1",
-                startQuestion = 1,
-                questionCount = 20,
-                choices = listOf("A", "B", "C", "D"),
-                columns = 1,
-                firstChoiceX = 650.0,
-                topY = 260.0,
-                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
-                choiceGap = DesignerEditorLayout.ANSWER_CHOICE_GAP,
-                rowGap = DesignerEditorLayout.ANSWER_ROW_GAP,
-                columnGap = 220.0,
-                questionIdPrefix = "answers-1",
-                label = "Ders 1"
-            )
-        )
-    )
+    private fun printableDocument(): DesignerDocument = DesignerPhysicalTestPack.document()
 
     private fun selection(document: DesignerDocument) = ActiveTemplateSelection(
         source = ActiveTemplateSource.DESIGNER_DOCUMENT,

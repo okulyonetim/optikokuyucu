@@ -12,7 +12,8 @@ class DesignerStarterTemplatesTest {
             "starter-40-abcd" to (40 to 4),
             "starter-50-abcde" to (50 to 5),
             "starter-80-abcd" to (80 to 4),
-            "starter-100-abcd" to (100 to 4)
+            "starter-100-abcd" to (100 to 4),
+            DesignerPhysicalTestPack.TEMPLATE_ID to (20 to 4)
         )
         val documents = DesignerStarterTemplates.all()
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTypography
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
@@ -27,6 +28,7 @@ internal fun DrawScope.drawSingleChoice(
         color = android.graphics.Color.DKGRAY
         textAlign = AndroidPaint.Align.CENTER
         textSize = (component.bubbleRadius * 0.82).toFloat() * averageScale
+        typeface = DesignerTypography.typeface()
     }
     grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
         val center = Offset(mark.center.x.toFloat() * scaleX, mark.center.y.toFloat() * scaleY)
@@ -52,7 +54,7 @@ internal fun DrawScope.drawComponentDecorations(
                 val alignment = DesignerEditorLayout.componentLabelAlignment(component)
                 val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
                     color = android.graphics.Color.rgb(40, 40, 40)
-                    isFakeBoldText = true
+                    typeface = DesignerTypography.typeface(bold = true)
                     textSize = (DesignerEditorLayout.componentBubbleRadius(component) * 1.15).toFloat() * averageScale
                     textAlign = when (alignment) {
                         DesignerTextAlignment.START -> AndroidPaint.Align.LEFT

@@ -8,12 +8,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import com.okulyonetim.optikokuyucu.omr.diagnostics.SyntheticOmrRenderer
-import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
@@ -25,7 +23,8 @@ object DesignerGalleryTestAsset {
         markedChoicesByRow: Map<String, Set<String>> = emptyMap(),
         markedGridChoices: Map<String, Map<String, Set<String>>> = emptyMap()
     ): Bitmap {
-        val template = DesignerTemplateCompiler.compile(document)
+        val renderPlan = DesignerPrintRenderer.render(document)
+        val template = renderPlan.template
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         require(readability.canSave) { "Template cannot be rendered while readability errors exist." }
 
@@ -36,7 +35,8 @@ object DesignerGalleryTestAsset {
         )
         val canvas = Canvas(bitmap)
         drawVisualLayer(canvas, document)
-        drawSemanticLabels(canvas, document, template)
+        drawComponentDecorations(canvas, document)
+        drawPrintTexts(canvas, renderPlan)
         return bitmap
     }
 
@@ -115,7 +115,7 @@ object DesignerGalleryTestAsset {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = element.fontSize.toFloat()
-            typeface = Typeface.create(Typeface.DEFAULT, if (element.bold) Typeface.BOLD else Typeface.NORMAL)
+            typeface = DesignerTypography.typeface(element.bold)
             textAlign = when (element.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -163,63 +163,58 @@ object DesignerGalleryTestAsset {
         }
     }
 
-    private fun drawSemanticLabels(canvas: Canvas, document: DesignerDocument, template: OmrTemplate) {
-        val byQuestionId = template.bubbleRows.associateBy { it.id }
-        val byGridId = template.markGrids.associateBy { it.id }
+    private fun drawComponentDecorations(canvas: Canvas, document: DesignerDocument) {
+        val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.STROKE
+            strokeWidth = 1.0f
+        }
         document.components.forEach { component ->
-            when (component) {
-                is QuestionGroupComponent -> repeat(component.questionCount) { index ->
-                    val questionNumber = component.startQuestion + index
-                    val questionId = DesignerTemplateCompiler.questionReadId(component, questionNumber)
-                    val row = byQuestionId[questionId] ?: return@repeat
-                    val first = row.bubbles.firstOrNull() ?: return@repeat
-                    drawLabel(
-                        canvas, questionNumber.toString(),
-                        first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
-                        first.center.y + first.radius * 0.40,
-                        Paint.Align.RIGHT, first.radius * 1.02
+            if (DesignerEditorLayout.componentShowsLabel(component)) {
+                val text = DesignerEditorLayout.componentLabel(component)
+                if (text.isNotBlank()) {
+                    val anchor = DesignerEditorLayout.labelAnchor(component)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.FILL
+                        typeface = DesignerTypography.typeface(bold = true)
+                        textSize = max(6.5, DesignerEditorLayout.componentBubbleRadius(component) * 1.15).toFloat()
+                        textAlign = when (DesignerEditorLayout.componentLabelAlignment(component)) {
+                            DesignerTextAlignment.START -> Paint.Align.LEFT
+                            DesignerTextAlignment.CENTER -> Paint.Align.CENTER
+                            DesignerTextAlignment.END -> Paint.Align.RIGHT
+                        }
+                    }
+                    canvas.drawText(text, anchor.x.toFloat(), anchor.y.toFloat(), paint)
+                }
+            }
+            if (component is NumericGridComponent) {
+                DesignerEditorLayout.numericHeaderBoxes(component).forEach { box ->
+                    canvas.drawRect(
+                        box.left.toFloat(), box.top.toFloat(),
+                        box.right.toFloat(), box.bottom.toFloat(), boxPaint
                     )
-                    row.bubbles.forEach { bubble ->
-                        drawCenteredBubbleLabel(canvas, bubble.id, bubble.center.x, bubble.center.y, bubble.radius)
-                    }
-                }
-                is NumericGridComponent -> {
-                    val grid = byGridId[component.id] ?: return@forEach
-                    grid.columns.forEach { column -> column.marks.forEach { mark ->
-                        drawCenteredBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius)
-                    } }
-                }
-                is SingleChoiceComponent -> {
-                    val grid = byGridId[component.id] ?: return@forEach
-                    grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
-                        drawCenteredBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius)
-                    }
                 }
             }
         }
     }
 
-    private fun drawCenteredBubbleLabel(canvas: Canvas, text: String, x: Double, y: Double, radius: Double) {
-        drawLabel(canvas, text, x, y + radius * 0.34, Paint.Align.CENTER, radius * 0.78)
-    }
-
-    private fun drawLabel(
-        canvas: Canvas,
-        text: String,
-        x: Double,
-        y: Double,
-        align: Paint.Align,
-        textSize: Double
-    ) {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            style = Paint.Style.FILL
-            textAlign = align
-            this.textSize = max(6.5, textSize).toFloat()
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+    private fun drawPrintTexts(canvas: Canvas, renderPlan: DesignerPrintRenderPlan) {
+        renderPlan.texts.forEach { text ->
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                style = Paint.Style.FILL
+                typeface = DesignerTypography.typeface()
+                textSize = max(6.5, text.textSize).toFloat()
+                textAlign = when (text.alignment) {
+                    DesignerTextAlignment.START -> Paint.Align.LEFT
+                    DesignerTextAlignment.CENTER -> Paint.Align.CENTER
+                    DesignerTextAlignment.END -> Paint.Align.RIGHT
+                }
+            }
+            val metrics = paint.fontMetrics
+            val baseline = text.anchor.y.toFloat() - (metrics.ascent + metrics.descent) / 2f
+            canvas.drawText(text.text, text.anchor.x.toFloat(), baseline, paint)
         }
-        canvas.drawText(text, x.toFloat(), y.toFloat(), paint)
     }
-
-    private const val QUESTION_NUMBER_DISTANCE = 2.15
 }
