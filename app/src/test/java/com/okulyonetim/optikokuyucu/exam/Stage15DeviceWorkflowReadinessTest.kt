@@ -76,7 +76,7 @@ class Stage15DeviceWorkflowReadinessTest {
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         val pdfTransform = DesignerPdfLayout.fit(template.space, PdfPageProfile.A4)
 
-        assertTrue(readability.issues.joinToString { it.code.name }, readability.canSave)
+        assertTrue(readability.issues.joinToString { it.type.name }, readability.canSave)
         assertEquals(template, renderPlan.template)
         assertTrue(renderPlan.bubbles.isNotEmpty())
         assertTrue(pdfTransform.scale > 0.0)
