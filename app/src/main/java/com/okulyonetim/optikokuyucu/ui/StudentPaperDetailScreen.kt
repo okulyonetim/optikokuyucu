@@ -61,6 +61,8 @@ import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
+import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
+import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.Locale
 
 private enum class StudentPaperTab { CONTENT, IMAGE }
@@ -81,6 +83,7 @@ fun StudentPaperDetailScreen(
     val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
     val imageRepository = remember(context) { FileScanImageRepository(appContext) }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
+    val studentRepository = remember(context) { FileStudentRosterRepository(appContext) }
 
     var exam by remember(examId) { mutableStateOf(examRepository.load(examId)) }
     val record = remember(scanRecordId) { scanRepository.load(scanRecordId) }
@@ -100,16 +103,30 @@ fun StudentPaperDetailScreen(
         return
     }
 
+    val recognitionBindings = remember(record.id) { OmrRecognitionBindingsResolver.fromRecord(record) }
+    val detectedStudentNumber = link.studentNumber.ifBlank {
+        recognitionBindings.studentNumber(record).orEmpty()
+    }
+    val rosterStudent = remember(examId, scanRecordId, detectedStudentNumber) {
+        studentRepository.findByNumber(detectedStudentNumber)
+    }
+
     var tab by remember { mutableStateOf(StudentPaperTab.CONTENT) }
-    var studentName by remember(examId, scanRecordId) { mutableStateOf(link.studentName) }
+    var studentName by remember(examId, scanRecordId) {
+        mutableStateOf(link.studentName.ifBlank { rosterStudent?.fullName.orEmpty() })
+    }
     var className by remember(examId, scanRecordId) {
-        mutableStateOf(link.className.ifBlank { record.grid("class")?.value.orEmpty() })
+        mutableStateOf(
+            link.className.ifBlank {
+                rosterStudent?.className ?: recognitionBindings.classCode(record).orEmpty()
+            }
+        )
     }
     var studentNumber by remember(examId, scanRecordId) {
-        mutableStateOf(link.studentNumber.ifBlank { record.grid("studentNumber")?.value.orEmpty() })
+        mutableStateOf(rosterStudent?.studentNumber ?: detectedStudentNumber)
     }
     var bookletCode by remember(examId, scanRecordId) {
-        mutableStateOf(link.bookletCode.ifBlank { record.grid("booklet")?.value.orEmpty() })
+        mutableStateOf(link.bookletCode.ifBlank { recognitionBindings.booklet(record).orEmpty() })
     }
     var status by remember { mutableStateOf("") }
     var deleteDialogOpen by remember { mutableStateOf(false) }
@@ -142,6 +159,14 @@ fun StudentPaperDetailScreen(
     }
     val title = studentName.ifBlank {
         studentNumber.takeIf { it.isNotBlank() }?.let { "Öğrenci $it" } ?: "Öğrenci Sonucu"
+    }
+
+    fun lookupStudent(number: String) {
+        val student = studentRepository.findByNumber(number) ?: return
+        studentNumber = student.studentNumber
+        studentName = student.fullName
+        className = student.className
+        status = "Öğrenci bulundu · ${student.fullName} · ${student.className}"
     }
 
     fun saveMetadata() {
@@ -260,8 +285,12 @@ fun StudentPaperDetailScreen(
                                 OutlinedTextField(
                                     modifier = Modifier.weight(1f),
                                     value = studentNumber,
-                                    onValueChange = { studentNumber = it },
+                                    onValueChange = { value ->
+                                        studentNumber = value.filter(Char::isDigit)
+                                        lookupStudent(studentNumber)
+                                    },
                                     label = { Text("Numara") },
+                                    supportingText = { Text("Kayıtlı numara yazılınca ad ve sınıf otomatik dolar") },
                                     singleLine = true,
                                     shape = RoundedCornerShape(28.dp)
                                 )

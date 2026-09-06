@@ -46,6 +46,19 @@ object ManualAnswerKeyBuilder {
         )
     }
 
+    fun entriesFor(
+        answerKey: AnswerKey?,
+        sections: List<ManualAnswerSection>
+    ): Map<String, String> = sections.associate { section ->
+        section.id to if (answerKey == null) {
+            ""
+        } else {
+            section.questionIds.joinToString("") { questionId ->
+                answerKey.answers[questionId].orEmpty()
+            }
+        }
+    }
+
     fun build(
         template: OmrTemplate,
         sections: List<ManualAnswerSection>,
