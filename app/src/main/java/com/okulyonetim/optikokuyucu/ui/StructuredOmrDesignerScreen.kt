@@ -83,6 +83,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
     var status by remember { mutableStateOf("") }
     var showAreaPicker by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf<StructuredPaperSelection?>(null) }
+    var workspaceDirectDragActive by remember { mutableStateOf(false) }
     var editingExistingId by remember { mutableStateOf<String?>(null) }
 
     var numberDraft by remember { mutableStateOf<NumericGridComponent?>(null) }
@@ -336,7 +337,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(), enabled = !workspaceDirectDragActive)
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -362,7 +363,13 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 status = ""
                 showAreaPicker = true
             }
-            InteractivePaperWorkspace(document, selection, { selection = it }, { document = it })
+            InteractivePaperWorkspace(
+                document = document,
+                selection = selection,
+                onSelectionChange = { selection = it },
+                onDocumentChange = { document = it },
+                onDirectDragActiveChange = { workspaceDirectDragActive = it }
+            )
             selection?.let {
                 SelectionActions(it, ::editSelected, ::duplicateSelected, ::deleteSelected)
             }
