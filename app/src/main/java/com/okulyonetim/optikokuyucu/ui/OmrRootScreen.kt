@@ -22,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +44,8 @@ import com.okulyonetim.optikokuyucu.exam.ExamStatus
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
+import com.okulyonetim.optikokuyucu.settings.AppSettings
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -620,6 +623,11 @@ private fun RootSettingsScreen(
     onOpenTools: () -> Unit,
     onOpenForms: () -> Unit
 ) {
+    val context = LocalContext.current
+    val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
+    var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
+    var schoolStatus by remember { mutableStateOf("") }
+
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(title = "Ayarlar")
         LazyColumn(
@@ -629,6 +637,60 @@ private fun RootSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("Kurum Bilgileri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Buradaki okul adı yeni sınav oluştururken otomatik doldurulur.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = schoolName,
+                            onValueChange = {
+                                schoolName = it
+                                schoolStatus = ""
+                            },
+                            label = { Text("Okul Adı") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                runCatching {
+                                    settingsRepository.save(AppSettings(schoolName))
+                                }.onSuccess {
+                                    schoolName = schoolName.trim()
+                                    schoolStatus = "Okul adı kaydedildi."
+                                }.onFailure { error ->
+                                    schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Kurum Bilgisini Kaydet")
+                        }
+                        if (schoolStatus.isNotBlank()) {
+                            Text(
+                                schoolStatus,
+                                fontSize = 11.sp,
+                                color = if (schoolStatus.startsWith("Kaydedilemedi")) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                }
+                            )
+                        }
+                    }
+                }
+            }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

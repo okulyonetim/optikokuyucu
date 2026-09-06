@@ -3,6 +3,7 @@ package com.okulyonetim.optikokuyucu.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,24 +12,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.exam.ExamFactory
+import com.okulyonetim.optikokuyucu.exam.ExamParticipant
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -37,6 +42,8 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -55,27 +62,46 @@ fun NewExamScreen(
     val context = LocalContext.current
     val appContext = context.applicationContext
     val repository = remember(context) { FileExamRepository(appContext) }
+    val settingsRepository = remember(context) { AppSettingsRepository(appContext) }
+    val roster = remember(context) { FileStudentRosterRepository(appContext).list() }
+    val classNames = remember(roster) { roster.map { it.className }.distinct().sorted() }
     val options = remember(context) { loadExamTemplateOptions(appContext) }
     val activeSelection = remember(context) { FileActiveTemplateSelectionRepository(appContext).load() }
 
     var examName by remember { mutableStateOf("") }
-    var schoolName by remember { mutableStateOf("") }
+    var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
     var folderName by remember { mutableStateOf("") }
     var dateText by remember { mutableStateOf(todayText()) }
     var selectedTemplate by remember {
         mutableStateOf(options.firstOrNull { it.selection == activeSelection } ?: options.first())
     }
     var wrongPolicy by remember { mutableStateOf(WrongAnswerPolicy.KEEP_AS_IS) }
+    var selectedClasses by remember { mutableStateOf(emptySet<String>()) }
+    var selectedStudentNumbers by remember { mutableStateOf(emptySet<String>()) }
+    var bookletCount by remember { mutableStateOf(1) }
+    var personalizedFormsEnabled by remember { mutableStateOf(false) }
     var templateMenuOpen by remember { mutableStateOf(false) }
     var wrongMenuOpen by remember { mutableStateOf(false) }
+    var classMenuOpen by remember { mutableStateOf(false) }
+    var studentMenuOpen by remember { mutableStateOf(false) }
+    var bookletMenuOpen by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+
+    val selectedParticipants = roster.filter { student ->
+        student.className in selectedClasses || student.studentNumber in selectedStudentNumbers
+    }
+    val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
 
     val saveExam = {
         val parsedDate = parseExamDate(dateText)
         when {
             examName.isBlank() -> status = "Sınav adı zorunludur."
-            schoolName.isBlank() -> status = "Okul alanı zorunludur."
+            schoolName.isBlank() -> status = "Okul alanı zorunludur. Ayarlar bölümünden okul adını kaydedebilirsiniz."
             parsedDate == null -> status = "Tarih GG.AA.YYYY biçiminde olmalıdır."
+            personalizedFormsEnabled && selectedParticipants.isEmpty() ->
+                status = "Öğrenciye özel form için en az bir sınıf veya öğrenci seçin."
+            personalizedFormsEnabled && !designerBackedForm ->
+                status = "Öğrenciye özel form için Form Editörü ile oluşturulmuş bir optik form seçin."
             else -> {
                 runCatching {
                     ExamFactory.create(
@@ -84,7 +110,16 @@ fun NewExamScreen(
                         templateSelection = selectedTemplate.selection,
                         examDateEpochDay = parsedDate.toEpochDay(),
                         wrongAnswerPolicy = wrongPolicy,
-                        folderName = folderName
+                        folderName = folderName,
+                        participants = selectedParticipants.map { student ->
+                            ExamParticipant(
+                                studentNumber = student.studentNumber,
+                                studentName = student.fullName,
+                                className = student.className
+                            )
+                        },
+                        bookletCount = bookletCount,
+                        personalizedFormsEnabled = personalizedFormsEnabled
                     ).also(repository::save)
                 }.onSuccess { exam ->
                     onSaved(exam.id)
@@ -131,7 +166,7 @@ fun NewExamScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "Sınav adı ve okul zorunludur.",
+                        "Okul adı Ayarlar bölümündeki kurum bilgisinden otomatik gelir; bu sınav için ayrıca değiştirilebilir.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -184,6 +219,9 @@ fun NewExamScreen(
                                     },
                                     onClick = {
                                         selectedTemplate = option
+                                        if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
+                                            personalizedFormsEnabled = false
+                                        }
                                         templateMenuOpen = false
                                     }
                                 )
@@ -221,6 +259,36 @@ fun NewExamScreen(
                         }
                     }
 
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { bookletMenuOpen = true },
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                Text("Kitapçık Sayısı", style = MaterialTheme.typography.labelSmall)
+                                Text("$bookletCount kitapçık", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = bookletMenuOpen,
+                            onDismissRequest = { bookletMenuOpen = false }
+                        ) {
+                            (1..8).forEach { count ->
+                                DropdownMenuItem(
+                                    text = { Text("$count kitapçık") },
+                                    onClick = {
+                                        bookletCount = count
+                                        bookletMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     RoundedExamField(
                         value = folderName,
                         onValueChange = { folderName = it },
@@ -233,15 +301,191 @@ fun NewExamScreen(
                         label = "Sınav Tarihi",
                         prefix = "▣"
                     )
+                }
+            }
 
-                    if (status.isNotBlank()) {
-                        Text(
-                            status,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "Sınava Girecek Öğrenciler",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Sınıfları toplu seçebilir veya öğrencileri tek tek ekleyebilirsiniz. Aynı öğrenci yalnız bir kez sınava eklenir.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { classMenuOpen = true },
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                Text("Toplu Sınıf Seçimi", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    if (selectedClasses.isEmpty()) "Sınıf seçin" else selectedClasses.sorted().joinToString(", "),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = classMenuOpen,
+                            onDismissRequest = { classMenuOpen = false }
+                        ) {
+                            if (classNames.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
+                                    enabled = false,
+                                    onClick = {}
+                                )
+                            } else {
+                                classNames.forEach { className ->
+                                    val count = roster.count { it.className == className }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = className in selectedClasses,
+                                                    onCheckedChange = null
+                                                )
+                                                Text("$className · $count öğrenci")
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedClasses = if (className in selectedClasses) {
+                                                selectedClasses - className
+                                            } else {
+                                                selectedClasses + className
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { studentMenuOpen = true },
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                Text("Bireysel Öğrenci Seçimi", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    if (selectedStudentNumbers.isEmpty()) "Öğrenci seçin" else "${selectedStudentNumbers.size} öğrenci tek tek seçildi",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = studentMenuOpen,
+                            onDismissRequest = { studentMenuOpen = false }
+                        ) {
+                            if (roster.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
+                                    enabled = false,
+                                    onClick = {}
+                                )
+                            } else {
+                                roster.forEach { student ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = student.studentNumber in selectedStudentNumbers,
+                                                    onCheckedChange = null
+                                                )
+                                                Column {
+                                                    Text(
+                                                        student.fullName,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        "${student.className} · No ${student.studentNumber}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedStudentNumbers = if (student.studentNumber in selectedStudentNumbers) {
+                                                selectedStudentNumbers - student.studentNumber
+                                            } else {
+                                                selectedStudentNumbers + student.studentNumber
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        if (selectedParticipants.isEmpty()) {
+                            "Katılımcı seçilmedi. Sınav serbest taramaya açık kalır."
+                        } else {
+                            "Toplam ${selectedParticipants.size} öğrenci sınava eklenecek."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Öğrenciye Özel Form", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                when {
+                                    !designerBackedForm -> "Form Editörü ile oluşturulmuş bir form seçildiğinde kullanılabilir."
+                                    selectedParticipants.isEmpty() -> "Önce en az bir sınıf veya öğrenci seçin."
+                                    else -> "Seçilen öğrenciler için ad, sınıf ve numara bilgileriyle kişiselleştirilmiş form üretimini etkinleştirir."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = personalizedFormsEnabled,
+                            onCheckedChange = { personalizedFormsEnabled = it },
+                            enabled = designerBackedForm && selectedParticipants.isNotEmpty()
                         )
                     }
                 }
+            }
+
+            if (status.isNotBlank()) {
+                Text(
+                    status,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
         }
     }
