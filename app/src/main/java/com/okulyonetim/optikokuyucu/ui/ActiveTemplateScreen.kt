@@ -78,6 +78,11 @@ fun ActiveTemplateScreen(
             }
     }
 
+    fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
+        DesignerLibraryOpenHandoff.offer(document, mode)
+        onCreateForm()
+    }
+
     val locale = Locale("tr", "TR")
     val normalizedQuery = query.trim().lowercase(locale)
     val visibleStarters = starters.filter { document ->
@@ -134,21 +139,9 @@ fun ActiveTemplateScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    FormStatCard(
-                        modifier = Modifier.weight(1f),
-                        value = (1 + starters.size + savedDocuments.size).toString(),
-                        label = "Toplam"
-                    )
-                    FormStatCard(
-                        modifier = Modifier.weight(1f),
-                        value = (1 + starters.size).toString(),
-                        label = "Hazır"
-                    )
-                    FormStatCard(
-                        modifier = Modifier.weight(1f),
-                        value = savedDocuments.size.toString(),
-                        label = "Kayıtlı"
-                    )
+                    FormStatCard(Modifier.weight(1f), (1 + starters.size + savedDocuments.size).toString(), "Toplam")
+                    FormStatCard(Modifier.weight(1f), (1 + starters.size).toString(), "Hazır")
+                    FormStatCard(Modifier.weight(1f), savedDocuments.size.toString(), "Kayıtlı")
                 }
             }
 
@@ -233,7 +226,9 @@ fun ActiveTemplateScreen(
                     detail = "Hazır optik form",
                     selected = resolved.selection == selection,
                     badge = "HAZIR",
-                    onSelect = { choose(selection, document.name) }
+                    onSelect = { choose(selection, document.name) },
+                    onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
+                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) }
                 )
             }
 
@@ -274,7 +269,9 @@ fun ActiveTemplateScreen(
                     detail = "Cihazda kayıtlı kurum formu",
                     selected = resolved.selection == selection,
                     badge = "KURUM",
-                    onSelect = { choose(selection, document.name) }
+                    onSelect = { choose(selection, document.name) },
+                    onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
+                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) }
                 )
             }
 
@@ -384,7 +381,9 @@ private fun TemplateLibraryCard(
     detail: String,
     selected: Boolean,
     badge: String,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    onPreview: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -392,46 +391,67 @@ private fun TemplateLibraryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(13.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    detail,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top
             ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 ProductStatusBadge(
                     text = if (selected) "AKTİF" else badge,
                     tone = if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
                 )
-                if (!selected) {
-                    OutlinedButton(
-                        onClick = onSelect,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Seç", fontSize = 11.sp)
+            }
+
+            if (onPreview != null || onEdit != null || !selected) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (onPreview != null) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onPreview,
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Önizle", fontSize = 11.sp) }
+                    }
+                    if (onEdit != null) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onEdit,
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Düzenle", fontSize = 11.sp) }
+                    }
+                    if (!selected) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onSelect,
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Seç", fontSize = 11.sp) }
                     }
                 }
             }
