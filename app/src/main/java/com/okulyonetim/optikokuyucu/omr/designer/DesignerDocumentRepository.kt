@@ -22,6 +22,14 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
     override fun save(document: DesignerDocument): DesignerDocument {
         val existing = list()
         val resolved = DesignerTemplateVersioning.resolveForSave(document, existing)
+        val safety = TemplateReadabilityAnalyzer.analyze(resolved)
+        require(safety.canSave) {
+            val firstError = safety.issues.firstOrNull { it.severity == ReadabilitySeverity.ERROR }
+            buildString {
+                append("OMR güvenlik kontrolü başarısız: ${safety.errorCount} hata")
+                if (firstError != null) append(". ${firstError.message}")
+            }
+        }
         val target = fileFor(resolved.id, resolved.version)
 
         if (target.isFile) {

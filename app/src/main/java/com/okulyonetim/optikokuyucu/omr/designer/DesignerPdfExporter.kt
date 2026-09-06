@@ -19,7 +19,7 @@ import kotlin.math.max
 object DesignerPdfExporter {
     fun export(document: DesignerDocument, output: OutputStream, profile: PdfPageProfile = PdfPageProfile.A4) {
         val template = DesignerTemplateCompiler.compile(document)
-        val readability = TemplateReadabilityAnalyzer.analyze(template)
+        val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         require(readability.canSave) { "Template cannot be exported while readability errors exist." }
         val transform = DesignerPdfLayout.fit(template.space, profile)
         val pdf = PdfDocument()

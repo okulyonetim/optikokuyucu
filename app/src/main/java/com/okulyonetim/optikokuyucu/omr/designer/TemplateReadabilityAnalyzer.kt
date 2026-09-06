@@ -19,7 +19,12 @@ enum class ReadabilityIssueType {
     EDGE_CLEARANCE,
     VISUAL_MARK_CLEARANCE,
     VISUAL_FIDUCIAL_CLEARANCE,
-    VISUAL_EDGE_CLEARANCE
+    VISUAL_EDGE_CLEARANCE,
+    OMR_AREA_OUTSIDE_PAGE,
+    OMR_AREA_OVERLAP,
+    QUESTION_NUMBER_OVERLAP,
+    DUPLICATE_OMR_ID,
+    TEMPLATE_COMPILE_CONFLICT
 }
 
 data class ReadabilityIssue(
@@ -49,7 +54,39 @@ object TemplateReadabilityAnalyzer {
     fun analyze(template: OmrTemplate): TemplateReadabilityReport =
         reportFor(analyzeOmrGeometry(template))
 
-    /** Full designer save gate: OMR geometry plus printable visual-layer safety. */
+    /**
+     * Unified designer save gate. It deliberately keeps the existing OMR readability checks and
+     * adds document-level structural and printable-layer safety around the same compiled template.
+     * Compiler conflicts are converted into report errors so the editor can explain them instead
+     * of crashing during save.
+     */
+    fun analyze(document: DesignerDocument): TemplateReadabilityReport {
+        val structuralIssues = DesignerOmrSafetyAnalyzer.analyze(document)
+        val compiled = runCatching { DesignerTemplateCompiler.compile(document) }
+        return compiled.fold(
+            onSuccess = { template ->
+                reportFor(
+                    structuralIssues +
+                        analyzeOmrGeometry(template) +
+                        DesignerVisualSafetyAnalyzer.analyze(document, template)
+                )
+            },
+            onFailure = { error ->
+                val issues = structuralIssues.toMutableList()
+                if (issues.none { it.type == ReadabilityIssueType.DUPLICATE_OMR_ID }) {
+                    issues += ReadabilityIssue(
+                        severity = ReadabilitySeverity.ERROR,
+                        type = ReadabilityIssueType.TEMPLATE_COMPILE_CONFLICT,
+                        elementIds = emptyList(),
+                        message = "OMR şablonu derlenemedi: ${error.message ?: error.javaClass.simpleName}"
+                    )
+                }
+                reportFor(issues)
+            }
+        )
+    }
+
+    /** Full designer gate when the caller already owns the compiled recognition template. */
     fun analyze(
         document: DesignerDocument,
         template: OmrTemplate
@@ -58,7 +95,9 @@ object TemplateReadabilityAnalyzer {
         require(document.version == template.version) { "Designer document and compiled template versions differ." }
 
         return reportFor(
-            analyzeOmrGeometry(template) + DesignerVisualSafetyAnalyzer.analyze(document, template)
+            DesignerOmrSafetyAnalyzer.analyze(document) +
+                analyzeOmrGeometry(template) +
+                DesignerVisualSafetyAnalyzer.analyze(document, template)
         )
     }
 
