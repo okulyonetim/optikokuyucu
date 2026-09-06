@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDynamicText
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerFilledMark
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfPageData
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
@@ -34,7 +35,9 @@ object ExamPersonalizedForms {
                 element.id.startsWith("school-name-") -> exam.schoolName
                 else -> null
             }
-            if (value != null) put(element.id, value)
+            if (value != null) {
+                put(element.id, DesignerDynamicText.renderPersonalized(element, value))
+            }
         }
     }
 
