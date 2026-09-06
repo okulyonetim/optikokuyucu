@@ -189,7 +189,7 @@ fun OmrDesignerScreen(
 
         Text(
             "Kağıt üzerindeki metin, kutu, çizgi ve OMR gruplarını seçip doğrudan sürükleyebilirsiniz. " +
-                "Seçili görsel öğenin sağ-alt tutamacı yeniden boyutlandırır; tüm değişiklikler okunabilirlik denetiminden geçer.",
+                "Seçili görsel öğenin tutamacı yeniden boyutlandırır; tüm değişiklikler okunabilirlik denetiminden geçer.",
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -428,6 +428,12 @@ fun OmrDesignerScreen(
             },
             onFontSizeChange = { id, size ->
                 commit(DesignerDocumentEditor.setVisualFontSize(document, id, size))
+            },
+            onTextAlignmentChange = { id, alignment ->
+                commit(DesignerDocumentEditor.setVisualTextAlignment(document, id, alignment))
+            },
+            onBoldChange = { id, bold ->
+                commit(DesignerDocumentEditor.setVisualBold(document, id, bold))
             },
             onStrokeWidthChange = { id, width ->
                 commit(DesignerDocumentEditor.setVisualStrokeWidth(document, id, width))

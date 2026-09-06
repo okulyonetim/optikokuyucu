@@ -19,8 +19,9 @@ enum class VisualVerticalAlignment {
 /**
  * UI-agnostic transforms for visual-layer elements.
  *
- * Resize operations are anchored at the element's top-left corner. All transforms stay in the
- * canonical page bounds; recognition safety is still evaluated separately by the readability gate.
+ * Resize operations are anchored at the element's top-left corner. For a line, its start point is
+ * the anchor and resize deltas move the end point. All transforms stay in canonical page bounds;
+ * recognition safety is still evaluated separately by the readability gate.
  */
 object DesignerVisualTransform {
     fun resize(
@@ -58,7 +59,14 @@ object DesignerVisualTransform {
                             minSize
                         )
                     )
-                    is DesignerLineElement -> element
+                    is DesignerLineElement -> element.copy(
+                        end = TemplatePoint(
+                            DesignerDocumentEditor.snap(element.end.x + deltaWidth, snapStep)
+                                .coerceIn(0.0, document.space.width),
+                            DesignerDocumentEditor.snap(element.end.y + deltaHeight, snapStep)
+                                .coerceIn(0.0, document.space.height)
+                        )
+                    )
                 }
             }
         )

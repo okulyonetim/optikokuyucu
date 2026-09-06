@@ -12,7 +12,7 @@ object DesignerResizeHandleGeometry {
                 val bounds = DesignerVisualGeometry.bounds(element)
                 TemplatePoint(bounds.right, bounds.bottom)
             }
-            is DesignerLineElement -> null
+            is DesignerLineElement -> element.end
         }
     }
 

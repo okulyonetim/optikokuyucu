@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
@@ -48,6 +49,8 @@ fun DesignerVisualPropertyPanel(
     onLockedChange: (String, Boolean) -> Unit,
     onTextChange: (String, String) -> Unit,
     onFontSizeChange: (String, Double) -> Unit,
+    onTextAlignmentChange: (String, DesignerTextAlignment) -> Unit,
+    onBoldChange: (String, Boolean) -> Unit,
     onStrokeWidthChange: (String, Double) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -129,7 +132,9 @@ fun DesignerVisualPropertyPanel(
                     is DesignerTextElement -> TextProperties(
                         element = selected,
                         onTextChange = onTextChange,
-                        onFontSizeChange = onFontSizeChange
+                        onFontSizeChange = onFontSizeChange,
+                        onTextAlignmentChange = onTextAlignmentChange,
+                        onBoldChange = onBoldChange
                     )
                     is DesignerBoxElement -> StrokeProperties(
                         id = selected.id,
@@ -145,32 +150,63 @@ fun DesignerVisualPropertyPanel(
                     )
                 }
 
-                if (selected is DesignerTextElement || selected is DesignerBoxElement) {
-                    Text("Boyut · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = !selected.locked,
-                            onClick = { onResize(selected.id, -10.0, 0.0) }
-                        ) { Text("W−") }
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = !selected.locked,
-                            onClick = { onResize(selected.id, 10.0, 0.0) }
-                        ) { Text("W+") }
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = !selected.locked,
-                            onClick = { onResize(selected.id, 0.0, -10.0) }
-                        ) { Text("H−") }
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = !selected.locked,
-                            onClick = { onResize(selected.id, 0.0, 10.0) }
-                        ) { Text("H+") }
+                when (selected) {
+                    is DesignerTextElement,
+                    is DesignerBoxElement -> {
+                        Text("Boyut · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, -10.0, 0.0) }
+                            ) { Text("W−") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 10.0, 0.0) }
+                            ) { Text("W+") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 0.0, -10.0) }
+                            ) { Text("H−") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 0.0, 10.0) }
+                            ) { Text("H+") }
+                        }
+                    }
+                    is DesignerLineElement -> {
+                        Text("Çizgi uç noktası · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, -10.0, 0.0) }
+                            ) { Text("X−") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 10.0, 0.0) }
+                            ) { Text("X+") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 0.0, -10.0) }
+                            ) { Text("Y−") }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !selected.locked,
+                                onClick = { onResize(selected.id, 0.0, 10.0) }
+                            ) { Text("Y+") }
+                        }
                     }
                 }
 
@@ -305,7 +341,9 @@ fun DesignerVisualPropertyPanel(
 private fun TextProperties(
     element: DesignerTextElement,
     onTextChange: (String, String) -> Unit,
-    onFontSizeChange: (String, Double) -> Unit
+    onFontSizeChange: (String, Double) -> Unit,
+    onTextAlignmentChange: (String, DesignerTextAlignment) -> Unit,
+    onBoldChange: (String, Boolean) -> Unit
 ) {
     var draft by remember(element.id, element.text) { mutableStateOf(element.text) }
 
@@ -337,6 +375,69 @@ private fun TextProperties(
             enabled = !element.locked,
             onClick = { onFontSizeChange(element.id, (element.fontSize + 2.0).coerceAtMost(96.0)) }
         ) { Text("+") }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text("Kalın", style = MaterialTheme.typography.labelMedium)
+            Text(if (element.bold) "Açık" else "Kapalı", style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(
+            checked = element.bold,
+            enabled = !element.locked,
+            onCheckedChange = { onBoldChange(element.id, it) }
+        )
+    }
+
+    Text("Metin hizası", style = MaterialTheme.typography.labelMedium)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        TextAlignmentButton(
+            modifier = Modifier.weight(1f),
+            label = "Sol",
+            selected = element.alignment == DesignerTextAlignment.START,
+            enabled = !element.locked,
+            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.START) }
+        )
+        TextAlignmentButton(
+            modifier = Modifier.weight(1f),
+            label = "Orta",
+            selected = element.alignment == DesignerTextAlignment.CENTER,
+            enabled = !element.locked,
+            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.CENTER) }
+        )
+        TextAlignmentButton(
+            modifier = Modifier.weight(1f),
+            label = "Sağ",
+            selected = element.alignment == DesignerTextAlignment.END,
+            enabled = !element.locked,
+            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.END) }
+        )
+    }
+}
+
+@Composable
+private fun TextAlignmentButton(
+    modifier: Modifier,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    if (selected) {
+        FilledTonalButton(modifier = modifier, enabled = enabled, onClick = onClick) {
+            Text(label)
+        }
+    } else {
+        OutlinedButton(modifier = modifier, enabled = enabled, onClick = onClick) {
+            Text(label)
+        }
     }
 }
 

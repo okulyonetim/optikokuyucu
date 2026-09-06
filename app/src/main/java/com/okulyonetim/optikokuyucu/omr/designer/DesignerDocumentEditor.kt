@@ -9,12 +9,6 @@ import kotlin.math.round
  * through [DesignerHistory], keeping drag/drop, property-panel edits and undo/redo consistent.
  */
 object DesignerDocumentEditor {
-    /**
-     * Replaces one OMR component while preserving its stable id and list/z-order position.
-     *
-     * Property panels build a validated immutable component instance first; this method prevents a
-     * property edit from silently creating a new component or changing another component's id.
-     */
     fun replaceComponent(
         document: DesignerDocument,
         component: DesignerOmrComponent
@@ -133,6 +127,28 @@ object DesignerDocumentEditor {
             }
         )
     }
+
+    fun setVisualTextAlignment(
+        document: DesignerDocument,
+        elementId: String,
+        alignment: DesignerTextAlignment
+    ): DesignerDocument = document.copy(
+        visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element
+            else element.copy(alignment = alignment)
+        }
+    )
+
+    fun setVisualBold(
+        document: DesignerDocument,
+        elementId: String,
+        bold: Boolean
+    ): DesignerDocument = document.copy(
+        visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element
+            else element.copy(bold = bold)
+        }
+    )
 
     fun setVisualStrokeWidth(
         document: DesignerDocument,
