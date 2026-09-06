@@ -7,37 +7,20 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import com.okulyonetim.optikokuyucu.omr.template.TemplateSize
 
 enum class DesignerPaperSize(val displayName: String) {
-    A3("A3"),
-    A4("A4"),
-    A5("A5"),
-    A6("A6"),
-    A7("A7"),
-    LETTER("Letter"),
-    CUSTOM("Özel")
+    A3("A3"), A4("A4"), A5("A5"), A6("A6"), A7("A7"), LETTER("Letter"), CUSTOM("Özel")
 }
 
 enum class DesignerPageOrientation(val displayName: String) {
-    PORTRAIT("Dikey"),
-    LANDSCAPE("Yatay")
+    PORTRAIT("Dikey"), LANDSCAPE("Yatay")
 }
 
 enum class DesignerExamMode(val displayName: String) {
-    UNSPECIFIED("Belirtilmedi"),
-    SINGLE_LESSON("Tek Ders Sınavı"),
-    MULTI_LESSON("Çoklu Ders Sınavı")
+    UNSPECIFIED("Belirtilmedi"), SINGLE_LESSON("Tek Ders Sınavı"), MULTI_LESSON("Çoklu Ders Sınavı")
 }
 
 enum class DesignerExamPreset(val displayName: String) {
-    CUSTOM("Özel"),
-    LGS("LGS"),
-    TYT("TYT"),
-    AYT("AYT"),
-    YDT("YDT"),
-    ALES("ALES"),
-    DGS("DGS"),
-    KPSS("KPSS"),
-    TUS("TUS"),
-    SCHOLARSHIP("Bursluluk")
+    CUSTOM("Özel"), LGS("LGS"), TYT("TYT"), AYT("AYT"), YDT("YDT"), ALES("ALES"),
+    DGS("DGS"), KPSS("KPSS"), TUS("TUS"), SCHOLARSHIP("Bursluluk")
 }
 
 data class DesignerAnswerAppearance(
@@ -63,11 +46,7 @@ data class DesignerFormSpec(
 ) {
     companion object {
         fun forSpace(space: TemplateSize): DesignerFormSpec = DesignerFormSpec(
-            orientation = if (space.width <= space.height) {
-                DesignerPageOrientation.PORTRAIT
-            } else {
-                DesignerPageOrientation.LANDSCAPE
-            }
+            orientation = if (space.width <= space.height) DesignerPageOrientation.PORTRAIT else DesignerPageOrientation.LANDSCAPE
         )
     }
 }
@@ -87,23 +66,16 @@ data class DesignerDocument(
         require(version > 0)
         require(name.isNotBlank())
         require(space.width > 0.0 && space.height > 0.0)
-        require(components.map { it.id }.toSet().size == components.size) {
-            "Designer component ids must be unique."
-        }
-        require(visualElements.map { it.id }.toSet().size == visualElements.size) {
-            "Designer visual element ids must be unique."
-        }
+        require(components.map { it.id }.toSet().size == components.size) { "Designer component ids must be unique." }
+        require(visualElements.map { it.id }.toSet().size == visualElements.size) { "Designer visual element ids must be unique." }
     }
 }
 
-sealed interface DesignerOmrComponent {
-    val id: String
-}
+sealed interface DesignerOmrComponent { val id: String }
 
-enum class QuestionGroupOrientation(val displayName: String) {
-    VERTICAL("Dikey"),
-    HORIZONTAL("Yatay")
-}
+enum class QuestionGroupOrientation(val displayName: String) { VERTICAL("Dikey"), HORIZONTAL("Yatay") }
+
+enum class DesignerTextAlignment { START, CENTER, END }
 
 data class QuestionGroupComponent(
     override val id: String,
@@ -120,7 +92,8 @@ data class QuestionGroupComponent(
     val questionIdPrefix: String = "",
     val orientation: QuestionGroupOrientation = QuestionGroupOrientation.VERTICAL,
     val label: String = "Ders",
-    val showLabel: Boolean = true
+    val showLabel: Boolean = true,
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -137,10 +110,7 @@ data class QuestionGroupComponent(
     }
 }
 
-enum class NumericGridOrientation {
-    DIGITS_HORIZONTAL,
-    DIGITS_VERTICAL
-}
+enum class NumericGridOrientation { DIGITS_HORIZONTAL, DIGITS_VERTICAL }
 
 data class NumericGridComponent(
     override val id: String,
@@ -153,7 +123,8 @@ data class NumericGridComponent(
     val values: List<String> = (0..9).map { it.toString() },
     val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL,
     val label: String = "Numara",
-    val showLabel: Boolean = true
+    val showLabel: Boolean = true,
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -167,10 +138,7 @@ data class NumericGridComponent(
     }
 }
 
-enum class ChoiceAxis {
-    HORIZONTAL,
-    VERTICAL
-}
+enum class ChoiceAxis { HORIZONTAL, VERTICAL }
 
 data class SingleChoiceComponent(
     override val id: String,
@@ -178,7 +146,10 @@ data class SingleChoiceComponent(
     val start: TemplatePoint,
     val bubbleRadius: Double,
     val gap: Double,
-    val axis: ChoiceAxis = ChoiceAxis.HORIZONTAL
+    val axis: ChoiceAxis = ChoiceAxis.HORIZONTAL,
+    val label: String = "Kitapçık Türü",
+    val showLabel: Boolean = true,
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -187,19 +158,11 @@ data class SingleChoiceComponent(
         require(choices.toSet().size == choices.size)
         require(bubbleRadius > 0.0)
         require(gap > 0.0)
+        require('\n' !in label && '\r' !in label)
     }
 }
 
-sealed interface DesignerVisualElement {
-    val id: String
-    val locked: Boolean
-}
-
-enum class DesignerTextAlignment {
-    START,
-    CENTER,
-    END
-}
+sealed interface DesignerVisualElement { val id: String; val locked: Boolean }
 
 data class DesignerTextElement(
     override val id: String,
@@ -224,39 +187,20 @@ class DesignerImageData(
     bytes: ByteArray
 ) {
     private val payload: ByteArray = bytes.copyOf()
-
     init {
         require(mimeType.startsWith("image/") && mimeType.length <= 64)
         require(pixelWidth in 1..10_000 && pixelHeight in 1..10_000)
         require(payload.isNotEmpty())
         require(payload.size <= MAX_BYTES) { "Embedded designer image is too large." }
     }
-
     val byteSize: Int get() = payload.size
-
     fun copyBytes(): ByteArray = payload.copyOf()
-
-    override fun equals(other: Any?): Boolean =
-        other is DesignerImageData &&
-            mimeType == other.mimeType &&
-            pixelWidth == other.pixelWidth &&
-            pixelHeight == other.pixelHeight &&
-            payload.contentEquals(other.payload)
-
+    override fun equals(other: Any?): Boolean = other is DesignerImageData && mimeType == other.mimeType && pixelWidth == other.pixelWidth && pixelHeight == other.pixelHeight && payload.contentEquals(other.payload)
     override fun hashCode(): Int {
-        var result = mimeType.hashCode()
-        result = 31 * result + pixelWidth
-        result = 31 * result + pixelHeight
-        result = 31 * result + payload.contentHashCode()
-        return result
+        var result = mimeType.hashCode(); result = 31 * result + pixelWidth; result = 31 * result + pixelHeight; result = 31 * result + payload.contentHashCode(); return result
     }
-
-    override fun toString(): String =
-        "DesignerImageData(mimeType=$mimeType, pixelWidth=$pixelWidth, pixelHeight=$pixelHeight, byteSize=$byteSize)"
-
-    companion object {
-        const val MAX_BYTES: Int = 3_000_000
-    }
+    override fun toString(): String = "DesignerImageData(mimeType=$mimeType, pixelWidth=$pixelWidth, pixelHeight=$pixelHeight, byteSize=$byteSize)"
+    companion object { const val MAX_BYTES: Int = 3_000_000 }
 }
 
 data class DesignerImageElement(
@@ -265,10 +209,7 @@ data class DesignerImageElement(
     val image: DesignerImageData,
     override val locked: Boolean = false
 ) : DesignerVisualElement {
-    init {
-        require(id.isNotBlank())
-        require(bounds.width > 0.0 && bounds.height > 0.0)
-    }
+    init { require(id.isNotBlank()); require(bounds.width > 0.0 && bounds.height > 0.0) }
 }
 
 data class DesignerBoxElement(
@@ -277,10 +218,7 @@ data class DesignerBoxElement(
     val strokeWidth: Double,
     override val locked: Boolean = false
 ) : DesignerVisualElement {
-    init {
-        require(id.isNotBlank())
-        require(strokeWidth > 0.0)
-    }
+    init { require(id.isNotBlank()); require(strokeWidth > 0.0) }
 }
 
 data class DesignerLineElement(
@@ -290,8 +228,5 @@ data class DesignerLineElement(
     val strokeWidth: Double,
     override val locked: Boolean = false
 ) : DesignerVisualElement {
-    init {
-        require(id.isNotBlank())
-        require(strokeWidth > 0.0)
-    }
+    init { require(id.isNotBlank()); require(strokeWidth > 0.0) }
 }

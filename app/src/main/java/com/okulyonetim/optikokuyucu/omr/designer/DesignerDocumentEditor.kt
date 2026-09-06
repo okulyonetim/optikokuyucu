@@ -8,24 +8,11 @@ import kotlin.math.round
 object DesignerDocumentEditor {
     fun replaceComponent(document: DesignerDocument, component: DesignerOmrComponent): DesignerDocument {
         require(document.components.any { it.id == component.id }) { "Designer component does not exist." }
-        return document.copy(
-            components = document.components.map { existing ->
-                if (existing.id == component.id) component else existing
-            }
-        )
+        return document.copy(components = document.components.map { if (it.id == component.id) component else it })
     }
 
-    fun moveComponent(
-        document: DesignerDocument,
-        componentId: String,
-        deltaX: Double,
-        deltaY: Double,
-        snapStep: Double = 5.0
-    ): DesignerDocument = document.copy(
-        components = document.components.map { component ->
-            if (component.id != componentId) component else move(component, deltaX, deltaY, snapStep)
-        }
-    )
+    fun moveComponent(document: DesignerDocument, componentId: String, deltaX: Double, deltaY: Double, snapStep: Double = 5.0): DesignerDocument =
+        document.copy(components = document.components.map { if (it.id != componentId) it else move(it, deltaX, deltaY, snapStep) })
 
     fun deleteComponent(document: DesignerDocument, componentId: String): DesignerDocument =
         document.copy(components = document.components.filterNot { it.id == componentId })
@@ -45,23 +32,11 @@ object DesignerDocumentEditor {
         return document.copy(components = document.components + duplicate)
     }
 
-    fun moveVisualElement(
-        document: DesignerDocument,
-        elementId: String,
-        deltaX: Double,
-        deltaY: Double,
-        snapStep: Double = 5.0
-    ): DesignerDocument = document.copy(
-        visualElements = document.visualElements.map { element ->
-            if (element.id != elementId || element.locked) element
-            else move(element, deltaX, deltaY, snapStep)
-        }
-    )
+    fun moveVisualElement(document: DesignerDocument, elementId: String, deltaX: Double, deltaY: Double, snapStep: Double = 5.0): DesignerDocument =
+        document.copy(visualElements = document.visualElements.map { if (it.id != elementId || it.locked) it else move(it, deltaX, deltaY, snapStep) })
 
     fun deleteVisualElement(document: DesignerDocument, elementId: String): DesignerDocument =
-        document.copy(
-            visualElements = document.visualElements.filterNot { it.id == elementId && !it.locked }
-        )
+        document.copy(visualElements = document.visualElements.filterNot { it.id == elementId && !it.locked })
 
     fun duplicateVisualElement(
         document: DesignerDocument,
@@ -72,125 +47,73 @@ object DesignerDocumentEditor {
         snapStep: Double = 5.0
     ): DesignerDocument {
         require(newId.isNotBlank())
-        require(document.visualElements.none { it.id == newId }) {
-            "Designer visual element id already exists."
-        }
+        require(document.visualElements.none { it.id == newId }) { "Designer visual element id already exists." }
         val source = document.visualElements.firstOrNull { it.id == elementId } ?: return document
         val duplicate = withId(move(source, offsetX, offsetY, snapStep), newId)
         return document.copy(visualElements = document.visualElements + duplicate)
     }
 
-    fun setVisualElementLocked(
-        document: DesignerDocument,
-        elementId: String,
-        locked: Boolean
-    ): DesignerDocument = document.copy(
-        visualElements = document.visualElements.map { element ->
-            if (element.id != elementId) element else withLocked(element, locked)
-        }
-    )
+    fun setVisualElementLocked(document: DesignerDocument, elementId: String, locked: Boolean): DesignerDocument =
+        document.copy(visualElements = document.visualElements.map { if (it.id != elementId) it else withLocked(it, locked) })
 
     fun setVisualText(document: DesignerDocument, elementId: String, text: String): DesignerDocument {
         require(text.isNotEmpty())
-        return document.copy(
-            visualElements = document.visualElements.map { element ->
-                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
-                else element.copy(text = text)
-            }
-        )
+        return document.copy(visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element else element.copy(text = text)
+        })
     }
 
     fun setVisualFontSize(document: DesignerDocument, elementId: String, fontSize: Double): DesignerDocument {
         require(fontSize > 0.0)
-        return document.copy(
-            visualElements = document.visualElements.map { element ->
-                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
-                else element.copy(fontSize = fontSize)
-            }
-        )
+        return document.copy(visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element else element.copy(fontSize = fontSize)
+        })
     }
 
-    fun setVisualTextAlignment(
-        document: DesignerDocument,
-        elementId: String,
-        alignment: DesignerTextAlignment
-    ): DesignerDocument = document.copy(
-        visualElements = document.visualElements.map { element ->
-            if (element.id != elementId || element.locked || element !is DesignerTextElement) element
-            else element.copy(alignment = alignment)
-        }
-    )
+    fun setVisualTextAlignment(document: DesignerDocument, elementId: String, alignment: DesignerTextAlignment): DesignerDocument =
+        document.copy(visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element else element.copy(alignment = alignment)
+        })
 
     fun setVisualBold(document: DesignerDocument, elementId: String, bold: Boolean): DesignerDocument =
-        document.copy(
-            visualElements = document.visualElements.map { element ->
-                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
-                else element.copy(bold = bold)
-            }
-        )
+        document.copy(visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked || element !is DesignerTextElement) element else element.copy(bold = bold)
+        })
 
-    fun setVisualStrokeWidth(
-        document: DesignerDocument,
-        elementId: String,
-        strokeWidth: Double
-    ): DesignerDocument {
+    fun setVisualStrokeWidth(document: DesignerDocument, elementId: String, strokeWidth: Double): DesignerDocument {
         require(strokeWidth > 0.0)
-        return document.copy(
-            visualElements = document.visualElements.map { element ->
-                if (element.id != elementId || element.locked) {
-                    element
-                } else {
-                    when (element) {
-                        is DesignerBoxElement -> element.copy(strokeWidth = strokeWidth)
-                        is DesignerLineElement -> element.copy(strokeWidth = strokeWidth)
-                        is DesignerTextElement,
-                        is DesignerImageElement -> element
-                    }
-                }
+        return document.copy(visualElements = document.visualElements.map { element ->
+            if (element.id != elementId || element.locked) element else when (element) {
+                is DesignerBoxElement -> element.copy(strokeWidth = strokeWidth)
+                is DesignerLineElement -> element.copy(strokeWidth = strokeWidth)
+                is DesignerTextElement, is DesignerImageElement -> element
             }
-        )
+        })
     }
 
-    fun snap(value: Double, step: Double): Double {
-        require(step > 0.0)
-        return round(value / step) * step
-    }
+    fun snap(value: Double, step: Double): Double { require(step > 0.0); return round(value / step) * step }
 
-    private fun move(
-        component: DesignerOmrComponent,
-        dx: Double,
-        dy: Double,
-        step: Double
-    ): DesignerOmrComponent = when (component) {
-        is QuestionGroupComponent -> component.copy(
-            firstChoiceX = snap(component.firstChoiceX + dx, step),
-            topY = snap(component.topY + dy, step)
-        )
-        is NumericGridComponent -> component.copy(
-            startX = snap(component.startX + dx, step),
-            topY = snap(component.topY + dy, step)
-        )
-        is SingleChoiceComponent -> component.copy(
-            start = TemplatePoint(snap(component.start.x + dx, step), snap(component.start.y + dy, step))
-        )
+    private fun move(component: DesignerOmrComponent, dx: Double, dy: Double, step: Double): DesignerOmrComponent = when (component) {
+        is QuestionGroupComponent -> component.copy(firstChoiceX = snap(component.firstChoiceX + dx, step), topY = snap(component.topY + dy, step))
+        is NumericGridComponent -> component.copy(startX = snap(component.startX + dx, step), topY = snap(component.topY + dy, step))
+        is SingleChoiceComponent -> component.copy(start = TemplatePoint(snap(component.start.x + dx, step), snap(component.start.y + dy, step)))
     }
 
     private fun withId(component: DesignerOmrComponent, id: String): DesignerOmrComponent = when (component) {
-        is QuestionGroupComponent -> component.copy(id = id)
+        is QuestionGroupComponent -> component.copy(id = id, questionIdPrefix = id)
         is NumericGridComponent -> component.copy(id = id)
         is SingleChoiceComponent -> component.copy(id = id)
     }
 
-    private fun move(element: DesignerVisualElement, dx: Double, dy: Double, step: Double): DesignerVisualElement =
-        when (element) {
-            is DesignerTextElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
-            is DesignerImageElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
-            is DesignerBoxElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
-            is DesignerLineElement -> element.copy(
-                start = TemplatePoint(snap(element.start.x + dx, step), snap(element.start.y + dy, step)),
-                end = TemplatePoint(snap(element.end.x + dx, step), snap(element.end.y + dy, step))
-            )
-        }
+    private fun move(element: DesignerVisualElement, dx: Double, dy: Double, step: Double): DesignerVisualElement = when (element) {
+        is DesignerTextElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+        is DesignerImageElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+        is DesignerBoxElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+        is DesignerLineElement -> element.copy(
+            start = TemplatePoint(snap(element.start.x + dx, step), snap(element.start.y + dy, step)),
+            end = TemplatePoint(snap(element.end.x + dx, step), snap(element.end.y + dy, step))
+        )
+    }
 
     private fun withId(element: DesignerVisualElement, id: String): DesignerVisualElement = when (element) {
         is DesignerTextElement -> element.copy(id = id)
