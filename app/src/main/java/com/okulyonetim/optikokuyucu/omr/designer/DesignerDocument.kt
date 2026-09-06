@@ -171,12 +171,15 @@ data class DesignerTextElement(
     val fontSize: Double,
     val alignment: DesignerTextAlignment = DesignerTextAlignment.START,
     val bold: Boolean = false,
-    override val locked: Boolean = false
+    override val locked: Boolean = false,
+    val label: String = "",
+    val showLabel: Boolean = false
 ) : DesignerVisualElement {
     init {
         require(id.isNotBlank())
         require(text.isNotEmpty())
         require(fontSize > 0.0)
+        require('\n' !in label && '\r' !in label)
     }
 }
 
