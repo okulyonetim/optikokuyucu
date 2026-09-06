@@ -43,7 +43,7 @@ class DesignerPageGeometryTest {
     }
 
     @Test
-    fun `canonical page preserves physical aspect in both orientations`() {
+    fun `canonical page preserves physical aspect and density in both orientations`() {
         val dimensions = requireNotNull(DesignerPageGeometry.dimensions(DesignerPaperSize.A5))
         val portrait = DesignerPageGeometry.canonicalSpace(
             DesignerPaperSize.A5,
@@ -54,7 +54,16 @@ class DesignerPageGeometryTest {
             DesignerPageOrientation.LANDSCAPE
         )
 
-        assertEquals(DesignerPageGeometry.CANONICAL_SHORT_SIDE, portrait.width, 0.0001)
+        assertEquals(
+            dimensions.widthMm * DesignerPageGeometry.CANONICAL_UNITS_PER_MM,
+            portrait.width,
+            0.0001
+        )
+        assertEquals(
+            dimensions.heightMm * DesignerPageGeometry.CANONICAL_UNITS_PER_MM,
+            portrait.height,
+            0.0001
+        )
         assertEquals(dimensions.widthMm / dimensions.heightMm, portrait.aspectRatio, 0.000001)
         assertEquals(portrait.height, landscape.width, 0.000001)
         assertEquals(portrait.width, landscape.height, 0.000001)
