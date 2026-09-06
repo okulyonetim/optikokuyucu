@@ -5,18 +5,22 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerFilledMark
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfPageData
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedField
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedTextBinding
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
+import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
+import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 
 object ExamPersonalizedForms {
     fun pages(exam: Exam, document: DesignerDocument): List<DesignerPdfPageData> {
         require(exam.personalizedFormsEnabled) { "Bu sınavda öğrenciye özel form etkin değil." }
         require(exam.participants.isNotEmpty()) { "Sınavda seçili öğrenci yok." }
+        val bookletPlan = bookletPlan(exam, document)
 
-        return exam.participants.map { participant ->
+        return exam.participants.mapIndexed { index, participant ->
             DesignerPdfPageData(
                 textOverrides = textOverrides(exam, participant, document),
-                filledMarks = studentNumberMarks(participant, document),
+                filledMarks = studentNumberMarks(participant, document) + bookletMarks(index, bookletPlan),
                 numericHeaderValues = studentNumberHeaderValues(participant, document)
             )
         }
@@ -67,6 +71,38 @@ object ExamPersonalizedForms {
         return mapOf(grid.id to normalized)
     }
 
+    private fun bookletPlan(exam: Exam, document: DesignerDocument): BookletPlan? {
+        val template = DesignerTemplateCompiler.compile(document)
+        val bookletGridId = OmrRecognitionBindingsResolver.fromTemplate(template).bookletGridId
+        if (bookletGridId == null) {
+            require(exam.bookletCount == 1) {
+                "Sınav ${exam.bookletCount} kitapçık kullanıyor ancak seçili optik formda kitapçık alanı yok."
+            }
+            return null
+        }
+
+        val grid = requireNotNull(
+            document.components.filterIsInstance<SingleChoiceComponent>()
+                .firstOrNull { it.id == bookletGridId }
+        ) { "Optik formdaki kitapçık alanı çözümlenemedi." }
+        require(grid.choices.size >= exam.bookletCount) {
+            "Sınav ${exam.bookletCount} kitapçık kullanıyor ancak optik form yalnız ${grid.choices.size} kitapçık seçeneği içeriyor."
+        }
+        return BookletPlan(grid = grid, choices = grid.choices.take(exam.bookletCount))
+    }
+
+    private fun bookletMarks(index: Int, plan: BookletPlan?): Set<DesignerFilledMark> {
+        if (plan == null) return emptySet()
+        val choice = plan.choices[index % plan.choices.size]
+        return setOf(
+            DesignerFilledMark(
+                gridId = plan.grid.id,
+                columnId = "value",
+                markId = choice
+            )
+        )
+    }
+
     private fun studentNumberGrid(document: DesignerDocument): NumericGridComponent? =
         document.components
             .filterIsInstance<NumericGridComponent>()
@@ -85,4 +121,9 @@ object ExamPersonalizedForms {
         if (digits.isBlank()) return null
         return digits.takeLast(grid.digits).padStart(grid.digits, '0')
     }
+
+    private data class BookletPlan(
+        val grid: SingleChoiceComponent,
+        val choices: List<String>
+    )
 }
