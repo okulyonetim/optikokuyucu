@@ -18,7 +18,8 @@ import kotlin.math.max
 /** Renders the same canonical source document into a physical PDF page. */
 object DesignerPdfExporter {
     fun export(document: DesignerDocument, output: OutputStream, profile: PdfPageProfile = PdfPageProfile.A4) {
-        val template = DesignerTemplateCompiler.compile(document)
+        val renderPlan = DesignerPrintRenderer.render(document)
+        val template = renderPlan.template
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         require(readability.canSave) { "Template cannot be exported while readability errors exist." }
         val transform = DesignerPdfLayout.fit(template.space, profile)
@@ -30,9 +31,8 @@ object DesignerPdfExporter {
                 val canvas = page.canvas
                 canvas.drawColor(Color.WHITE)
                 drawVisualLayer(canvas, document, transform)
-                drawSemanticLabels(canvas, document, template, transform)
                 drawComponentDecorations(canvas, document, transform)
-                drawOmrMarks(canvas, template, transform)
+                drawPrintOmrLayer(canvas, renderPlan, transform)
                 drawFiducials(canvas, template, transform)
             } finally { pdf.finishPage(page) }
             pdf.writeTo(output); output.flush()
@@ -85,23 +85,6 @@ object DesignerPdfExporter {
         canvas.drawLine(start.x.toFloat(), start.y.toFloat(), end.x.toFloat(), end.y.toFloat(), paint)
     }
 
-    private fun drawSemanticLabels(canvas: Canvas, document: DesignerDocument, template: OmrTemplate, transform: CanonicalPageTransform) {
-        val byQuestionId = template.bubbleRows.associateBy { it.id }; val byGridId = template.markGrids.associateBy { it.id }
-        document.components.forEach { component ->
-            when (component) {
-                is QuestionGroupComponent -> repeat(component.questionCount) { index ->
-                    val number = component.startQuestion + index
-                    val row = byQuestionId[DesignerTemplateCompiler.questionReadId(component, number)] ?: return@repeat
-                    val first = row.bubbles.firstOrNull() ?: return@repeat
-                    drawLabel(canvas, number.toString(), first.center.x - first.radius * document.formSpec.answerAppearance.questionNumberDistanceInRadii, first.center.y + first.radius * 0.40, Paint.Align.RIGHT, first.radius * document.formSpec.answerAppearance.questionNumberScale, transform)
-                    row.bubbles.forEach { drawBubbleLabel(canvas, it.id, it.center.x, it.center.y, it.radius, transform) }
-                }
-                is NumericGridComponent -> byGridId[component.id]?.columns.orEmpty().forEach { column -> column.marks.forEach { drawBubbleLabel(canvas, it.id, it.center.x, it.center.y, it.radius, transform) } }
-                is SingleChoiceComponent -> byGridId[component.id]?.columns?.firstOrNull()?.marks.orEmpty().forEach { drawBubbleLabel(canvas, it.id, it.center.x, it.center.y, it.radius, transform) }
-            }
-        }
-    }
-
     private fun drawComponentDecorations(canvas: Canvas, document: DesignerDocument, transform: CanonicalPageTransform) {
         val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.65f, transform.length(1.0).toFloat()) }
         document.components.forEach { component ->
@@ -126,8 +109,51 @@ object DesignerPdfExporter {
         }
     }
 
-    private fun drawBubbleLabel(canvas: Canvas, text: String, x: Double, y: Double, radius: Double, transform: CanonicalPageTransform) =
-        drawLabel(canvas, text, x, y + radius * 0.34, Paint.Align.CENTER, radius * 0.78, transform)
+    private fun drawPrintOmrLayer(
+        canvas: Canvas,
+        renderPlan: DesignerPrintRenderPlan,
+        transform: CanonicalPageTransform
+    ) {
+        renderPlan.bubbles.forEach { bubble ->
+            val center = transform.map(bubble.center)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                style = Paint.Style.STROKE
+                strokeWidth = transform.length(bubble.outlineWidth).toFloat().coerceAtLeast(0.1f)
+            }
+            canvas.drawCircle(
+                center.x.toFloat(),
+                center.y.toFloat(),
+                transform.length(bubble.radius).toFloat(),
+                paint
+            )
+        }
+        renderPlan.texts.forEach { text ->
+            drawPrintText(canvas, text, transform)
+        }
+    }
+
+    private fun drawPrintText(
+        canvas: Canvas,
+        text: DesignerPrintText,
+        transform: CanonicalPageTransform
+    ) {
+        val point = transform.map(text.anchor)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL
+            textSize = transform.length(text.textSize).toFloat().coerceAtLeast(0.1f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textAlign = when (text.alignment) {
+                DesignerTextAlignment.START -> Paint.Align.LEFT
+                DesignerTextAlignment.CENTER -> Paint.Align.CENTER
+                DesignerTextAlignment.END -> Paint.Align.RIGHT
+            }
+        }
+        val metrics = paint.fontMetrics
+        val baseline = point.y.toFloat() - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(text.text, point.x.toFloat(), baseline, paint)
+    }
 
     private fun drawLabel(
         canvas: Canvas,
@@ -146,12 +172,6 @@ object DesignerPdfExporter {
             typeface = Typeface.create(Typeface.DEFAULT, if (bold) Typeface.BOLD else Typeface.NORMAL)
         }
         canvas.drawText(text, point.x.toFloat(), point.y.toFloat(), paint)
-    }
-
-    private fun drawOmrMarks(canvas: Canvas, template: OmrTemplate, transform: CanonicalPageTransform) {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.7f, (transform.scale * 1.2).toFloat()) }
-        template.bubbleRows.forEach { row -> row.bubbles.forEach { bubble -> val center = transform.map(bubble.center); canvas.drawCircle(center.x.toFloat(), center.y.toFloat(), transform.length(bubble.radius).toFloat(), paint) } }
-        template.markGrids.forEach { grid -> grid.columns.forEach { column -> column.marks.forEach { mark -> val center = transform.map(mark.center); canvas.drawCircle(center.x.toFloat(), center.y.toFloat(), transform.length(mark.radius).toFloat(), paint) } } }
     }
 
     private fun drawFiducials(canvas: Canvas, template: OmrTemplate, transform: CanonicalPageTransform) {
