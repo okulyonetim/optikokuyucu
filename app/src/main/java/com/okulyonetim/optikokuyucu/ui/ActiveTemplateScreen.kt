@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerFormTransfer
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
@@ -60,6 +63,48 @@ fun ActiveTemplateScreen(
     var status by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(FormLibraryFilter.ALL) }
+    var pendingExport by remember { mutableStateOf<DesignerDocument?>(null) }
+
+    fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
+        DesignerLibraryOpenHandoff.offer(document, mode)
+        onCreateForm()
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(DesignerFormTransfer.MIME_TYPE)
+    ) { uri ->
+        val document = pendingExport
+        pendingExport = null
+        if (uri == null || document == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "Form çıktı akışı açılamadı." }
+                output.write(DesignerFormTransfer.export(document))
+                output.flush()
+            }
+        }.onSuccess {
+            status = "${document.name} düzenlenebilir .omrd formu olarak dışa aktarıldı."
+        }.onFailure { error ->
+            status = "Form dışa aktarılamadı: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val imported = context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "Form dosyası açılamadı." }
+                DesignerFormTransfer.import(input.readBytes())
+            }
+            documentRepository.save(imported)
+        }.onSuccess { stored ->
+            savedDocuments = documentRepository.list()
+            status = "${stored.name} içe aktarıldı · v${stored.version}. Düzenleme ekranı açılıyor."
+            openDocument(stored, DesignerLibraryOpenMode.EDIT)
+        }.onFailure { error ->
+            status = "Form içe aktarılamadı: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
 
     val resolved = ActiveOmrTemplateResolver.resolveOrDefault(
         selection = selected,
@@ -78,9 +123,9 @@ fun ActiveTemplateScreen(
             }
     }
 
-    fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
-        DesignerLibraryOpenHandoff.offer(document, mode)
-        onCreateForm()
+    fun exportDocument(document: DesignerDocument) {
+        pendingExport = document
+        exportLauncher.launch(DesignerFormTransfer.fileName(document))
     }
 
     val locale = Locale("tr", "TR")
@@ -117,9 +162,7 @@ fun ActiveTemplateScreen(
         )
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             item { Spacer(Modifier.height(1.dp)) }
@@ -135,10 +178,7 @@ fun ActiveTemplateScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FormStatCard(Modifier.weight(1f), (1 + starters.size + savedDocuments.size).toString(), "Toplam")
                     FormStatCard(Modifier.weight(1f), (1 + starters.size).toString(), "Hazır")
                     FormStatCard(Modifier.weight(1f), savedDocuments.size.toString(), "Kayıtlı")
@@ -146,13 +186,32 @@ fun ActiveTemplateScreen(
             }
 
             item {
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onCreateForm,
-                    shape = RoundedCornerShape(15.dp)
-                ) {
-                    Text("＋  Yeni Form Oluştur", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = onCreateForm,
+                        shape = RoundedCornerShape(15.dp)
+                    ) {
+                        Text("＋ Yeni Form", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            importLauncher.launch(arrayOf(DesignerFormTransfer.MIME_TYPE, "application/*"))
+                        },
+                        shape = RoundedCornerShape(15.dp)
+                    ) {
+                        Text("⇩ İçe Aktar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
+            }
+
+            item {
+                Text(
+                    "Kurum formları .omrd biçiminde kayıpsız dışa aktarılır; başka cihazda içe aktarılıp yeniden düzenlenebilir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             item {
@@ -209,10 +268,7 @@ fun ActiveTemplateScreen(
                         selected = resolved.selection == ActiveOmrTemplateDefaults.selection,
                         badge = "HAZIR",
                         onSelect = {
-                            choose(
-                                ActiveOmrTemplateDefaults.selection,
-                                ActiveOmrTemplateDefaults.displayName
-                            )
+                            choose(ActiveOmrTemplateDefaults.selection, ActiveOmrTemplateDefaults.displayName)
                         }
                     )
                 }
@@ -271,7 +327,8 @@ fun ActiveTemplateScreen(
                     badge = "KURUM",
                     onSelect = { choose(selection, document.name) },
                     onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
-                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) }
+                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) },
+                    onExport = { exportDocument(document) }
                 )
             }
 
@@ -293,7 +350,6 @@ fun ActiveTemplateScreen(
                     )
                 }
             }
-
             item { Spacer(Modifier.height(12.dp)) }
         }
     }
@@ -383,7 +439,8 @@ private fun TemplateLibraryCard(
     badge: String,
     onSelect: () -> Unit,
     onPreview: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null
+    onEdit: (() -> Unit)? = null,
+    onExport: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -455,6 +512,15 @@ private fun TemplateLibraryCard(
                     }
                 }
             }
+            if (onExport != null) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExport,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Düzenlenebilir Formu Dışa Aktar (.omrd)", fontSize = 11.sp)
+                }
+            }
         }
     }
 }
@@ -468,7 +534,11 @@ private fun CompactInfoCard(title: String, description: String) {
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
