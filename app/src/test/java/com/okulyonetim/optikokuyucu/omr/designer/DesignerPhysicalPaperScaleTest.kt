@@ -51,7 +51,31 @@ class DesignerPhysicalPaperScaleTest {
         val a4PrintedDiameter = printedDiameterMm(a4, a4Answer.bubbleRadius)
         val a7PrintedDiameter = printedDiameterMm(a7, a7Answer.bubbleRadius)
         assertEquals(a4PrintedDiameter, a7PrintedDiameter, 0.03)
-        assertTrue(a4PrintedDiameter in 2.7..3.1)
+        assertTrue(a4PrintedDiameter in 3.9..4.1)
+        assertTrue(a7PrintedDiameter in 3.9..4.1)
+    }
+
+    @Test
+    fun `standard bubble prints at about four millimeters on every supported paper`() {
+        val papers = listOf(
+            DesignerPaperSize.A3,
+            DesignerPaperSize.A4,
+            DesignerPaperSize.A5,
+            DesignerPaperSize.A6,
+            DesignerPaperSize.A7,
+            DesignerPaperSize.LETTER
+        )
+        val diameters = papers.map { paper ->
+            val document = DesignerPageGeometry.apply(
+                DesignerDocument(id = "diameter-${paper.name}", version = 1, name = paper.displayName),
+                paperSize = paper
+            )
+            printedDiameterMm(document, DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+        }
+
+        diameters.forEach { diameter -> assertTrue(diameter in 3.9..4.1) }
+        val spread = requireNotNull(diameters.maxOrNull()) - requireNotNull(diameters.minOrNull())
+        assertTrue(spread < 0.05)
     }
 
     private fun printedDiameterMm(document: DesignerDocument, radius: Double): Double {

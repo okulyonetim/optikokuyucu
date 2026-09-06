@@ -6,8 +6,12 @@ import kotlin.math.min
 
 /** Shared compact layout contract used by editor previews, PDF decorations and new OMR fields. */
 object DesignerEditorLayout {
-    const val STANDARD_BUBBLE_RADIUS = 7.5
-    const val ANSWER_CHOICE_GAP = 20.0
+    /**
+     * Canonical radius tuned so supported PDF profiles print the standard OMR bubble at ~4.0 mm
+     * diameter while preserving one shared recognition geometry across A3-A7 and Letter.
+     */
+    const val STANDARD_BUBBLE_RADIUS = 10.35
+    const val ANSWER_CHOICE_GAP = 24.0
     const val ANSWER_ROW_GAP = 28.0
     const val NUMBER_POSITION_GAP = 24.0
     const val NUMBER_VALUE_GAP = 24.0
