@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDynamicText
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import org.junit.Assert.assertEquals
@@ -12,15 +13,16 @@ class ExamPersonalizedFormsTest {
     @Test
     fun createsOnePersonalizedPagePerParticipantAndPrefillsNumber() {
         var document = DesignerDocument(id = "personalized", version = 1, name = "Kişisel Form")
-        val name = DesignerAreaCatalog.createStudentNameArea(document)
+        val name = DesignerDynamicText.withLabelEnabled(DesignerAreaCatalog.createStudentNameArea(document), true)
+            .copy(text = "Ad Soyad")
         document = document.copy(visualElements = document.visualElements + name)
-        val clazz = DesignerAreaCatalog.createStudentClassArea(document)
+        val clazz = DesignerDynamicText.withLabelEnabled(DesignerAreaCatalog.createStudentClassArea(document), true)
         document = document.copy(visualElements = document.visualElements + clazz)
         val numberText = DesignerAreaCatalog.createStudentNumberTextArea(document)
         document = document.copy(visualElements = document.visualElements + numberText)
         val examName = DesignerAreaCatalog.createExamNameArea(document)
         document = document.copy(visualElements = document.visualElements + examName)
-        val schoolName = DesignerAreaCatalog.createSchoolNameArea(document)
+        val schoolName = DesignerDynamicText.withLabelEnabled(DesignerAreaCatalog.createSchoolNameArea(document), true)
         document = document.copy(visualElements = document.visualElements + schoolName)
         val numberGrid = DesignerAreaCatalog.createNumberArea(document)
         document = document.copy(components = document.components + numberGrid)
@@ -44,11 +46,11 @@ class ExamPersonalizedFormsTest {
 
         val pages = ExamPersonalizedForms.pages(exam, document)
         assertEquals(2, pages.size)
-        assertEquals("Örnek Öğrenci", pages[0].textOverrides[name.id])
-        assertEquals("8-A", pages[0].textOverrides[clazz.id])
+        assertEquals("Ad Soyad: Örnek Öğrenci", pages[0].textOverrides[name.id])
+        assertEquals("Sınıf: 8-A", pages[0].textOverrides[clazz.id])
         assertEquals("16", pages[0].textOverrides[numberText.id])
         assertEquals("Deneme 1", pages[0].textOverrides[examName.id])
-        assertEquals("Örnek Ortaokulu", pages[0].textOverrides[schoolName.id])
+        assertEquals("Okul: Örnek Ortaokulu", pages[0].textOverrides[schoolName.id])
         assertEquals("16".padStart(numberGrid.digits, '0'), pages[0].numericHeaderValues[numberGrid.id])
         assertEquals(numberGrid.digits, pages[0].filledMarks.size)
         assertTrue(pages[0].filledMarks.any { it.columnId == numberGrid.digits.toString() && it.markId == "6" })
