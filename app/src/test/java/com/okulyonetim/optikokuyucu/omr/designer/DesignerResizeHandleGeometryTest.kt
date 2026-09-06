@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.omr.designer
 
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -35,7 +36,7 @@ class DesignerResizeHandleGeometryTest {
     }
 
     @Test
-    fun `locked and line elements do not expose resize handle`() {
+    fun `locked elements hide handle and line exposes endpoint handle`() {
         val locked = DesignerBoxElement(
             id = "box",
             bounds = TemplateRect(100.0, 100.0, 200.0, 80.0),
@@ -50,7 +51,14 @@ class DesignerResizeHandleGeometryTest {
         )
 
         assertNull(DesignerResizeHandleGeometry.handlePoint(locked))
-        assertNull(DesignerResizeHandleGeometry.handlePoint(line))
+        assertEquals(line.end, DesignerResizeHandleGeometry.handlePoint(line))
+        assertTrue(
+            DesignerResizeHandleGeometry.hitTest(
+                line,
+                TemplatePoint(399.0, 201.0),
+                touchRadius = 4.0
+            )
+        )
         assertFalse(DesignerResizeHandleGeometry.hitTest(locked, TemplatePoint(300.0, 180.0)))
     }
 }
