@@ -24,7 +24,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +45,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaKind
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamPreset
@@ -81,6 +85,7 @@ fun StructuredOmrDesignerScreen(
     }
     var formName by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
+    var showAreaPicker by remember { mutableStateOf(false) }
 
     fun updateFormSpec(transform: (DesignerFormSpec) -> DesignerFormSpec) {
         document = document.copy(formSpec = transform(document.formSpec))
@@ -143,7 +148,8 @@ fun StructuredOmrDesignerScreen(
 
             OpticalFormAreaHeader(
                 onAdd = {
-                    status = "Alan ekleme sistemi bir sonraki alan-editörü aşamasında etkinleştirilecek."
+                    status = ""
+                    showAreaPicker = true
                 }
             )
 
@@ -164,6 +170,16 @@ fun StructuredOmrDesignerScreen(
 
             Spacer(Modifier.size(8.dp))
         }
+    }
+
+    if (showAreaPicker) {
+        OpticalFormAreaPicker(
+            onDismiss = { showAreaPicker = false },
+            onSelected = { selected ->
+                showAreaPicker = false
+                status = "${selected.displayName} seçildi."
+            }
+        )
     }
 }
 
@@ -400,6 +416,108 @@ private fun OpticalFormAreaHeader(onAdd: () -> Unit) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OpticalFormAreaPicker(
+    onDismiss: () -> Unit,
+    onSelected: (DesignerAreaKind) -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Optik Form Alanı",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Forma eklemek istediğiniz alan türünü seçin.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            DesignerAreaCatalog.sections.forEach { section ->
+                Spacer(Modifier.size(4.dp))
+                Text(
+                    text = section.title,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                section.kinds.forEach { kind ->
+                    AreaPickerRow(
+                        kind = kind,
+                        onClick = { onSelected(kind) }
+                    )
+                }
+            }
+            Spacer(Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun AreaPickerRow(
+    kind: DesignerAreaKind,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(38.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = areaKindSymbol(kind),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Text(
+                text = kind.displayName,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun areaKindSymbol(kind: DesignerAreaKind): String = when (kind) {
+    DesignerAreaKind.NUMBER -> "123"
+    DesignerAreaKind.ANSWERS -> "AB"
+    DesignerAreaKind.DESCRIPTION -> "T"
+    DesignerAreaKind.IMAGE -> "▧"
 }
 
 @Composable
