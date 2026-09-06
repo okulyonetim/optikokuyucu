@@ -21,11 +21,17 @@ data class DesignerPaperDimensions(
 /**
  * Shared page geometry for the unified editor.
  *
- * The short side is normalized to 1000 canonical units. This keeps editor/reader geometry
- * independent from DPI while preserving the real aspect of each supported physical paper size.
+ * A4 short side is the canonical density reference: 210 mm = 1000 canonical units.
+ * Every supported physical paper uses that same canonical-units-per-millimetre density.
+ * This is still a DPI-independent logical coordinate system; camera registration continues to
+ * use the four fiducials rather than paper edges. The stable density only guarantees that OMR
+ * primitives such as bubbles and user-selected gaps keep the same physical print size when the
+ * selected paper size changes.
  */
 object DesignerPageGeometry {
     const val CANONICAL_SHORT_SIDE = 1000.0
+    const val A4_SHORT_SIDE_MM = 210.0
+    const val CANONICAL_UNITS_PER_MM = CANONICAL_SHORT_SIDE / A4_SHORT_SIDE_MM
     private const val FIDUCIAL_SIZE_RATIO = 0.050
     private const val FIDUCIAL_INSET_RATIO = 0.032
     private const val SAFE_MARGIN_RATIO = 0.085
@@ -42,8 +48,8 @@ object DesignerPageGeometry {
 
     /**
      * The phone editor is a normalized workspace, not a life-size sheet preview. All paper sizes
-     * therefore use the full available width. Physical size is represented by mm conversion and
-     * by the PDF page profile, while marker-relative canonical geometry stays unchanged.
+     * therefore use the full available width. Physical size is represented by the canonical page
+     * dimensions and by the PDF page profile.
      */
     fun editorDisplayWidthScale(
         paperSize: DesignerPaperSize,
@@ -62,8 +68,8 @@ object DesignerPageGeometry {
             StandardOmrTemplate.DEFAULT_SPACE
         } else {
             TemplateSize(
-                width = CANONICAL_SHORT_SIDE,
-                height = CANONICAL_SHORT_SIDE * dimensions.heightMm / dimensions.widthMm
+                width = dimensions.widthMm * CANONICAL_UNITS_PER_MM,
+                height = dimensions.heightMm * CANONICAL_UNITS_PER_MM
             )
         }
         return if (orientation == DesignerPageOrientation.PORTRAIT) {
