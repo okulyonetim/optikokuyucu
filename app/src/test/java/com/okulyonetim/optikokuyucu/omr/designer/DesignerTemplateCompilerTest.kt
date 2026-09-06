@@ -60,6 +60,41 @@ class DesignerTemplateCompilerTest {
     }
 
     @Test
+    fun `horizontal answer flow transposes question and choice axes without a second geometry source`() {
+        val component = QuestionGroupComponent(
+            id = "answers-1",
+            startQuestion = 1,
+            questionCount = 6,
+            choices = listOf("A", "B", "C"),
+            columns = 2,
+            firstChoiceX = 100.0,
+            topY = 200.0,
+            bubbleRadius = 10.0,
+            choiceGap = 30.0,
+            rowGap = 70.0,
+            columnGap = 160.0,
+            questionIdPrefix = "answers-1",
+            orientation = QuestionGroupOrientation.HORIZONTAL,
+            label = "Türkçe"
+        )
+        val template = DesignerTemplateCompiler.compile(
+            DesignerDocument(
+                id = "answer-test",
+                version = 1,
+                name = "Answer Test",
+                components = listOf(component)
+            )
+        )
+
+        assertEquals(3, DesignerTemplateCompiler.questionsPerBlock(component))
+        assertEquals(listOf("answers-1:1", "answers-1:2", "answers-1:3", "answers-1:4", "answers-1:5", "answers-1:6"), template.bubbleRows.map { it.id })
+        assertEquals(100.0, template.bubbleRows[0].bubbles[0].center.x, 0.001)
+        assertEquals(230.0, template.bubbleRows[0].bubbles[1].center.y, 0.001)
+        assertEquals(170.0, template.bubbleRows[1].bubbles[0].center.x, 0.001)
+        assertEquals(360.0, template.bubbleRows[3].bubbles[0].center.y, 0.001)
+    }
+
+    @Test
     fun `vertical number area custom pattern compiles from same canonical component`() {
         val component = NumericGridComponent(
             id = "number-1",

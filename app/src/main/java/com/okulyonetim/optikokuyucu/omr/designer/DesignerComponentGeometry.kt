@@ -16,22 +16,38 @@ object DesignerComponentGeometry {
         document.components.asReversed().firstOrNull { contains(bounds(it), point) }?.id
 
     private fun questionBounds(component: QuestionGroupComponent): TemplateRect {
-        val rowsPerColumn = ceil(component.questionCount.toDouble() / component.columns.toDouble())
+        val questionsPerBlock = ceil(component.questionCount.toDouble() / component.columns.toDouble())
             .toInt()
             .coerceAtLeast(1)
-        val usedColumns = ((component.questionCount - 1) / rowsPerColumn) + 1
-        val rowsInFirstColumn = minOf(rowsPerColumn, component.questionCount)
-        val lastChoiceOffset = (component.choices.size - 1) * component.choiceGap
+        val usedBlocks = ((component.questionCount - 1) / questionsPerBlock) + 1
+        val questionsInFirstBlock = minOf(questionsPerBlock, component.questionCount)
+        val choiceSpan = (component.choices.size - 1) * component.choiceGap
 
         val left = component.firstChoiceX - component.bubbleRadius
         val top = component.topY - component.bubbleRadius
-        val right = component.firstChoiceX +
-            (usedColumns - 1) * component.columnGap +
-            lastChoiceOffset +
-            component.bubbleRadius
-        val bottom = component.topY +
-            (rowsInFirstColumn - 1) * component.rowGap +
-            component.bubbleRadius
+        val right: Double
+        val bottom: Double
+
+        when (component.orientation) {
+            QuestionGroupOrientation.VERTICAL -> {
+                right = component.firstChoiceX +
+                    (usedBlocks - 1) * component.columnGap +
+                    choiceSpan +
+                    component.bubbleRadius
+                bottom = component.topY +
+                    (questionsInFirstBlock - 1) * component.rowGap +
+                    component.bubbleRadius
+            }
+            QuestionGroupOrientation.HORIZONTAL -> {
+                right = component.firstChoiceX +
+                    (questionsInFirstBlock - 1) * component.rowGap +
+                    component.bubbleRadius
+                bottom = component.topY +
+                    (usedBlocks - 1) * component.columnGap +
+                    choiceSpan +
+                    component.bubbleRadius
+            }
+        }
         return TemplateRect(left, top, right - left, bottom - top)
     }
 

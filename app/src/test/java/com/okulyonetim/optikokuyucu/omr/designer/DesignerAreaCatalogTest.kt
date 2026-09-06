@@ -50,6 +50,33 @@ class DesignerAreaCatalogTest {
     }
 
     @Test
+    fun `answer patterns and default two block answer field match stage six contract`() {
+        assertEquals(listOf("AB", "ABC", "ABCD", "ABCDE"), DesignerAreaCatalog.answerPatternPresets)
+        assertEquals(listOf("A", "B", "C", "D"), DesignerAreaCatalog.parseAnswerPattern("ABCD"))
+        assertNull(DesignerAreaCatalog.parseAnswerPattern("A"))
+
+        val document = DesignerPageGeometry.apply(
+            DesignerDocument(
+                id = "answer-form",
+                version = 1,
+                name = "Yeni Optik Form"
+            )
+        )
+        val component = DesignerAreaCatalog.createAnswerArea(document)
+
+        assertEquals("answers-1", component.id)
+        assertEquals("answers-1", component.questionIdPrefix)
+        assertEquals(20, component.questionCount)
+        assertEquals(2, component.columns)
+        assertEquals(10, DesignerAreaCatalog.answerQuestionsPerBlock(component))
+        assertEquals(listOf("A", "B", "C", "D"), component.choices)
+        assertEquals(QuestionGroupOrientation.VERTICAL, component.orientation)
+        assertEquals("Ders", component.label)
+        assertTrue(component.showLabel)
+        assertNull(DesignerAreaCatalog.answerAreaIssue(document, component))
+    }
+
+    @Test
     fun `default number area is valid canonical geometry inside safe page`() {
         val document = DesignerPageGeometry.apply(
             DesignerDocument(

@@ -106,6 +106,9 @@ object DesignerDocumentCodec {
                 out.writeDouble(component.rowGap)
                 out.writeDouble(component.columnGap)
                 out.writeUTF(component.questionIdPrefix)
+                out.writeUTF(component.orientation.name)
+                out.writeUTF(component.label)
+                out.writeBoolean(component.showLabel)
             }
             is NumericGridComponent -> {
                 out.writeByte(TYPE_NUMERIC_GRID)
@@ -135,20 +138,44 @@ object DesignerDocumentCodec {
 
     private fun readComponent(input: DataInputStream, schema: Int): DesignerOmrComponent =
         when (input.readByte().toInt()) {
-            TYPE_QUESTION_GROUP -> QuestionGroupComponent(
-                id = input.readUTF(),
-                startQuestion = input.readInt(),
-                questionCount = input.readInt(),
-                choices = readStrings(input),
-                columns = input.readInt(),
-                firstChoiceX = input.readDouble(),
-                topY = input.readDouble(),
-                bubbleRadius = input.readDouble(),
-                choiceGap = input.readDouble(),
-                rowGap = input.readDouble(),
-                columnGap = input.readDouble(),
-                questionIdPrefix = if (schema >= 2) input.readUTF() else ""
-            )
+            TYPE_QUESTION_GROUP -> {
+                val id = input.readUTF()
+                val startQuestion = input.readInt()
+                val questionCount = input.readInt()
+                val choices = readStrings(input)
+                val columns = input.readInt()
+                val firstChoiceX = input.readDouble()
+                val topY = input.readDouble()
+                val bubbleRadius = input.readDouble()
+                val choiceGap = input.readDouble()
+                val rowGap = input.readDouble()
+                val columnGap = input.readDouble()
+                val questionIdPrefix = if (schema >= 2) input.readUTF() else ""
+                val orientation = if (schema >= 5) {
+                    QuestionGroupOrientation.valueOf(input.readUTF())
+                } else {
+                    QuestionGroupOrientation.VERTICAL
+                }
+                val label = if (schema >= 5) input.readUTF() else "Ders"
+                val showLabel = if (schema >= 5) input.readBoolean() else true
+                QuestionGroupComponent(
+                    id = id,
+                    startQuestion = startQuestion,
+                    questionCount = questionCount,
+                    choices = choices,
+                    columns = columns,
+                    firstChoiceX = firstChoiceX,
+                    topY = topY,
+                    bubbleRadius = bubbleRadius,
+                    choiceGap = choiceGap,
+                    rowGap = rowGap,
+                    columnGap = columnGap,
+                    questionIdPrefix = questionIdPrefix,
+                    orientation = orientation,
+                    label = label,
+                    showLabel = showLabel
+                )
+            }
             TYPE_NUMERIC_GRID -> {
                 val id = input.readUTF()
                 val digits = input.readInt()
@@ -326,7 +353,7 @@ object DesignerDocumentCodec {
 
     private const val MAGIC = 0x4F4D5244 // OMRD
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 4
+    private const val SCHEMA_VERSION = 5
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3

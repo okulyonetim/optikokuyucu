@@ -48,27 +48,50 @@ object DesignerTemplateCompiler {
         }
     }
 
-    private fun compileQuestionGroup(component: QuestionGroupComponent): List<BubbleRowSpec> {
-        val rowsPerColumn = ceil(component.questionCount.toDouble() / component.columns.toDouble())
+    fun questionsPerBlock(component: QuestionGroupComponent): Int =
+        ceil(component.questionCount.toDouble() / component.columns.toDouble())
             .toInt()
             .coerceAtLeast(1)
 
+    private fun compileQuestionGroup(component: QuestionGroupComponent): List<BubbleRowSpec> {
+        val questionsPerBlock = questionsPerBlock(component)
+
         return (0 until component.questionCount).map { index ->
-            val column = index / rowsPerColumn
-            val row = index % rowsPerColumn
-            val firstChoiceX = component.firstChoiceX + column * component.columnGap
-            val y = component.topY + row * component.rowGap
+            val block = index / questionsPerBlock
+            val position = index % questionsPerBlock
             val questionNumber = component.startQuestion + index
+            val firstChoiceX: Double
+            val firstChoiceY: Double
+
+            when (component.orientation) {
+                QuestionGroupOrientation.VERTICAL -> {
+                    firstChoiceX = component.firstChoiceX + block * component.columnGap
+                    firstChoiceY = component.topY + position * component.rowGap
+                }
+                QuestionGroupOrientation.HORIZONTAL -> {
+                    firstChoiceX = component.firstChoiceX + position * component.rowGap
+                    firstChoiceY = component.topY + block * component.columnGap
+                }
+            }
 
             BubbleRowSpec(
                 id = questionReadId(component, questionNumber),
                 bubbles = component.choices.mapIndexed { choiceIndex, choice ->
+                    val x = firstChoiceX +
+                        if (component.orientation == QuestionGroupOrientation.VERTICAL) {
+                            choiceIndex * component.choiceGap
+                        } else {
+                            0.0
+                        }
+                    val y = firstChoiceY +
+                        if (component.orientation == QuestionGroupOrientation.HORIZONTAL) {
+                            choiceIndex * component.choiceGap
+                        } else {
+                            0.0
+                        }
                     BubbleSpec(
                         id = choice,
-                        center = TemplatePoint(
-                            x = firstChoiceX + choiceIndex * component.choiceGap,
-                            y = y
-                        ),
+                        center = TemplatePoint(x = x, y = y),
                         radius = component.bubbleRadius
                     )
                 }

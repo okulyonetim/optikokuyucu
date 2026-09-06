@@ -19,7 +19,7 @@ class DesignerDocumentCodecTest {
             components = listOf(
                 QuestionGroupComponent(
                     id = "questions",
-                    startQuestion = 1,
+                    startQuestion = 5,
                     questionCount = 40,
                     choices = listOf("A", "B", "C", "D"),
                     columns = 2,
@@ -28,7 +28,11 @@ class DesignerDocumentCodecTest {
                     bubbleRadius = 11.0,
                     choiceGap = 45.0,
                     rowGap = 46.0,
-                    columnGap = 480.0
+                    columnGap = 480.0,
+                    questionIdPrefix = "turkce",
+                    orientation = QuestionGroupOrientation.HORIZONTAL,
+                    label = "Türkçe",
+                    showLabel = false
                 ),
                 NumericGridComponent(
                     id = "studentNumber",
@@ -87,6 +91,54 @@ class DesignerDocumentCodecTest {
         val decoded = DesignerDocumentCodec.decode(DesignerDocumentCodec.encode(document))
 
         assertEquals(document, decoded)
+    }
+
+    @Test
+    fun `schema four question groups gain backward compatible stage six defaults`() {
+        val bytes = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { out ->
+                out.writeInt(0x4F4D5244)
+                out.writeInt(4)
+                out.writeUTF("legacy-answer-form")
+                out.writeInt(2)
+                out.writeUTF("Legacy")
+                out.writeDouble(1000.0)
+                out.writeDouble(1414.0)
+                out.writeInt(0) // fiducials
+                out.writeInt(1) // components
+                out.writeByte(1) // question group
+                out.writeUTF("questions")
+                out.writeInt(1)
+                out.writeInt(20)
+                out.writeInt(4)
+                listOf("A", "B", "C", "D").forEach(out::writeUTF)
+                out.writeInt(2)
+                out.writeDouble(150.0)
+                out.writeDouble(250.0)
+                out.writeDouble(10.0)
+                out.writeDouble(32.0)
+                out.writeDouble(36.0)
+                out.writeDouble(330.0)
+                out.writeUTF("legacy")
+                out.writeInt(0) // visuals
+                out.writeUTF(DesignerPaperSize.A4.name)
+                out.writeUTF(DesignerPageOrientation.PORTRAIT.name)
+                out.writeUTF(DesignerExamMode.UNSPECIFIED.name)
+                out.writeUTF(DesignerExamPreset.CUSTOM.name)
+                out.writeDouble(1.2)
+                out.writeDouble(0.82)
+                out.writeDouble(0.92)
+                out.writeDouble(2.0)
+            }
+        }.toByteArray()
+
+        val decoded = DesignerDocumentCodec.decode(bytes)
+        val answer = decoded.components.single() as QuestionGroupComponent
+
+        assertEquals(QuestionGroupOrientation.VERTICAL, answer.orientation)
+        assertEquals("Ders", answer.label)
+        assertTrue(answer.showLabel)
+        assertEquals("legacy", answer.questionIdPrefix)
     }
 
     @Test

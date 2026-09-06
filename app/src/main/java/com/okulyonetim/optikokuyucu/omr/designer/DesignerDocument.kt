@@ -116,23 +116,38 @@ sealed interface DesignerOmrComponent {
     val id: String
 }
 
+enum class QuestionGroupOrientation(val displayName: String) {
+    /** Questions run top-to-bottom in each block; choices run left-to-right. */
+    VERTICAL("Dikey"),
+
+    /** Questions run left-to-right in each block; choices run top-to-bottom. */
+    HORIZONTAL("Yatay")
+}
+
 data class QuestionGroupComponent(
     override val id: String,
     val startQuestion: Int,
     val questionCount: Int,
     val choices: List<String>,
+    /** Canonical block/column count. Questions-per-block is derived from this and questionCount. */
     val columns: Int,
     val firstChoiceX: Double,
     val topY: Double,
     val bubbleRadius: Double,
     val choiceGap: Double,
+    /** Gap between questions inside one block, on the axis selected by [orientation]. */
     val rowGap: Double,
+    /** Gap between blocks, perpendicular to the question-flow axis. */
     val columnGap: Double,
     /**
      * Optional stable internal prefix. Structured multi-course forms use it so every lesson can
      * display question numbers starting from 1 while recognition/scoring ids stay globally unique.
      */
-    val questionIdPrefix: String = ""
+    val questionIdPrefix: String = "",
+    val orientation: QuestionGroupOrientation = QuestionGroupOrientation.VERTICAL,
+    /** User-visible course/title printed with this answer field. Recognition ignores this text. */
+    val label: String = "Ders",
+    val showLabel: Boolean = true
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -145,6 +160,7 @@ data class QuestionGroupComponent(
         require(bubbleRadius > 0.0)
         require(choiceGap > 0.0 && rowGap > 0.0 && columnGap > 0.0)
         require('\n' !in questionIdPrefix && '\r' !in questionIdPrefix)
+        require('\n' !in label && '\r' !in label)
     }
 }
 

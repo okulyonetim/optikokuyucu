@@ -17,6 +17,31 @@ class DesignerComponentGeometryTest {
     }
 
     @Test
+    fun `horizontal answer bounds transpose question and choice spans`() {
+        val group = QuestionGroupComponent(
+            id = "horizontal",
+            startQuestion = 1,
+            questionCount = 6,
+            choices = listOf("A", "B", "C"),
+            columns = 2,
+            firstChoiceX = 100.0,
+            topY = 200.0,
+            bubbleRadius = 10.0,
+            choiceGap = 30.0,
+            rowGap = 70.0,
+            columnGap = 160.0,
+            orientation = QuestionGroupOrientation.HORIZONTAL
+        )
+
+        val bounds = DesignerComponentGeometry.bounds(group)
+
+        assertEquals(90.0, bounds.left, 0.001)
+        assertEquals(190.0, bounds.top, 0.001)
+        assertEquals(250.0, bounds.right, 0.001)
+        assertEquals(430.0, bounds.bottom, 0.001)
+    }
+
+    @Test
     fun `hit test selects component inside canonical bounds`() {
         val document = DesignerStarterTemplates.questions20Abcd()
 
