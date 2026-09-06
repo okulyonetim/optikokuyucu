@@ -36,7 +36,9 @@ class DesignerPhysicalTestPackTest {
         val probe = decoded.visualElements.filterIsInstance<DesignerTextElement>().single { it.id == "turkish-font-probe" }
 
         assertEquals(document, decoded)
-        assertEquals("sans-serif", DesignerTypography.ANDROID_FONT_FAMILY)
+        assertEquals("Noto Sans", DesignerTypography.FONT_FAMILY_NAME)
+        assertEquals("5e35378e6bda803962ee6fd257e444a7d459660d", DesignerTypography.FONT_SOURCE_COMMIT)
+        assertEquals("75575046c015ff623a848096a15779867ba71453", DesignerTypography.FONT_GIT_BLOB_SHA)
         assertTrue(probe.text.contains(DesignerTypography.TURKISH_GLYPH_SAMPLE))
         assertEquals("İ ı Ş ş Ğ ğ Ç ç Ö ö Ü ü", DesignerTypography.TURKISH_GLYPH_SAMPLE)
     }
