@@ -8,6 +8,7 @@ object DesignerResizeHandleGeometry {
         if (element.locked) return null
         return when (element) {
             is DesignerTextElement,
+            is DesignerImageElement,
             is DesignerBoxElement -> {
                 val bounds = DesignerVisualGeometry.bounds(element)
                 TemplatePoint(bounds.right, bounds.bottom)

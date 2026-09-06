@@ -4,18 +4,10 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.round
 
-/**
- * UI-agnostic editing operations. Gesture/UI layers should commit the returned immutable document
- * through [DesignerHistory], keeping drag/drop, property-panel edits and undo/redo consistent.
- */
+/** UI-agnostic editing operations shared by designer surfaces. */
 object DesignerDocumentEditor {
-    fun replaceComponent(
-        document: DesignerDocument,
-        component: DesignerOmrComponent
-    ): DesignerDocument {
-        require(document.components.any { it.id == component.id }) {
-            "Designer component does not exist."
-        }
+    fun replaceComponent(document: DesignerDocument, component: DesignerOmrComponent): DesignerDocument {
+        require(document.components.any { it.id == component.id }) { "Designer component does not exist." }
         return document.copy(
             components = document.components.map { existing ->
                 if (existing.id == component.id) component else existing
@@ -68,9 +60,7 @@ object DesignerDocumentEditor {
 
     fun deleteVisualElement(document: DesignerDocument, elementId: String): DesignerDocument =
         document.copy(
-            visualElements = document.visualElements.filterNot {
-                it.id == elementId && !it.locked
-            }
+            visualElements = document.visualElements.filterNot { it.id == elementId && !it.locked }
         )
 
     fun duplicateVisualElement(
@@ -100,11 +90,7 @@ object DesignerDocumentEditor {
         }
     )
 
-    fun setVisualText(
-        document: DesignerDocument,
-        elementId: String,
-        text: String
-    ): DesignerDocument {
+    fun setVisualText(document: DesignerDocument, elementId: String, text: String): DesignerDocument {
         require(text.isNotEmpty())
         return document.copy(
             visualElements = document.visualElements.map { element ->
@@ -114,11 +100,7 @@ object DesignerDocumentEditor {
         )
     }
 
-    fun setVisualFontSize(
-        document: DesignerDocument,
-        elementId: String,
-        fontSize: Double
-    ): DesignerDocument {
+    fun setVisualFontSize(document: DesignerDocument, elementId: String, fontSize: Double): DesignerDocument {
         require(fontSize > 0.0)
         return document.copy(
             visualElements = document.visualElements.map { element ->
@@ -139,16 +121,13 @@ object DesignerDocumentEditor {
         }
     )
 
-    fun setVisualBold(
-        document: DesignerDocument,
-        elementId: String,
-        bold: Boolean
-    ): DesignerDocument = document.copy(
-        visualElements = document.visualElements.map { element ->
-            if (element.id != elementId || element.locked || element !is DesignerTextElement) element
-            else element.copy(bold = bold)
-        }
-    )
+    fun setVisualBold(document: DesignerDocument, elementId: String, bold: Boolean): DesignerDocument =
+        document.copy(
+            visualElements = document.visualElements.map { element ->
+                if (element.id != elementId || element.locked || element !is DesignerTextElement) element
+                else element.copy(bold = bold)
+            }
+        )
 
     fun setVisualStrokeWidth(
         document: DesignerDocument,
@@ -164,7 +143,8 @@ object DesignerDocumentEditor {
                     when (element) {
                         is DesignerBoxElement -> element.copy(strokeWidth = strokeWidth)
                         is DesignerLineElement -> element.copy(strokeWidth = strokeWidth)
-                        is DesignerTextElement -> element
+                        is DesignerTextElement,
+                        is DesignerImageElement -> element
                     }
                 }
             }
@@ -191,10 +171,7 @@ object DesignerDocumentEditor {
             topY = snap(component.topY + dy, step)
         )
         is SingleChoiceComponent -> component.copy(
-            start = TemplatePoint(
-                snap(component.start.x + dx, step),
-                snap(component.start.y + dy, step)
-            )
+            start = TemplatePoint(snap(component.start.x + dx, step), snap(component.start.y + dy, step))
         )
     }
 
@@ -204,41 +181,31 @@ object DesignerDocumentEditor {
         is SingleChoiceComponent -> component.copy(id = id)
     }
 
-    private fun move(
-        element: DesignerVisualElement,
-        dx: Double,
-        dy: Double,
-        step: Double
-    ): DesignerVisualElement = when (element) {
-        is DesignerTextElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
-        is DesignerBoxElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
-        is DesignerLineElement -> element.copy(
-            start = TemplatePoint(
-                snap(element.start.x + dx, step),
-                snap(element.start.y + dy, step)
-            ),
-            end = TemplatePoint(
-                snap(element.end.x + dx, step),
-                snap(element.end.y + dy, step)
+    private fun move(element: DesignerVisualElement, dx: Double, dy: Double, step: Double): DesignerVisualElement =
+        when (element) {
+            is DesignerTextElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+            is DesignerImageElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+            is DesignerBoxElement -> element.copy(bounds = move(element.bounds, dx, dy, step))
+            is DesignerLineElement -> element.copy(
+                start = TemplatePoint(snap(element.start.x + dx, step), snap(element.start.y + dy, step)),
+                end = TemplatePoint(snap(element.end.x + dx, step), snap(element.end.y + dy, step))
             )
-        )
-    }
+        }
 
     private fun withId(element: DesignerVisualElement, id: String): DesignerVisualElement = when (element) {
         is DesignerTextElement -> element.copy(id = id)
+        is DesignerImageElement -> element.copy(id = id)
         is DesignerBoxElement -> element.copy(id = id)
         is DesignerLineElement -> element.copy(id = id)
     }
 
     private fun withLocked(element: DesignerVisualElement, locked: Boolean): DesignerVisualElement = when (element) {
         is DesignerTextElement -> element.copy(locked = locked)
+        is DesignerImageElement -> element.copy(locked = locked)
         is DesignerBoxElement -> element.copy(locked = locked)
         is DesignerLineElement -> element.copy(locked = locked)
     }
 
     private fun move(rect: TemplateRect, dx: Double, dy: Double, step: Double): TemplateRect =
-        rect.copy(
-            left = snap(rect.left + dx, step),
-            top = snap(rect.top + dy, step)
-        )
+        rect.copy(left = snap(rect.left + dx, step), top = snap(rect.top + dy, step))
 }

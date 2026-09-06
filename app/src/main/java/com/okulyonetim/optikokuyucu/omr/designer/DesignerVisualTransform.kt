@@ -4,25 +4,9 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.max
 
-enum class VisualHorizontalAlignment {
-    LEFT,
-    CENTER,
-    RIGHT
-}
+enum class VisualHorizontalAlignment { LEFT, CENTER, RIGHT }
+enum class VisualVerticalAlignment { TOP, CENTER, BOTTOM }
 
-enum class VisualVerticalAlignment {
-    TOP,
-    CENTER,
-    BOTTOM
-}
-
-/**
- * UI-agnostic transforms for visual-layer elements.
- *
- * Resize operations are anchored at the element's top-left corner. For a line, its start point is
- * the anchor and resize deltas move the end point. All transforms stay in canonical page bounds;
- * recognition safety is still evaluated separately by the readability gate.
- */
 object DesignerVisualTransform {
     fun resize(
         document: DesignerDocument,
@@ -34,30 +18,18 @@ object DesignerVisualTransform {
     ): DesignerDocument {
         require(snapStep > 0.0)
         require(minSize > 0.0)
-
         return document.copy(
             visualElements = document.visualElements.map { element ->
                 if (element.id != elementId || element.locked) return@map element
                 when (element) {
                     is DesignerTextElement -> element.copy(
-                        bounds = resizedBounds(
-                            element.bounds,
-                            document,
-                            deltaWidth,
-                            deltaHeight,
-                            snapStep,
-                            minSize
-                        )
+                        bounds = resizedBounds(element.bounds, document, deltaWidth, deltaHeight, snapStep, minSize)
+                    )
+                    is DesignerImageElement -> element.copy(
+                        bounds = resizedBounds(element.bounds, document, deltaWidth, deltaHeight, snapStep, minSize)
                     )
                     is DesignerBoxElement -> element.copy(
-                        bounds = resizedBounds(
-                            element.bounds,
-                            document,
-                            deltaWidth,
-                            deltaHeight,
-                            snapStep,
-                            minSize
-                        )
+                        bounds = resizedBounds(element.bounds, document, deltaWidth, deltaHeight, snapStep, minSize)
                     )
                     is DesignerLineElement -> element.copy(
                         end = TemplatePoint(
@@ -117,33 +89,20 @@ object DesignerVisualTransform {
         deltaY: Double
     ): DesignerDocument = document.copy(
         visualElements = document.visualElements.map { element ->
-            if (element.id != elementId || element.locked) {
-                element
-            } else {
-                when (element) {
-                    is DesignerTextElement -> element.copy(
-                        bounds = element.bounds.copy(
-                            left = element.bounds.left + deltaX,
-                            top = element.bounds.top + deltaY
-                        )
-                    )
-                    is DesignerBoxElement -> element.copy(
-                        bounds = element.bounds.copy(
-                            left = element.bounds.left + deltaX,
-                            top = element.bounds.top + deltaY
-                        )
-                    )
-                    is DesignerLineElement -> element.copy(
-                        start = TemplatePoint(
-                            element.start.x + deltaX,
-                            element.start.y + deltaY
-                        ),
-                        end = TemplatePoint(
-                            element.end.x + deltaX,
-                            element.end.y + deltaY
-                        )
-                    )
-                }
+            if (element.id != elementId || element.locked) element else when (element) {
+                is DesignerTextElement -> element.copy(
+                    bounds = element.bounds.copy(left = element.bounds.left + deltaX, top = element.bounds.top + deltaY)
+                )
+                is DesignerImageElement -> element.copy(
+                    bounds = element.bounds.copy(left = element.bounds.left + deltaX, top = element.bounds.top + deltaY)
+                )
+                is DesignerBoxElement -> element.copy(
+                    bounds = element.bounds.copy(left = element.bounds.left + deltaX, top = element.bounds.top + deltaY)
+                )
+                is DesignerLineElement -> element.copy(
+                    start = TemplatePoint(element.start.x + deltaX, element.start.y + deltaY),
+                    end = TemplatePoint(element.end.x + deltaX, element.end.y + deltaY)
+                )
             }
         }
     )
@@ -160,13 +119,10 @@ object DesignerVisualTransform {
         val top = bounds.top.coerceIn(0.0, max(0.0, document.space.height - minSize))
         val maxWidth = max(minSize, document.space.width - left)
         val maxHeight = max(minSize, document.space.height - top)
-        val width = snapped(bounds.width + deltaWidth, snapStep)
-            .coerceIn(minSize, maxWidth)
-        val height = snapped(bounds.height + deltaHeight, snapStep)
-            .coerceIn(minSize, maxHeight)
+        val width = snapped(bounds.width + deltaWidth, snapStep).coerceIn(minSize, maxWidth)
+        val height = snapped(bounds.height + deltaHeight, snapStep).coerceIn(minSize, maxHeight)
         return bounds.copy(left = left, top = top, width = width, height = height)
     }
 
-    private fun snapped(value: Double, step: Double): Double =
-        DesignerDocumentEditor.snap(value, step)
+    private fun snapped(value: Double, step: Double): Double = DesignerDocumentEditor.snap(value, step)
 }

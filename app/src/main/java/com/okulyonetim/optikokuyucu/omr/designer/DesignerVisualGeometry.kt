@@ -8,6 +8,7 @@ import kotlin.math.min
 object DesignerVisualGeometry {
     fun bounds(element: DesignerVisualElement): TemplateRect = when (element) {
         is DesignerTextElement -> element.bounds
+        is DesignerImageElement -> element.bounds
         is DesignerBoxElement -> element.bounds
         is DesignerLineElement -> lineBounds(element)
     }

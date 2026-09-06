@@ -3,9 +3,11 @@ package com.okulyonetim.optikokuyucu.omr.designer
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
@@ -16,12 +18,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
-/**
- * Produces a phone-editable PNG from the same designer document that recognition compiles.
- *
- * The bitmap is canonical/unitless. Saving it to Gallery does not assign A4/A5 semantics; if the
- * phone editor later scales or adds margins, the four fiducials recover the canonical geometry.
- */
+/** Produces a phone-editable PNG from the same designer document that recognition compiles. */
 object DesignerGalleryTestAsset {
     fun render(
         document: DesignerDocument,
@@ -30,9 +27,7 @@ object DesignerGalleryTestAsset {
     ): Bitmap {
         val template = DesignerTemplateCompiler.compile(document)
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
-        require(readability.canSave) {
-            "Template cannot be rendered while readability errors exist."
-        }
+        require(readability.canSave) { "Template cannot be rendered while readability errors exist." }
 
         val bitmap = SyntheticOmrRenderer.render(
             template = template,
@@ -49,7 +44,6 @@ object DesignerGalleryTestAsset {
         check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             "Galeriye doğrudan kaydetme Android 10 ve üstünde destekleniyor."
         }
-
         val resolver = context.contentResolver
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
         val safeName = document.name
@@ -62,24 +56,19 @@ object DesignerGalleryTestAsset {
             put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OptikOkuyucu")
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
-
-        val uri = requireNotNull(
-            resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        ) { "Galeri dosyası oluşturulamadı." }
-
+        val uri = requireNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)) {
+            "Galeri dosyası oluşturulamadı."
+        }
         try {
             val bitmap = render(document)
             try {
                 resolver.openOutputStream(uri, "w").use { output ->
                     requireNotNull(output) { "Galeri çıktı akışı açılamadı." }
-                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                        "PNG kaydedilemedi."
-                    }
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "PNG kaydedilemedi." }
                 }
             } finally {
                 bitmap.recycle()
             }
-
             values.clear()
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
@@ -93,30 +82,8 @@ object DesignerGalleryTestAsset {
     private fun drawVisualLayer(canvas: Canvas, document: DesignerDocument) {
         document.visualElements.forEach { element ->
             when (element) {
-                is DesignerTextElement -> {
-                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.BLACK
-                        style = Paint.Style.FILL
-                        textSize = element.fontSize.toFloat()
-                        typeface = Typeface.create(
-                            Typeface.DEFAULT,
-                            if (element.bold) Typeface.BOLD else Typeface.NORMAL
-                        )
-                        textAlign = when (element.alignment) {
-                            DesignerTextAlignment.START -> Paint.Align.LEFT
-                            DesignerTextAlignment.CENTER -> Paint.Align.CENTER
-                            DesignerTextAlignment.END -> Paint.Align.RIGHT
-                        }
-                    }
-                    val x = when (element.alignment) {
-                        DesignerTextAlignment.START -> element.bounds.left.toFloat()
-                        DesignerTextAlignment.CENTER -> element.bounds.center.x.toFloat()
-                        DesignerTextAlignment.END -> element.bounds.right.toFloat()
-                    }
-                    val baseline = element.bounds.top.toFloat() + paint.textSize
-                    canvas.drawText(element.text, x, baseline, paint)
-                }
-
+                is DesignerTextElement -> drawText(canvas, element)
+                is DesignerImageElement -> drawImage(canvas, element)
                 is DesignerBoxElement -> {
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.BLACK
@@ -124,14 +91,10 @@ object DesignerGalleryTestAsset {
                         strokeWidth = element.strokeWidth.toFloat()
                     }
                     canvas.drawRect(
-                        element.bounds.left.toFloat(),
-                        element.bounds.top.toFloat(),
-                        element.bounds.right.toFloat(),
-                        element.bounds.bottom.toFloat(),
-                        paint
+                        element.bounds.left.toFloat(), element.bounds.top.toFloat(),
+                        element.bounds.right.toFloat(), element.bounds.bottom.toFloat(), paint
                     )
                 }
-
                 is DesignerLineElement -> {
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.BLACK
@@ -139,25 +102,70 @@ object DesignerGalleryTestAsset {
                         strokeWidth = element.strokeWidth.toFloat()
                     }
                     canvas.drawLine(
-                        element.start.x.toFloat(),
-                        element.start.y.toFloat(),
-                        element.end.x.toFloat(),
-                        element.end.y.toFloat(),
-                        paint
+                        element.start.x.toFloat(), element.start.y.toFloat(),
+                        element.end.x.toFloat(), element.end.y.toFloat(), paint
                     )
                 }
             }
         }
     }
 
-    private fun drawSemanticLabels(
-        canvas: Canvas,
-        document: DesignerDocument,
-        template: OmrTemplate
-    ) {
+    private fun drawText(canvas: Canvas, element: DesignerTextElement) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL
+            textSize = element.fontSize.toFloat()
+            typeface = Typeface.create(Typeface.DEFAULT, if (element.bold) Typeface.BOLD else Typeface.NORMAL)
+            textAlign = when (element.alignment) {
+                DesignerTextAlignment.START -> Paint.Align.LEFT
+                DesignerTextAlignment.CENTER -> Paint.Align.CENTER
+                DesignerTextAlignment.END -> Paint.Align.RIGHT
+            }
+        }
+        val x = when (element.alignment) {
+            DesignerTextAlignment.START -> element.bounds.left.toFloat()
+            DesignerTextAlignment.CENTER -> element.bounds.center.x.toFloat()
+            DesignerTextAlignment.END -> element.bounds.right.toFloat()
+        }
+        val lineHeight = paint.textSize * 1.22f
+        var baseline = element.bounds.top.toFloat() + paint.textSize
+        canvas.save()
+        canvas.clipRect(
+            element.bounds.left.toFloat(), element.bounds.top.toFloat(),
+            element.bounds.right.toFloat(), element.bounds.bottom.toFloat()
+        )
+        element.text.split('\n').forEach { line ->
+            if (baseline <= element.bounds.bottom.toFloat() + paint.textSize * 0.2f) {
+                canvas.drawText(line, x, baseline, paint)
+                baseline += lineHeight
+            }
+        }
+        canvas.restore()
+    }
+
+    private fun drawImage(canvas: Canvas, element: DesignerImageElement) {
+        val bytes = element.image.copyBytes()
+        val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size)) {
+            "Embedded designer image could not be decoded."
+        }
+        try {
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(
+                    element.bounds.left.toFloat(), element.bounds.top.toFloat(),
+                    element.bounds.right.toFloat(), element.bounds.bottom.toFloat()
+                ),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    private fun drawSemanticLabels(canvas: Canvas, document: DesignerDocument, template: OmrTemplate) {
         val byQuestionId = template.bubbleRows.associateBy { it.id }
         val byGridId = template.markGrids.associateBy { it.id }
-
         document.components.forEach { component ->
             when (component) {
                 is QuestionGroupComponent -> repeat(component.questionCount) { index ->
@@ -166,70 +174,33 @@ object DesignerGalleryTestAsset {
                     val row = byQuestionId[questionId] ?: return@repeat
                     val first = row.bubbles.firstOrNull() ?: return@repeat
                     drawLabel(
-                        canvas,
-                        questionNumber.toString(),
+                        canvas, questionNumber.toString(),
                         first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
                         first.center.y + first.radius * 0.40,
-                        Paint.Align.RIGHT,
-                        first.radius * 1.02
+                        Paint.Align.RIGHT, first.radius * 1.02
                     )
                     row.bubbles.forEach { bubble ->
-                        drawCenteredBubbleLabel(
-                            canvas = canvas,
-                            text = bubble.id,
-                            x = bubble.center.x,
-                            y = bubble.center.y,
-                            radius = bubble.radius
-                        )
+                        drawCenteredBubbleLabel(canvas, bubble.id, bubble.center.x, bubble.center.y, bubble.radius)
                     }
                 }
-
                 is NumericGridComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
-                    grid.columns.forEach { column ->
-                        column.marks.forEach { mark ->
-                            drawCenteredBubbleLabel(
-                                canvas = canvas,
-                                text = mark.id,
-                                x = mark.center.x,
-                                y = mark.center.y,
-                                radius = mark.radius
-                            )
-                        }
-                    }
+                    grid.columns.forEach { column -> column.marks.forEach { mark ->
+                        drawCenteredBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius)
+                    } }
                 }
-
                 is SingleChoiceComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
                     grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
-                        drawCenteredBubbleLabel(
-                            canvas = canvas,
-                            text = mark.id,
-                            x = mark.center.x,
-                            y = mark.center.y,
-                            radius = mark.radius
-                        )
+                        drawCenteredBubbleLabel(canvas, mark.id, mark.center.x, mark.center.y, mark.radius)
                     }
                 }
             }
         }
     }
 
-    private fun drawCenteredBubbleLabel(
-        canvas: Canvas,
-        text: String,
-        x: Double,
-        y: Double,
-        radius: Double
-    ) {
-        drawLabel(
-            canvas = canvas,
-            text = text,
-            x = x,
-            y = y + radius * 0.34,
-            align = Paint.Align.CENTER,
-            textSize = radius * 0.78
-        )
+    private fun drawCenteredBubbleLabel(canvas: Canvas, text: String, x: Double, y: Double, radius: Double) {
+        drawLabel(canvas, text, x, y + radius * 0.34, Paint.Align.CENTER, radius * 0.78)
     }
 
     private fun drawLabel(

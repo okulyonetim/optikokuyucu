@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
+import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.ceil
+import kotlin.math.min
 
 enum class DesignerAreaKind(val displayName: String) {
     NUMBER("Numara"),
@@ -20,45 +22,22 @@ data class DesignerAreaSection(
     }
 }
 
-/**
- * Single catalog used by the unified editor when the user taps + to add a field.
- * Field-specific helpers live here as well so the main editor does not maintain a second list of
- * types, presets or default geometry.
- */
 object DesignerAreaCatalog {
     val sections: List<DesignerAreaSection> = listOf(
         DesignerAreaSection(
             title = "İşaretleme Alanı",
-            kinds = listOf(
-                DesignerAreaKind.NUMBER,
-                DesignerAreaKind.ANSWERS
-            )
+            kinds = listOf(DesignerAreaKind.NUMBER, DesignerAreaKind.ANSWERS)
         ),
         DesignerAreaSection(
             title = "Bilgilendirme Alanı",
-            kinds = listOf(
-                DesignerAreaKind.DESCRIPTION,
-                DesignerAreaKind.IMAGE
-            )
+            kinds = listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE)
         )
     )
 
     val allKinds: List<DesignerAreaKind> = sections.flatMap { it.kinds }
 
-    val numberPatternPresets: List<String> = listOf(
-        "0123456789",
-        "AB",
-        "ABC",
-        "ABCD",
-        "ABCDE"
-    )
-
-    val answerPatternPresets: List<String> = listOf(
-        "AB",
-        "ABC",
-        "ABCD",
-        "ABCDE"
-    )
+    val numberPatternPresets: List<String> = listOf("0123456789", "AB", "ABC", "ABCD", "ABCDE")
+    val answerPatternPresets: List<String> = listOf("AB", "ABC", "ABCD", "ABCDE")
 
     init {
         require(allKinds.distinct().size == allKinds.size) {
@@ -110,16 +89,56 @@ object DesignerAreaCatalog {
         )
     }
 
-    /**
-     * A plain pattern such as ABCD becomes one mark per Unicode character. Comma-separated input
-     * supports multi-character/special labels, e.g. "01,02,03".
-     */
+    fun createDescriptionArea(document: DesignerDocument): DesignerTextElement {
+        val safe = DesignerPageGeometry.safeArea(document.space)
+        val id = nextVisualId(document, "description")
+        val suffix = id.substringAfterLast('-').toIntOrNull() ?: 1
+        val stagger = ((suffix - 1) % 4) * 18.0
+        val width = min(520.0, safe.width - 60.0).coerceAtLeast(160.0)
+        val height = min(150.0, safe.height - 60.0).coerceAtLeast(70.0)
+        return DesignerTextElement(
+            id = id,
+            bounds = TemplateRect(
+                left = safe.left + 30.0 + stagger,
+                top = safe.top + 70.0 + stagger,
+                width = width,
+                height = height
+            ),
+            text = "Açıklama",
+            fontSize = 22.0,
+            alignment = DesignerTextAlignment.START,
+            bold = false
+        )
+    }
+
+    fun createImageArea(document: DesignerDocument, image: DesignerImageData): DesignerImageElement {
+        val safe = DesignerPageGeometry.safeArea(document.space)
+        val id = nextVisualId(document, "image")
+        val suffix = id.substringAfterLast('-').toIntOrNull() ?: 1
+        val stagger = ((suffix - 1) % 4) * 18.0
+        val maxWidth = min(320.0, safe.width - 60.0).coerceAtLeast(100.0)
+        val maxHeight = min(240.0, safe.height - 60.0).coerceAtLeast(80.0)
+        val scale = min(
+            maxWidth / image.pixelWidth.toDouble(),
+            maxHeight / image.pixelHeight.toDouble()
+        )
+        val width = image.pixelWidth * scale
+        val height = image.pixelHeight * scale
+        return DesignerImageElement(
+            id = id,
+            bounds = TemplateRect(
+                left = safe.left + 30.0 + stagger,
+                top = safe.top + 250.0 + stagger,
+                width = width,
+                height = height
+            ),
+            image = image
+        )
+    }
+
     fun parseNumberPattern(text: String): List<String>? = parsePattern(text, maxValues = 24)
-
     fun parseAnswerPattern(text: String): List<String>? = parsePattern(text, maxValues = 8)
-
     fun numberPatternText(values: List<String>): String = patternText(values)
-
     fun answerPatternText(values: List<String>): String = patternText(values)
 
     fun answerQuestionsPerBlock(component: QuestionGroupComponent): Int =
@@ -127,11 +146,7 @@ object DesignerAreaCatalog {
             .toInt()
             .coerceAtLeast(1)
 
-    /** Returns null when the number field is ready to be committed to DesignerDocument. */
-    fun numberAreaIssue(
-        document: DesignerDocument,
-        component: NumericGridComponent
-    ): String? {
+    fun numberAreaIssue(document: DesignerDocument, component: NumericGridComponent): String? {
         if (component.digits !in 1..16) return "Hane sayısı 1–16 arasında olmalıdır."
         if (component.values.size !in 2..24) return "Desen 2–24 benzersiz değerden oluşmalıdır."
         if (component.showLabel && component.label.isBlank()) return "Etiket görünürken etiket metni boş olamaz."
@@ -140,15 +155,10 @@ object DesignerAreaCatalog {
         if (component.columnGap < minimumGap || component.rowGap < minimumGap) {
             return "Baloncukların çakışmaması için aralık en az ${minimumGap.toInt()} olmalıdır."
         }
-
-        return boundsIssue(document, component, "Numara")
+        return componentBoundsIssue(document, component, "Numara")
     }
 
-    /** Returns null when the answer field is ready to be committed to DesignerDocument. */
-    fun answerAreaIssue(
-        document: DesignerDocument,
-        component: QuestionGroupComponent
-    ): String? {
+    fun answerAreaIssue(document: DesignerDocument, component: QuestionGroupComponent): String? {
         if (component.startQuestion !in 1..9999) return "İlk soru numarası 1–9999 arasında olmalıdır."
         if (component.questionCount !in 1..250) return "Toplam soru sayısı 1–250 arasında olmalıdır."
         if (component.choices.size !in 2..8) return "Desen 2–8 benzersiz şıktan oluşmalıdır."
@@ -157,7 +167,6 @@ object DesignerAreaCatalog {
         }
         if (component.showLabel && component.label.isBlank()) return "Ders adı görünürken boş olamaz."
         if (component.bubbleRadius !in 6.0..25.0) return "Baloncuk boyutu 6–25 arasında olmalıdır."
-
         val minimumBubbleGap = component.bubbleRadius * 2.0 + 4.0
         if (component.choiceGap < minimumBubbleGap || component.rowGap < minimumBubbleGap) {
             return "Şık ve soru aralığı en az ${minimumBubbleGap.toInt()} olmalıdır."
@@ -167,8 +176,21 @@ object DesignerAreaCatalog {
         if (component.columnGap < minimumBlockGap) {
             return "Bloklar arası boşluk en az ${minimumBlockGap.toInt()} olmalıdır."
         }
+        return componentBoundsIssue(document, component, "Cevap")
+    }
 
-        return boundsIssue(document, component, "Cevap")
+    fun descriptionAreaIssue(document: DesignerDocument, element: DesignerTextElement): String? {
+        if (element.text.isBlank()) return "Açıklama metni boş olamaz."
+        if (element.text.length > 2_000) return "Açıklama en fazla 2000 karakter olabilir."
+        if (element.fontSize !in 8.0..72.0) return "Yazı boyutu 8–72 arasında olmalıdır."
+        return visualBoundsIssue(document, element.bounds, "Açıklama")
+    }
+
+    fun imageAreaIssue(document: DesignerDocument, element: DesignerImageElement): String? {
+        if (element.image.byteSize !in 1..DesignerImageData.MAX_BYTES) {
+            return "Resim boyutu desteklenen sınırı aşıyor."
+        }
+        return visualBoundsIssue(document, element.bounds, "Resim")
     }
 
     private fun parsePattern(text: String, maxValues: Int): List<String>? {
@@ -177,9 +199,7 @@ object DesignerAreaCatalog {
         val values = if (',' in normalized) {
             normalized.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         } else {
-            normalized.codePoints().toArray().map { codePoint ->
-                String(Character.toChars(codePoint))
-            }
+            normalized.codePoints().toArray().map { codePoint -> String(Character.toChars(codePoint)) }
         }
         return values.takeIf {
             it.size in 2..maxValues &&
@@ -206,13 +226,25 @@ object DesignerAreaCatalog {
         return id
     }
 
-    private fun boundsIssue(
+    private fun nextVisualId(document: DesignerDocument, prefix: String): String {
+        val usedIds = document.visualElements.map { it.id }.toSet()
+        var suffix = 1
+        var id = "$prefix-$suffix"
+        while (id in usedIds) {
+            suffix += 1
+            id = "$prefix-$suffix"
+        }
+        return id
+    }
+
+    private fun componentBoundsIssue(
         document: DesignerDocument,
         component: DesignerOmrComponent,
         label: String
-    ): String? {
+    ): String? = visualBoundsIssue(document, DesignerComponentGeometry.bounds(component), label)
+
+    private fun visualBoundsIssue(document: DesignerDocument, bounds: TemplateRect, label: String): String? {
         val safe = DesignerPageGeometry.safeArea(document.space)
-        val bounds = DesignerComponentGeometry.bounds(component)
         if (
             bounds.left < safe.left ||
             bounds.top < safe.top ||

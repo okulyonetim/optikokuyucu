@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -14,11 +15,7 @@ import org.opencv.objdetect.Objdetect
 import java.io.OutputStream
 import kotlin.math.max
 
-/**
- * Renders the same canonical geometry consumed by recognition into a physical PDF page profile.
- * Paper dimensions are output concerns only; the underlying OMR template is never rescaled/stored
- * differently for A4 vs A5.
- */
+/** Renders the same canonical source document into a physical PDF page. */
 object DesignerPdfExporter {
     fun export(
         document: DesignerDocument,
@@ -34,11 +31,7 @@ object DesignerPdfExporter {
         val transform = DesignerPdfLayout.fit(template.space, profile)
         val pdf = PdfDocument()
         try {
-            val pageInfo = PdfDocument.PageInfo.Builder(
-                profile.widthPoints,
-                profile.heightPoints,
-                1
-            ).create()
+            val pageInfo = PdfDocument.PageInfo.Builder(profile.widthPoints, profile.heightPoints, 1).create()
             val page = pdf.startPage(pageInfo)
             try {
                 val canvas = page.canvas
@@ -65,6 +58,7 @@ object DesignerPdfExporter {
         document.visualElements.forEach { element ->
             when (element) {
                 is DesignerTextElement -> drawTextElement(canvas, element, transform)
+                is DesignerImageElement -> drawImageElement(canvas, element, transform)
                 is DesignerBoxElement -> drawBoxElement(canvas, element, transform)
                 is DesignerLineElement -> drawLineElement(canvas, element, transform)
             }
@@ -81,10 +75,7 @@ object DesignerPdfExporter {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = max(5.5f, transform.length(element.fontSize).toFloat())
-            typeface = Typeface.create(
-                Typeface.DEFAULT,
-                if (element.bold) Typeface.BOLD else Typeface.NORMAL
-            )
+            typeface = Typeface.create(Typeface.DEFAULT, if (element.bold) Typeface.BOLD else Typeface.NORMAL)
             textAlign = when (element.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -96,8 +87,44 @@ object DesignerPdfExporter {
             DesignerTextAlignment.CENTER -> rect.center.x.toFloat()
             DesignerTextAlignment.END -> rect.right.toFloat()
         }
-        val baseline = rect.top.toFloat() + paint.textSize
-        canvas.drawText(element.text, x, baseline, paint)
+        val lineHeight = paint.textSize * 1.22f
+        var baseline = rect.top.toFloat() + paint.textSize
+        canvas.save()
+        canvas.clipRect(
+            rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat()
+        )
+        element.text.split('\n').forEach { line ->
+            if (baseline <= rect.bottom.toFloat() + paint.textSize * 0.2f) {
+                canvas.drawText(line, x, baseline, paint)
+                baseline += lineHeight
+            }
+        }
+        canvas.restore()
+    }
+
+    private fun drawImageElement(
+        canvas: Canvas,
+        element: DesignerImageElement,
+        transform: CanonicalPageTransform
+    ) {
+        val bytes = element.image.copyBytes()
+        val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size)) {
+            "Embedded designer image could not be decoded."
+        }
+        try {
+            val rect = transform.map(element.bounds)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(
+                    rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat()
+                ),
+                paint
+            )
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     private fun drawBoxElement(
@@ -112,11 +139,7 @@ object DesignerPdfExporter {
             strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat())
         }
         canvas.drawRect(
-            rect.left.toFloat(),
-            rect.top.toFloat(),
-            rect.right.toFloat(),
-            rect.bottom.toFloat(),
-            paint
+            rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), paint
         )
     }
 
@@ -132,13 +155,7 @@ object DesignerPdfExporter {
             style = Paint.Style.STROKE
             strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat())
         }
-        canvas.drawLine(
-            start.x.toFloat(),
-            start.y.toFloat(),
-            end.x.toFloat(),
-            end.y.toFloat(),
-            paint
-        )
+        canvas.drawLine(start.x.toFloat(), start.y.toFloat(), end.x.toFloat(), end.y.toFloat(), paint)
     }
 
     private fun drawSemanticLabels(
@@ -159,20 +176,19 @@ object DesignerPdfExporter {
                         val row = byQuestionId[questionId] ?: return@repeat
                         val first = row.bubbles.firstOrNull() ?: return@repeat
                         drawLabel(
-                            canvas = canvas,
-                            text = questionNumber.toString(),
-                            canonicalX = first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
-                            canonicalY = first.center.y + first.radius * 0.40,
-                            align = Paint.Align.RIGHT,
-                            canonicalTextSize = first.radius * 1.02,
-                            transform = transform
+                            canvas,
+                            questionNumber.toString(),
+                            first.center.x - first.radius * QUESTION_NUMBER_DISTANCE,
+                            first.center.y + first.radius * 0.40,
+                            Paint.Align.RIGHT,
+                            first.radius * 1.02,
+                            transform
                         )
                         row.bubbles.forEach { bubble ->
                             drawBubbleLabel(canvas, bubble.id, bubble.center.x, bubble.center.y, bubble.radius, transform)
                         }
                     }
                 }
-
                 is NumericGridComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
                     grid.columns.forEach { column ->
@@ -181,7 +197,6 @@ object DesignerPdfExporter {
                         }
                     }
                 }
-
                 is SingleChoiceComponent -> {
                     val grid = byGridId[component.id] ?: return@forEach
                     grid.columns.firstOrNull()?.marks.orEmpty().forEach { mark ->
@@ -201,13 +216,13 @@ object DesignerPdfExporter {
         transform: CanonicalPageTransform
     ) {
         drawLabel(
-            canvas = canvas,
-            text = text,
-            canonicalX = canonicalX,
-            canonicalY = canonicalY + radius * 0.34,
-            align = Paint.Align.CENTER,
-            canonicalTextSize = radius * 0.78,
-            transform = transform
+            canvas,
+            text,
+            canonicalX,
+            canonicalY + radius * 0.34,
+            Paint.Align.CENTER,
+            radius * 0.78,
+            transform
         )
     }
 
@@ -221,10 +236,7 @@ object DesignerPdfExporter {
         transform: CanonicalPageTransform
     ) {
         val point = transform.map(
-            com.okulyonetim.optikokuyucu.omr.template.TemplatePoint(
-                canonicalX,
-                canonicalY
-            )
+            com.okulyonetim.optikokuyucu.omr.template.TemplatePoint(canonicalX, canonicalY)
         )
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
@@ -246,28 +258,20 @@ object DesignerPdfExporter {
             style = Paint.Style.STROKE
             strokeWidth = max(0.7f, (transform.scale * 1.45).toFloat())
         }
-
         template.bubbleRows.forEach { row ->
             row.bubbles.forEach { bubble ->
                 val center = transform.map(bubble.center)
                 canvas.drawCircle(
-                    center.x.toFloat(),
-                    center.y.toFloat(),
-                    transform.length(bubble.radius).toFloat(),
-                    paint
+                    center.x.toFloat(), center.y.toFloat(), transform.length(bubble.radius).toFloat(), paint
                 )
             }
         }
-
         template.markGrids.forEach { grid ->
             grid.columns.forEach { column ->
                 column.marks.forEach { mark ->
                     val center = transform.map(mark.center)
                     canvas.drawCircle(
-                        center.x.toFloat(),
-                        center.y.toFloat(),
-                        transform.length(mark.radius).toFloat(),
-                        paint
+                        center.x.toFloat(), center.y.toFloat(), transform.length(mark.radius).toFloat(), paint
                     )
                 }
             }
@@ -284,28 +288,21 @@ object DesignerPdfExporter {
             isAntiAlias = false
             isFilterBitmap = false
         }
-
         template.fiducials.forEach { fiducial ->
             val markerMat = Mat()
             var markerBitmap: Bitmap? = null
             try {
                 dictionary.generateImageMarker(fiducial.markerId, MARKER_RASTER_SIZE, markerMat, 1)
                 markerBitmap = Bitmap.createBitmap(
-                    MARKER_RASTER_SIZE,
-                    MARKER_RASTER_SIZE,
-                    Bitmap.Config.ARGB_8888
+                    MARKER_RASTER_SIZE, MARKER_RASTER_SIZE, Bitmap.Config.ARGB_8888
                 )
                 Utils.matToBitmap(markerMat, markerBitmap)
-
                 val rect = transform.map(fiducial.bounds)
                 canvas.drawBitmap(
                     markerBitmap,
                     null,
                     RectF(
-                        rect.left.toFloat(),
-                        rect.top.toFloat(),
-                        rect.right.toFloat(),
-                        rect.bottom.toFloat()
+                        rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat()
                     ),
                     markerPaint
                 )

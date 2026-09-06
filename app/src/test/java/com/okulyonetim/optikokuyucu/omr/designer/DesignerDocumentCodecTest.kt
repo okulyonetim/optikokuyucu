@@ -11,7 +11,13 @@ import org.junit.Test
 
 class DesignerDocumentCodecTest {
     @Test
-    fun `document round trip preserves OMR visual and form source data`() {
+    fun `document round trip preserves OMR visual image and form source data`() {
+        val image = DesignerImageData(
+            mimeType = "image/jpeg",
+            pixelWidth = 320,
+            pixelHeight = 180,
+            bytes = byteArrayOf(1, 2, 3, 4, 5, 6)
+        )
         val document = DesignerDocument(
             id = "my-form",
             version = 3,
@@ -56,10 +62,15 @@ class DesignerDocumentCodecTest {
             visualElements = listOf(
                 DesignerTextElement(
                     id = "title",
-                    bounds = TemplateRect(160.0, 120.0, 680.0, 60.0),
-                    text = "SINAV OPTİK FORMU",
+                    bounds = TemplateRect(160.0, 120.0, 680.0, 90.0),
+                    text = "SINAV OPTİK FORMU\nAçıklama",
                     fontSize = 28.0,
                     alignment = DesignerTextAlignment.CENTER
+                ),
+                DesignerImageElement(
+                    id = "image-1",
+                    bounds = TemplateRect(650.0, 220.0, 200.0, 112.5),
+                    image = image
                 ),
                 DesignerBoxElement(
                     id = "name-box",
@@ -91,6 +102,8 @@ class DesignerDocumentCodecTest {
         val decoded = DesignerDocumentCodec.decode(DesignerDocumentCodec.encode(document))
 
         assertEquals(document, decoded)
+        val decodedImage = decoded.visualElements.filterIsInstance<DesignerImageElement>().single()
+        assertTrue(decodedImage.image.copyBytes().contentEquals(image.copyBytes()))
     }
 
     @Test
@@ -104,9 +117,9 @@ class DesignerDocumentCodecTest {
                 out.writeUTF("Legacy")
                 out.writeDouble(1000.0)
                 out.writeDouble(1414.0)
-                out.writeInt(0) // fiducials
-                out.writeInt(1) // components
-                out.writeByte(1) // question group
+                out.writeInt(0)
+                out.writeInt(1)
+                out.writeByte(1)
                 out.writeUTF("questions")
                 out.writeInt(1)
                 out.writeInt(20)
@@ -120,25 +133,51 @@ class DesignerDocumentCodecTest {
                 out.writeDouble(36.0)
                 out.writeDouble(330.0)
                 out.writeUTF("legacy")
-                out.writeInt(0) // visuals
-                out.writeUTF(DesignerPaperSize.A4.name)
-                out.writeUTF(DesignerPageOrientation.PORTRAIT.name)
-                out.writeUTF(DesignerExamMode.UNSPECIFIED.name)
-                out.writeUTF(DesignerExamPreset.CUSTOM.name)
-                out.writeDouble(1.2)
-                out.writeDouble(0.82)
-                out.writeDouble(0.92)
-                out.writeDouble(2.0)
+                out.writeInt(0)
+                writeLegacyFormSpec(out)
             }
         }.toByteArray()
 
         val decoded = DesignerDocumentCodec.decode(bytes)
         val answer = decoded.components.single() as QuestionGroupComponent
-
         assertEquals(QuestionGroupOrientation.VERTICAL, answer.orientation)
         assertEquals("Ders", answer.label)
         assertTrue(answer.showLabel)
         assertEquals("legacy", answer.questionIdPrefix)
+    }
+
+    @Test
+    fun `schema five document without images remains readable`() {
+        val bytes = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { out ->
+                out.writeInt(0x4F4D5244)
+                out.writeInt(5)
+                out.writeUTF("schema-five")
+                out.writeInt(1)
+                out.writeUTF("Schema Five")
+                out.writeDouble(1000.0)
+                out.writeDouble(1414.0)
+                out.writeInt(0)
+                out.writeInt(0)
+                out.writeInt(1)
+                out.writeByte(11)
+                out.writeUTF("text")
+                out.writeDouble(120.0)
+                out.writeDouble(180.0)
+                out.writeDouble(300.0)
+                out.writeDouble(80.0)
+                out.writeUTF("Açıklama")
+                out.writeDouble(20.0)
+                out.writeUTF(DesignerTextAlignment.START.name)
+                out.writeBoolean(false)
+                out.writeBoolean(false)
+                writeLegacyFormSpec(out)
+            }
+        }.toByteArray()
+
+        val decoded = DesignerDocumentCodec.decode(bytes)
+
+        assertEquals("Açıklama", (decoded.visualElements.single() as DesignerTextElement).text)
     }
 
     @Test
@@ -152,9 +191,9 @@ class DesignerDocumentCodecTest {
                 out.writeUTF("Legacy")
                 out.writeDouble(1000.0)
                 out.writeDouble(1414.0)
-                out.writeInt(0) // fiducials
-                out.writeInt(1) // components
-                out.writeByte(2) // numeric grid
+                out.writeInt(0)
+                out.writeInt(1)
+                out.writeByte(2)
                 out.writeUTF("studentNumber")
                 out.writeInt(6)
                 out.writeDouble(120.0)
@@ -165,21 +204,13 @@ class DesignerDocumentCodecTest {
                 out.writeInt(10)
                 (0..9).forEach { out.writeUTF(it.toString()) }
                 out.writeUTF(NumericGridOrientation.DIGITS_HORIZONTAL.name)
-                out.writeInt(0) // visuals
-                out.writeUTF(DesignerPaperSize.A4.name)
-                out.writeUTF(DesignerPageOrientation.PORTRAIT.name)
-                out.writeUTF(DesignerExamMode.UNSPECIFIED.name)
-                out.writeUTF(DesignerExamPreset.CUSTOM.name)
-                out.writeDouble(1.2)
-                out.writeDouble(0.82)
-                out.writeDouble(0.92)
-                out.writeDouble(2.0)
+                out.writeInt(0)
+                writeLegacyFormSpec(out)
             }
         }.toByteArray()
 
         val decoded = DesignerDocumentCodec.decode(bytes)
         val number = decoded.components.single() as NumericGridComponent
-
         assertEquals("Numara", number.label)
         assertTrue(number.showLabel)
         assertEquals(DesignerPageOrientation.PORTRAIT, decoded.formSpec.orientation)
@@ -193,13 +224,22 @@ class DesignerDocumentCodecTest {
             name = "Reference",
             space = TemplateSize(width = 1414.0, height = 1000.0)
         )
-
         assertEquals(DesignerPageOrientation.LANDSCAPE, document.formSpec.orientation)
         assertEquals(DesignerPaperSize.A4, document.formSpec.paperSize)
         assertEquals(1.2, document.formSpec.answerAppearance.bubbleOutlineWidth, 0.0001)
         assertEquals(0.82, document.formSpec.answerAppearance.choiceLabelScale, 0.0001)
         assertEquals(0.92, document.formSpec.answerAppearance.questionNumberScale, 0.0001)
         assertEquals(2.0, document.formSpec.answerAppearance.questionNumberDistanceInRadii, 0.0001)
-        assertTrue(document.formSpec.examPreset == DesignerExamPreset.CUSTOM)
+    }
+
+    private fun writeLegacyFormSpec(out: DataOutputStream) {
+        out.writeUTF(DesignerPaperSize.A4.name)
+        out.writeUTF(DesignerPageOrientation.PORTRAIT.name)
+        out.writeUTF(DesignerExamMode.UNSPECIFIED.name)
+        out.writeUTF(DesignerExamPreset.CUSTOM.name)
+        out.writeDouble(1.2)
+        out.writeDouble(0.82)
+        out.writeDouble(0.92)
+        out.writeDouble(2.0)
     }
 }

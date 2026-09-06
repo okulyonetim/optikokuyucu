@@ -10,10 +10,6 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
-/**
- * Small dependency-free, versioned binary codec for offline designer documents.
- * Recognition templates remain compiled from this editable source model.
- */
 object DesignerDocumentCodec {
     fun encode(document: DesignerDocument): ByteArray {
         val bytes = ByteArrayOutputStream()
@@ -70,11 +66,7 @@ object DesignerDocumentCodec {
             val visuals = List(readSafeCount(input, MAX_VISUALS)) {
                 readVisual(input, schema)
             }
-            val formSpec = if (schema >= 3) {
-                readFormSpec(input)
-            } else {
-                DesignerFormSpec.forSpace(space)
-            }
+            val formSpec = if (schema >= 3) readFormSpec(input) else DesignerFormSpec.forSpace(space)
 
             require(input.available() == 0) { "Tasarım dosyasında beklenmeyen ek veri var." }
             return DesignerDocument(
@@ -229,6 +221,18 @@ object DesignerDocumentCodec {
                 out.writeBoolean(element.locked)
                 out.writeBoolean(element.bold)
             }
+            is DesignerImageElement -> {
+                out.writeByte(TYPE_IMAGE)
+                out.writeUTF(element.id)
+                writeRect(out, element.bounds)
+                out.writeUTF(element.image.mimeType)
+                out.writeInt(element.image.pixelWidth)
+                out.writeInt(element.image.pixelHeight)
+                val payload = element.image.copyBytes()
+                out.writeInt(payload.size)
+                out.write(payload)
+                out.writeBoolean(element.locked)
+            }
             is DesignerBoxElement -> {
                 out.writeByte(TYPE_BOX)
                 out.writeUTF(element.id)
@@ -264,6 +268,25 @@ object DesignerDocumentCodec {
                     fontSize = fontSize,
                     alignment = alignment,
                     bold = bold,
+                    locked = locked
+                )
+            }
+            TYPE_IMAGE -> {
+                require(schema >= 6) { "Bu tasarım sürümü resim alanını desteklemiyor." }
+                val id = input.readUTF()
+                val bounds = readRect(input)
+                val mimeType = input.readUTF()
+                val pixelWidth = input.readInt()
+                val pixelHeight = input.readInt()
+                val byteCount = input.readInt()
+                require(byteCount in 1..DesignerImageData.MAX_BYTES) { "Geçersiz gömülü resim boyutu." }
+                val payload = ByteArray(byteCount)
+                input.readFully(payload)
+                val locked = input.readBoolean()
+                DesignerImageElement(
+                    id = id,
+                    bounds = bounds,
+                    image = DesignerImageData(mimeType, pixelWidth, pixelHeight, payload),
                     locked = locked
                 )
             }
@@ -351,15 +374,16 @@ object DesignerDocumentCodec {
         return count
     }
 
-    private const val MAGIC = 0x4F4D5244 // OMRD
+    private const val MAGIC = 0x4F4D5244
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 5
+    private const val SCHEMA_VERSION = 6
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3
     private const val TYPE_TEXT = 11
     private const val TYPE_BOX = 12
     private const val TYPE_LINE = 13
+    private const val TYPE_IMAGE = 14
     private const val MAX_FIDUCIALS = 32
     private const val MAX_COMPONENTS = 10_000
     private const val MAX_VISUALS = 10_000

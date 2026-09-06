@@ -40,11 +40,6 @@ enum class DesignerExamPreset(val displayName: String) {
     SCHOLARSHIP("Bursluluk")
 }
 
-/**
- * Printed answer-mark appearance shared by editor preview and PDF rendering.
- * Choice letters are intentionally centered inside outlined bubbles and question numbers stay
- * immediately before the first bubble, matching the compact reference layout used by the app.
- */
 data class DesignerAnswerAppearance(
     val bubbleOutlineWidth: Double = 1.2,
     val choiceLabelScale: Double = 0.82,
@@ -59,10 +54,6 @@ data class DesignerAnswerAppearance(
     }
 }
 
-/**
- * User-facing form identity stored with the same source document that compiles to the OMR reader.
- * This prevents page/exam metadata from living in a parallel editor-only model.
- */
 data class DesignerFormSpec(
     val paperSize: DesignerPaperSize = DesignerPaperSize.A4,
     val orientation: DesignerPageOrientation = DesignerPageOrientation.PORTRAIT,
@@ -81,13 +72,6 @@ data class DesignerFormSpec(
     }
 }
 
-/**
- * Editable source document for the form designer.
- *
- * The editor stores compact parametric OMR components. Recognition still consumes a compiled
- * [com.okulyonetim.optikokuyucu.omr.template.OmrTemplate], so editor and reader share the exact
- * same canonical coordinate space without storing hundreds of hand-authored bubble coordinates.
- */
 data class DesignerDocument(
     val id: String,
     val version: Int,
@@ -117,10 +101,7 @@ sealed interface DesignerOmrComponent {
 }
 
 enum class QuestionGroupOrientation(val displayName: String) {
-    /** Questions run top-to-bottom in each block; choices run left-to-right. */
     VERTICAL("Dikey"),
-
-    /** Questions run left-to-right in each block; choices run top-to-bottom. */
     HORIZONTAL("Yatay")
 }
 
@@ -129,23 +110,15 @@ data class QuestionGroupComponent(
     val startQuestion: Int,
     val questionCount: Int,
     val choices: List<String>,
-    /** Canonical block/column count. Questions-per-block is derived from this and questionCount. */
     val columns: Int,
     val firstChoiceX: Double,
     val topY: Double,
     val bubbleRadius: Double,
     val choiceGap: Double,
-    /** Gap between questions inside one block, on the axis selected by [orientation]. */
     val rowGap: Double,
-    /** Gap between blocks, perpendicular to the question-flow axis. */
     val columnGap: Double,
-    /**
-     * Optional stable internal prefix. Structured multi-course forms use it so every lesson can
-     * display question numbers starting from 1 while recognition/scoring ids stay globally unique.
-     */
     val questionIdPrefix: String = "",
     val orientation: QuestionGroupOrientation = QuestionGroupOrientation.VERTICAL,
-    /** User-visible course/title printed with this answer field. Recognition ignores this text. */
     val label: String = "Ders",
     val showLabel: Boolean = true
 ) : DesignerOmrComponent {
@@ -165,10 +138,7 @@ data class QuestionGroupComponent(
 }
 
 enum class NumericGridOrientation {
-    /** Digit positions run left-to-right; selectable values run top-to-bottom. */
     DIGITS_HORIZONTAL,
-
-    /** Digit positions run top-to-bottom; selectable values run left-to-right. */
     DIGITS_VERTICAL
 }
 
@@ -182,7 +152,6 @@ data class NumericGridComponent(
     val rowGap: Double,
     val values: List<String> = (0..9).map { it.toString() },
     val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL,
-    /** User-visible title printed with this number field. Recognition ignores this text. */
     val label: String = "Numara",
     val showLabel: Boolean = true
 ) : DesignerOmrComponent {
@@ -245,6 +214,60 @@ data class DesignerTextElement(
         require(id.isNotBlank())
         require(text.isNotEmpty())
         require(fontSize > 0.0)
+    }
+}
+
+class DesignerImageData(
+    val mimeType: String,
+    val pixelWidth: Int,
+    val pixelHeight: Int,
+    bytes: ByteArray
+) {
+    private val payload: ByteArray = bytes.copyOf()
+
+    init {
+        require(mimeType.startsWith("image/") && mimeType.length <= 64)
+        require(pixelWidth in 1..10_000 && pixelHeight in 1..10_000)
+        require(payload.isNotEmpty())
+        require(payload.size <= MAX_BYTES) { "Embedded designer image is too large." }
+    }
+
+    val byteSize: Int get() = payload.size
+
+    fun copyBytes(): ByteArray = payload.copyOf()
+
+    override fun equals(other: Any?): Boolean =
+        other is DesignerImageData &&
+            mimeType == other.mimeType &&
+            pixelWidth == other.pixelWidth &&
+            pixelHeight == other.pixelHeight &&
+            payload.contentEquals(other.payload)
+
+    override fun hashCode(): Int {
+        var result = mimeType.hashCode()
+        result = 31 * result + pixelWidth
+        result = 31 * result + pixelHeight
+        result = 31 * result + payload.contentHashCode()
+        return result
+    }
+
+    override fun toString(): String =
+        "DesignerImageData(mimeType=$mimeType, pixelWidth=$pixelWidth, pixelHeight=$pixelHeight, byteSize=$byteSize)"
+
+    companion object {
+        const val MAX_BYTES: Int = 3_000_000
+    }
+}
+
+data class DesignerImageElement(
+    override val id: String,
+    val bounds: TemplateRect,
+    val image: DesignerImageData,
+    override val locked: Boolean = false
+) : DesignerVisualElement {
+    init {
+        require(id.isNotBlank())
+        require(bounds.width > 0.0 && bounds.height > 0.0)
     }
 }
 

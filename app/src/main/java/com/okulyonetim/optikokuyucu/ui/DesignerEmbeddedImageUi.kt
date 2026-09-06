@@ -11,11 +11,17 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageData
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement
@@ -27,7 +33,6 @@ internal fun importDesignerImage(context: Context, uri: Uri): Result<DesignerIma
         requireNotNull(input) { "Resim dosyası açılamadı." }
         requireNotNull(BitmapFactory.decodeStream(input)) { "Seçilen dosya geçerli bir resim değil." }
     }
-
     try {
         require(decoded.width > 0 && decoded.height > 0) { "Resim boyutları geçersiz." }
         val maxEdge = maxOf(decoded.width, decoded.height)
@@ -39,17 +44,16 @@ internal fun importDesignerImage(context: Context, uri: Uri): Result<DesignerIma
                 (decoded.height * scale).toInt().coerceAtLeast(1),
                 true
             )
-        } else {
-            decoded
-        }
-
+        } else decoded
         try {
             val flattened = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
             try {
                 val canvas = AndroidCanvas(flattened)
                 canvas.drawColor(AndroidColor.WHITE)
-                canvas.drawBitmap(scaled, 0f, 0f, AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG or AndroidPaint.FILTER_BITMAP_FLAG))
-
+                canvas.drawBitmap(
+                    scaled, 0f, 0f,
+                    AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG or AndroidPaint.FILTER_BITMAP_FLAG)
+                )
                 val output = ByteArrayOutputStream()
                 var quality = 90
                 do {
@@ -59,7 +63,6 @@ internal fun importDesignerImage(context: Context, uri: Uri): Result<DesignerIma
                     }
                     quality -= 10
                 } while (output.size() > DesignerImageData.MAX_BYTES && quality >= 60)
-
                 require(output.size() <= DesignerImageData.MAX_BYTES) {
                     "Resim forma eklemek için çok büyük. Daha küçük bir resim seçin."
                 }
@@ -83,19 +86,46 @@ internal fun importDesignerImage(context: Context, uri: Uri): Result<DesignerIma
 @Composable
 internal fun rememberDesignerImageBitmaps(elements: List<DesignerVisualElement>): Map<String, Bitmap> {
     val images = remember(elements) {
-        elements.filterIsInstance<DesignerImageElement>().associate { element ->
+        elements.filterIsInstance<DesignerImageElement>().mapNotNull { element ->
             val bytes = element.image.copyBytes()
-            element.id to BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        }.filterValues { it != null }.mapValues { it.value!! }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { element.id to it }
+        }.toMap()
     }
     DisposableEffect(images) {
         onDispose {
-            images.values.forEach { bitmap ->
-                if (!bitmap.isRecycled) bitmap.recycle()
-            }
+            images.values.forEach { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() }
         }
     }
     return images
+}
+
+internal fun DrawScope.drawDesignerVisualElements(
+    elements: List<DesignerVisualElement>,
+    imageBitmaps: Map<String, Bitmap>,
+    scaleX: Float,
+    scaleY: Float
+) {
+    val averageScale = (scaleX + scaleY) / 2f
+    elements.forEach { element ->
+        when (element) {
+            is DesignerTextElement -> drawDesignerTextElement(element, scaleX, scaleY)
+            is DesignerImageElement -> imageBitmaps[element.id]?.let {
+                drawDesignerImageElement(element, it, scaleX, scaleY)
+            }
+            is DesignerBoxElement -> drawRect(
+                color = Color.Black,
+                topLeft = Offset(element.bounds.left.toFloat() * scaleX, element.bounds.top.toFloat() * scaleY),
+                size = Size(element.bounds.width.toFloat() * scaleX, element.bounds.height.toFloat() * scaleY),
+                style = Stroke(width = (element.strokeWidth.toFloat() * averageScale).coerceAtLeast(1f))
+            )
+            is DesignerLineElement -> drawLine(
+                color = Color.Black,
+                start = Offset(element.start.x.toFloat() * scaleX, element.start.y.toFloat() * scaleY),
+                end = Offset(element.end.x.toFloat() * scaleX, element.end.y.toFloat() * scaleY),
+                strokeWidth = (element.strokeWidth.toFloat() * averageScale).coerceAtLeast(1f)
+            )
+        }
+    }
 }
 
 internal fun DrawScope.drawDesignerTextElement(

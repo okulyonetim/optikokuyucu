@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
@@ -54,47 +55,24 @@ fun DesignerVisualPropertyPanel(
     onStrokeWidthChange: (String, Double) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Görsel Katman", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "Metin, kutu ve çizgiler PDF'de görünür; OMR geometrisinden ayrı düzenlenir.",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddText) {
-                    Text("Metin")
-                }
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddBox) {
-                    Text("Kutu")
-                }
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddLine) {
-                    Text("Çizgi")
-                }
+            Text("Metin, resim, kutu ve çizgiler PDF'de görünür; OMR geometrisinden ayrı düzenlenir.", style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddText) { Text("Metin") }
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddBox) { Text("Kutu") }
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onAddLine) { Text("Çizgi") }
             }
-
             if (document.visualElements.isEmpty()) {
                 Text("Henüz görsel öğe yok.", style = MaterialTheme.typography.bodySmall)
             } else {
                 document.visualElements.forEach { element ->
                     if (element.id == selectedElementId) {
-                        FilledTonalButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { onSelect(element.id) }
-                        ) {
+                        FilledTonalButton(modifier = Modifier.fillMaxWidth(), onClick = { onSelect(element.id) }) {
                             Text("✓ ${visualLabel(element)}")
                         }
                     } else {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { onSelect(element.id) }
-                        ) {
+                        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { onSelect(element.id) }) {
                             Text(visualLabel(element))
                         }
                     }
@@ -104,236 +82,71 @@ fun DesignerVisualPropertyPanel(
             val selected = document.visualElements.firstOrNull { it.id == selectedElementId }
             if (selected != null) {
                 val bounds = DesignerVisualGeometry.bounds(selected)
-                Text(
-                    "X ${bounds.left.toInt()} · Y ${bounds.top.toInt()} · " +
-                        "W ${bounds.width.toInt()} · H ${bounds.height.toInt()}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
+                Text("X ${bounds.left.toInt()} · Y ${bounds.top.toInt()} · W ${bounds.width.toInt()} · H ${bounds.height.toInt()}", style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
                         Text("Kilitle", style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            if (selected.locked) "Taşıma ve düzenleme kapalı" else "Düzenlenebilir",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Text(if (selected.locked) "Taşıma ve düzenleme kapalı" else "Düzenlenebilir", style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
-                        checked = selected.locked,
-                        onCheckedChange = { onLockedChange(selected.id, it) }
-                    )
+                    Switch(checked = selected.locked, onCheckedChange = { onLockedChange(selected.id, it) })
                 }
-
                 when (selected) {
-                    is DesignerTextElement -> TextProperties(
-                        element = selected,
-                        onTextChange = onTextChange,
-                        onFontSizeChange = onFontSizeChange,
-                        onTextAlignmentChange = onTextAlignmentChange,
-                        onBoldChange = onBoldChange
-                    )
-                    is DesignerBoxElement -> StrokeProperties(
-                        id = selected.id,
-                        strokeWidth = selected.strokeWidth,
-                        locked = selected.locked,
-                        onStrokeWidthChange = onStrokeWidthChange
-                    )
-                    is DesignerLineElement -> StrokeProperties(
-                        id = selected.id,
-                        strokeWidth = selected.strokeWidth,
-                        locked = selected.locked,
-                        onStrokeWidthChange = onStrokeWidthChange
-                    )
+                    is DesignerTextElement -> TextProperties(selected, onTextChange, onFontSizeChange, onTextAlignmentChange, onBoldChange)
+                    is DesignerImageElement -> Text("Resim · ${selected.image.pixelWidth} × ${selected.image.pixelHeight} px · ${selected.image.byteSize / 1024} KB", style = MaterialTheme.typography.bodySmall)
+                    is DesignerBoxElement -> StrokeProperties(selected.id, selected.strokeWidth, selected.locked, onStrokeWidthChange)
+                    is DesignerLineElement -> StrokeProperties(selected.id, selected.strokeWidth, selected.locked, onStrokeWidthChange)
                 }
-
-                when (selected) {
-                    is DesignerTextElement,
-                    is DesignerBoxElement -> {
-                        Text("Boyut · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, -10.0, 0.0) }
-                            ) { Text("W−") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 10.0, 0.0) }
-                            ) { Text("W+") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 0.0, -10.0) }
-                            ) { Text("H−") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 0.0, 10.0) }
-                            ) { Text("H+") }
-                        }
-                    }
-                    is DesignerLineElement -> {
-                        Text("Çizgi uç noktası · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, -10.0, 0.0) }
-                            ) { Text("X−") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 10.0, 0.0) }
-                            ) { Text("X+") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 0.0, -10.0) }
-                            ) { Text("Y−") }
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                enabled = !selected.locked,
-                                onClick = { onResize(selected.id, 0.0, 10.0) }
-                            ) { Text("Y+") }
-                        }
-                    }
+                if (selected is DesignerLineElement) {
+                    Text("Çizgi uç noktası · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
+                    ResizeButtons(selected.id, selected.locked, onResize, true)
+                } else {
+                    Text("Boyut · 10 canonical birim", style = MaterialTheme.typography.labelMedium)
+                    ResizeButtons(selected.id, selected.locked, onResize, false)
                 }
 
                 Text("Sayfaya hizala", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.LEFT)
-                        }
-                    ) { Text("Sol") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.CENTER)
-                        }
-                    ) { Text("Orta") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignHorizontal(selected.id, VisualHorizontalAlignment.RIGHT)
-                        }
-                    ) { Text("Sağ") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignHorizontal(selected.id, VisualHorizontalAlignment.LEFT) }) { Text("Sol") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignHorizontal(selected.id, VisualHorizontalAlignment.CENTER) }) { Text("Orta") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignHorizontal(selected.id, VisualHorizontalAlignment.RIGHT) }) { Text("Sağ") }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignVertical(selected.id, VisualVerticalAlignment.TOP)
-                        }
-                    ) { Text("Üst") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignVertical(selected.id, VisualVerticalAlignment.CENTER)
-                        }
-                    ) { Text("Orta") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = {
-                            onAlignVertical(selected.id, VisualVerticalAlignment.BOTTOM)
-                        }
-                    ) { Text("Alt") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignVertical(selected.id, VisualVerticalAlignment.TOP) }) { Text("Üst") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignVertical(selected.id, VisualVerticalAlignment.CENTER) }) { Text("Orta") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onAlignVertical(selected.id, VisualVerticalAlignment.BOTTOM) }) { Text("Alt") }
                 }
 
                 Text("Katman sırası", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_TO_BACK) }
-                    ) { Text("En alt") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_BACKWARD) }
-                    ) { Text("Geri") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_FORWARD) }
-                    ) { Text("İleri") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_TO_FRONT) }
-                    ) { Text("En üst") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_TO_BACK) }) { Text("En alt") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onZOrder(selected.id, VisualZOrderAction.SEND_BACKWARD) }) { Text("Geri") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_FORWARD) }) { Text("İleri") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onZOrder(selected.id, VisualZOrderAction.BRING_TO_FRONT) }) { Text("En üst") }
                 }
 
                 Text("Konum · 5 canonical birim", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onMove(selected.id, -5.0, 0.0) }
-                    ) { Text("←") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onMove(selected.id, 0.0, -5.0) }
-                    ) { Text("↑") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onMove(selected.id, 0.0, 5.0) }
-                    ) { Text("↓") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onMove(selected.id, 5.0, 0.0) }
-                    ) { Text("→") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onMove(selected.id, -5.0, 0.0) }) { Text("←") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onMove(selected.id, 0.0, -5.0) }) { Text("↑") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onMove(selected.id, 0.0, 5.0) }) { Text("↓") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onMove(selected.id, 5.0, 0.0) }) { Text("→") }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onDuplicate(selected.id) }
-                    ) { Text("Çoğalt") }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        enabled = !selected.locked,
-                        onClick = { onDelete(selected.id) }
-                    ) { Text("Sil") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { onDuplicate(selected.id) }) { Text("Çoğalt") }
+                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !selected.locked, onClick = { onDelete(selected.id) }) { Text("Sil") }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ResizeButtons(id: String, locked: Boolean, onResize: (String, Double, Double) -> Unit, line: Boolean) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(modifier = Modifier.weight(1f), enabled = !locked, onClick = { onResize(id, -10.0, 0.0) }) { Text(if (line) "X−" else "W−") }
+        OutlinedButton(modifier = Modifier.weight(1f), enabled = !locked, onClick = { onResize(id, 10.0, 0.0) }) { Text(if (line) "X+" else "W+") }
+        OutlinedButton(modifier = Modifier.weight(1f), enabled = !locked, onClick = { onResize(id, 0.0, -10.0) }) { Text(if (line) "Y−" else "H−") }
+        OutlinedButton(modifier = Modifier.weight(1f), enabled = !locked, onClick = { onResize(id, 0.0, 10.0) }) { Text(if (line) "Y+" else "H+") }
     }
 }
 
@@ -346,128 +159,47 @@ private fun TextProperties(
     onBoldChange: (String, Boolean) -> Unit
 ) {
     var draft by remember(element.id, element.text) { mutableStateOf(element.text) }
-
     OutlinedTextField(
-        modifier = Modifier.fillMaxWidth(),
-        value = draft,
-        enabled = !element.locked,
-        onValueChange = { next ->
-            draft = next
-            if (next.isNotEmpty()) onTextChange(element.id, next)
-        },
+        modifier = Modifier.fillMaxWidth(), value = draft, enabled = !element.locked,
+        onValueChange = { next -> draft = next; if (next.isNotEmpty()) onTextChange(element.id, next) },
         label = { Text("Metin") },
-        supportingText = {
-            if (draft.isEmpty()) Text("Metin boş bırakılamaz; yeni değer yazınca kaydedilir.")
-        }
+        supportingText = { if (draft.isEmpty()) Text("Metin boş bırakılamaz; yeni değer yazınca kaydedilir.") }
     )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("Yazı ${element.fontSize.toInt()}", modifier = Modifier.weight(1f))
-        OutlinedButton(
-            enabled = !element.locked,
-            onClick = { onFontSizeChange(element.id, (element.fontSize - 2.0).coerceAtLeast(6.0)) }
-        ) { Text("−") }
-        OutlinedButton(
-            enabled = !element.locked,
-            onClick = { onFontSizeChange(element.id, (element.fontSize + 2.0).coerceAtMost(96.0)) }
-        ) { Text("+") }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Yazı ${element.fontSize.toInt()}", Modifier.weight(1f))
+        OutlinedButton(enabled = !element.locked, onClick = { onFontSizeChange(element.id, (element.fontSize - 2.0).coerceAtLeast(6.0)) }) { Text("−") }
+        OutlinedButton(enabled = !element.locked, onClick = { onFontSizeChange(element.id, (element.fontSize + 2.0).coerceAtMost(96.0)) }) { Text("+") }
     }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text("Kalın", style = MaterialTheme.typography.labelMedium)
-            Text(if (element.bold) "Açık" else "Kapalı", style = MaterialTheme.typography.bodySmall)
-        }
-        Switch(
-            checked = element.bold,
-            enabled = !element.locked,
-            onCheckedChange = { onBoldChange(element.id, it) }
-        )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Kalın", Modifier.weight(1f))
+        Switch(checked = element.bold, enabled = !element.locked, onCheckedChange = { onBoldChange(element.id, it) })
     }
-
-    Text("Metin hizası", style = MaterialTheme.typography.labelMedium)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        TextAlignmentButton(
-            modifier = Modifier.weight(1f),
-            label = "Sol",
-            selected = element.alignment == DesignerTextAlignment.START,
-            enabled = !element.locked,
-            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.START) }
-        )
-        TextAlignmentButton(
-            modifier = Modifier.weight(1f),
-            label = "Orta",
-            selected = element.alignment == DesignerTextAlignment.CENTER,
-            enabled = !element.locked,
-            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.CENTER) }
-        )
-        TextAlignmentButton(
-            modifier = Modifier.weight(1f),
-            label = "Sağ",
-            selected = element.alignment == DesignerTextAlignment.END,
-            enabled = !element.locked,
-            onClick = { onTextAlignmentChange(element.id, DesignerTextAlignment.END) }
-        )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        AlignmentButton(Modifier.weight(1f), "Sol", element.alignment == DesignerTextAlignment.START, !element.locked) { onTextAlignmentChange(element.id, DesignerTextAlignment.START) }
+        AlignmentButton(Modifier.weight(1f), "Orta", element.alignment == DesignerTextAlignment.CENTER, !element.locked) { onTextAlignmentChange(element.id, DesignerTextAlignment.CENTER) }
+        AlignmentButton(Modifier.weight(1f), "Sağ", element.alignment == DesignerTextAlignment.END, !element.locked) { onTextAlignmentChange(element.id, DesignerTextAlignment.END) }
     }
 }
 
 @Composable
-private fun TextAlignmentButton(
-    modifier: Modifier,
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    if (selected) {
-        FilledTonalButton(modifier = modifier, enabled = enabled, onClick = onClick) {
-            Text(label)
-        }
-    } else {
-        OutlinedButton(modifier = modifier, enabled = enabled, onClick = onClick) {
-            Text(label)
-        }
-    }
+private fun AlignmentButton(modifier: Modifier, label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    if (selected) FilledTonalButton(modifier = modifier, enabled = enabled, onClick = onClick) { Text(label) }
+    else OutlinedButton(modifier = modifier, enabled = enabled, onClick = onClick) { Text(label) }
 }
 
 @Composable
-private fun StrokeProperties(
-    id: String,
-    strokeWidth: Double,
-    locked: Boolean,
-    onStrokeWidthChange: (String, Double) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("Çizgi ${"%.1f".format(strokeWidth)}", modifier = Modifier.weight(1f))
-        OutlinedButton(
-            enabled = !locked,
-            onClick = { onStrokeWidthChange(id, (strokeWidth - 0.5).coerceAtLeast(0.5)) }
-        ) { Text("−") }
-        OutlinedButton(
-            enabled = !locked,
-            onClick = { onStrokeWidthChange(id, (strokeWidth + 0.5).coerceAtMost(12.0)) }
-        ) { Text("+") }
+private fun StrokeProperties(id: String, strokeWidth: Double, locked: Boolean, onStrokeWidthChange: (String, Double) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Çizgi ${"%.1f".format(strokeWidth)}", Modifier.weight(1f))
+        OutlinedButton(enabled = !locked, onClick = { onStrokeWidthChange(id, (strokeWidth - 0.5).coerceAtLeast(0.5)) }) { Text("−") }
+        OutlinedButton(enabled = !locked, onClick = { onStrokeWidthChange(id, (strokeWidth + 0.5).coerceAtMost(12.0)) }) { Text("+") }
     }
 }
 
 private fun visualLabel(element: DesignerVisualElement): String {
     val type = when (element) {
         is DesignerTextElement -> "Metin · ${element.text.take(24)}"
+        is DesignerImageElement -> "Resim · ${element.image.pixelWidth}×${element.image.pixelHeight}"
         is DesignerBoxElement -> "Kutu"
         is DesignerLineElement -> "Çizgi"
     }
