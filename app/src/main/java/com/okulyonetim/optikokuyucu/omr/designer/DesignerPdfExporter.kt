@@ -79,7 +79,7 @@ object DesignerPdfExporter {
                     canvas,
                     element,
                     transform,
-                    pageData.textOverrides[element.id] ?: element.text
+                    DesignerDynamicText.render(element, pageData.textOverrides[element.id])
                 )
                 is DesignerImageElement -> drawImageElement(canvas, element, transform)
                 is DesignerBoxElement -> drawBoxElement(canvas, element, transform)
