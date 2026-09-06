@@ -1,3 +1,6 @@
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -14,10 +17,10 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
 
     doLast {
         fun gitBlobSha(bytes: ByteArray): String {
-            val digest = java.security.MessageDigest.getInstance("SHA-1")
+            val digest = MessageDigest.getInstance("SHA-1")
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             digest.update(bytes)
-            return digest.digest().joinToString("") { byte ->
+            return digest.digest().joinToString("") { byte: Byte ->
                 "%02x".format(byte.toInt() and 0xff)
             }
         }
@@ -28,7 +31,7 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
             if (gitBlobSha(existing) == notoSansGitBlobSha) return@doLast
         }
 
-        val bytes = java.net.URI(notoSansUrl).toURL().openStream().use { it.readBytes() }
+        val bytes = URI(notoSansUrl).toURL().openStream().use { input -> input.readBytes() }
         val actualSha = gitBlobSha(bytes)
         check(actualSha == notoSansGitBlobSha) {
             "Noto Sans integrity check failed. Expected $notoSansGitBlobSha but received $actualSha."
