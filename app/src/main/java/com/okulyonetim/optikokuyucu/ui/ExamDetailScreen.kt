@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,8 +17,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,7 +29,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,10 +43,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
+import com.okulyonetim.optikokuyucu.exam.ExamPersonalizedForms
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfExporter
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
+import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
+import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
@@ -47,8 +61,10 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.ScoringPolicy
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
 import java.util.Locale
+import java.util.concurrent.Executors
 
 private enum class ExamDetailTab { PAPERS, KEYS, REPORTS }
 
@@ -66,12 +82,77 @@ fun ExamDetailScreen(
     val examRepository = remember(context) { FileExamRepository(appContext) }
     val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
+    val designerRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
+    val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
+    val worker = remember { Executors.newSingleThreadExecutor() }
     var exam by remember(examId) { mutableStateOf(examRepository.load(examId)) }
     var scans by remember { mutableStateOf(scanRepository.list().associateBy { it.id }) }
     var keys by remember { mutableStateOf(keyRepository.list()) }
     var tab by remember { mutableStateOf(ExamDetailTab.PAPERS) }
     var query by remember { mutableStateOf("") }
     var classFilter by remember { mutableStateOf<String?>(null) }
+    var actionMenuOpen by remember { mutableStateOf(false) }
+    var deleteDialogOpen by remember { mutableStateOf(false) }
+    var editMode by remember { mutableStateOf(false) }
+    var actionStatus by remember { mutableStateOf("") }
+    var personalizedBusy by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose { worker.shutdown() }
+    }
+
+    val personalizedPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        val examAtStart = exam
+        if (uri == null || examAtStart == null) return@rememberLauncherForActivityResult
+        val document = resolveExamDesignerDocument(examAtStart, designerRepository.list())
+        if (document == null) {
+            actionStatus = "Seçili optik form öğrenciye özel PDF üretimini desteklemiyor."
+            return@rememberLauncherForActivityResult
+        }
+        val profile = document.formSpec.pdfProfile()
+        personalizedBusy = true
+        actionStatus = "${examAtStart.participants.size} öğrenci için optik formlar hazırlanıyor…"
+        worker.execute {
+            runCatching {
+                context.contentResolver.openOutputStream(uri, "w").use { output ->
+                    requireNotNull(output) { "Öğrenci formu PDF çıktı akışı açılamadı." }
+                    DesignerPdfExporter.exportBatch(
+                        document = document,
+                        pages = ExamPersonalizedForms.pages(examAtStart, document),
+                        output = output,
+                        profile = profile
+                    )
+                }
+            }.onSuccess {
+                mainExecutor.execute {
+                    personalizedBusy = false
+                    actionStatus = "${examAtStart.participants.size} öğrenci için kişisel optik form PDF'i oluşturuldu."
+                }
+            }.onFailure { error ->
+                mainExecutor.execute {
+                    personalizedBusy = false
+                    actionStatus = "Öğrenci formları oluşturulamadı: ${error.message ?: error.javaClass.simpleName}"
+                }
+            }
+        }
+    }
+
+    if (editMode) {
+        NewExamScreen(
+            examId = examId,
+            onBack = { editMode = false },
+            onSaved = {
+                exam = examRepository.load(examId)
+                scans = scanRepository.list().associateBy { it.id }
+                keys = keyRepository.list()
+                editMode = false
+                actionStatus = "Sınav bilgileri güncellendi."
+            }
+        )
+        return
+    }
 
     val current = exam
     if (current == null) {
@@ -84,6 +165,31 @@ fun ExamDetailScreen(
             OutlinedButton(onClick = onBack) { Text("Geri dön") }
         }
         return
+    }
+
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { deleteDialogOpen = false },
+            title = { Text("Sınav silinsin mi?") },
+            text = {
+                Text("${current.name} sınav kaydı silinecek. Tarama kayıtları cihazda korunur.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteDialogOpen = false
+                        if (examRepository.delete(examId)) {
+                            onBack()
+                        } else {
+                            actionStatus = "Sınav silinemedi."
+                        }
+                    }
+                ) { Text("Sil") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }) { Text("Vazgeç") }
+            }
+        )
     }
 
     val classes = current.papers.map { paperClass(it, scans[it.scanRecordId]) }
@@ -102,6 +208,13 @@ fun ExamDetailScreen(
             clazz.lowercase().contains(normalizedQuery)) &&
             (classFilter == null || clazz == classFilter)
     }
+    val personalizedDocument = remember(current.templateSelection, designerRepository) {
+        resolveExamDesignerDocument(current, designerRepository.list())
+    }
+    val canCreatePersonalized = current.personalizedFormsEnabled &&
+        current.participants.isNotEmpty() &&
+        personalizedDocument != null &&
+        !personalizedBusy
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -111,10 +224,50 @@ fun ExamDetailScreen(
                 leadingText = "‹",
                 onLeadingClick = onBack,
                 actionText = "⋮",
-                onActionClick = {
-                    exam = examRepository.load(examId)
-                    scans = scanRepository.list().associateBy { it.id }
-                    keys = keyRepository.list()
+                onActionClick = { actionMenuOpen = true },
+                actionMenu = {
+                    DropdownMenu(
+                        expanded = actionMenuOpen,
+                        onDismissRequest = { actionMenuOpen = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (personalizedBusy) "Öğrenci Formları Hazırlanıyor…"
+                                    else "Öğrenciye Özel Formları Oluştur (${current.participants.size})"
+                                )
+                            },
+                            enabled = canCreatePersonalized,
+                            onClick = {
+                                actionMenuOpen = false
+                                personalizedPdfLauncher.launch(personalizedFormFileName(current.name))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Sınavı Düzenle") },
+                            onClick = {
+                                actionMenuOpen = false
+                                editMode = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Sınavı Sil") },
+                            onClick = {
+                                actionMenuOpen = false
+                                deleteDialogOpen = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Yenile") },
+                            onClick = {
+                                actionMenuOpen = false
+                                exam = examRepository.load(examId)
+                                scans = scanRepository.list().associateBy { it.id }
+                                keys = keyRepository.list()
+                                actionStatus = "Sınav yenilendi."
+                            }
+                        )
+                    }
                 }
             )
         },
@@ -151,6 +304,15 @@ fun ExamDetailScreen(
                     label = "Raporlar",
                     selected = tab == ExamDetailTab.REPORTS,
                     onClick = { tab = ExamDetailTab.REPORTS }
+                )
+            }
+
+            if (actionStatus.isNotBlank()) {
+                Text(
+                    actionStatus,
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
 
@@ -378,6 +540,23 @@ private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
             Text("Sınav Raporunu Aç")
         }
     }
+}
+
+private fun resolveExamDesignerDocument(exam: Exam, saved: List<DesignerDocument>): DesignerDocument? {
+    if (exam.templateSelection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) return null
+    return saved.firstOrNull {
+        it.id == exam.templateSelection.templateId && it.version == exam.templateSelection.templateVersion
+    } ?: DesignerStarterTemplates.all().firstOrNull {
+        it.id == exam.templateSelection.templateId && it.version == exam.templateSelection.templateVersion
+    }
+}
+
+private fun personalizedFormFileName(examName: String): String {
+    val safe = examName.trim()
+        .replace(Regex("[^\\p{L}\\p{N}._-]+"), "-")
+        .trim('-')
+        .ifBlank { "sinav" }
+    return "$safe-ogrenci-formlari.pdf"
 }
 
 private fun keyMatchesExam(key: StoredAnswerKey, exam: Exam): Boolean =
