@@ -49,7 +49,8 @@ class ExamPersonalizedFormsTest {
         assertEquals("16", pages[0].textOverrides[numberText.id])
         assertEquals("Deneme 1", pages[0].textOverrides[examName.id])
         assertEquals("Örnek Ortaokulu", pages[0].textOverrides[schoolName.id])
+        assertEquals("16".padStart(numberGrid.digits, '0'), pages[0].numericHeaderValues[numberGrid.id])
         assertEquals(numberGrid.digits, pages[0].filledMarks.size)
-        assertTrue(pages[0].filledMarks.any { it.columnId == "6" && it.markId == "6" })
+        assertTrue(pages[0].filledMarks.any { it.columnId == numberGrid.digits.toString() && it.markId == "6" })
     }
 }
