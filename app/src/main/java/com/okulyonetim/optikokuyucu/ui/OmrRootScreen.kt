@@ -76,6 +76,18 @@ fun OmrRootScreen(
     var destination by remember { mutableStateOf(RootDestination.HOME) }
     var selectedExamId by remember { mutableStateOf<String?>(null) }
     var selectedScanRecordId by remember { mutableStateOf<String?>(null) }
+    var formsReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
+    var designerReturnDestination by remember { mutableStateOf(RootDestination.ACTIVE_TEMPLATE) }
+
+    fun openForms(returnTo: RootDestination) {
+        formsReturnDestination = returnTo
+        destination = RootDestination.ACTIVE_TEMPLATE
+    }
+
+    fun openDesigner(returnTo: RootDestination) {
+        designerReturnDestination = returnTo
+        destination = RootDestination.DESIGNER
+    }
 
     if (destination != RootDestination.HOME) {
         BackHandler {
@@ -95,12 +107,13 @@ fun OmrRootScreen(
                 RootDestination.STUDENT_PAPER,
                 RootDestination.EXAM_REPORT -> RootDestination.EXAM_DETAIL
 
+                RootDestination.ANSWER_KEYS -> {
+                    if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
+                }
+
+                RootDestination.ACTIVE_TEMPLATE -> formsReturnDestination
+                RootDestination.DESIGNER -> designerReturnDestination
                 RootDestination.ADVANCED_DESIGNER -> RootDestination.DESIGNER
-
-                RootDestination.ANSWER_KEYS,
-                RootDestination.ACTIVE_TEMPLATE,
-                RootDestination.DESIGNER -> RootDestination.TOOLS
-
                 RootDestination.HOME -> RootDestination.HOME
             }
         }
@@ -130,7 +143,7 @@ fun OmrRootScreen(
                             onNewExam = { destination = RootDestination.NEW_EXAM },
                             onOpenStudents = { destination = RootDestination.STUDENTS },
                             onOpenResults = { destination = RootDestination.RESULTS },
-                            onOpenForms = { destination = RootDestination.DESIGNER },
+                            onOpenForms = { openForms(RootDestination.HOME) },
                             onOpenExam = { examId ->
                                 selectedExamId = examId
                                 selectedScanRecordId = null
@@ -157,7 +170,7 @@ fun OmrRootScreen(
 
                         RootDestination.SETTINGS -> RootSettingsScreen(
                             onOpenTools = { destination = RootDestination.TOOLS },
-                            onOpenForms = { destination = RootDestination.DESIGNER }
+                            onOpenForms = { openForms(RootDestination.SETTINGS) }
                         )
 
                         else -> Unit
@@ -266,8 +279,8 @@ fun OmrRootScreen(
                     onOpenScanner = { destination = RootDestination.SCANNER },
                     onOpenResults = { destination = RootDestination.RESULTS },
                     onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
-                    onOpenActiveTemplate = { destination = RootDestination.ACTIVE_TEMPLATE },
-                    onOpenDesigner = { destination = RootDestination.DESIGNER }
+                    onOpenActiveTemplate = { openForms(RootDestination.TOOLS) },
+                    onOpenDesigner = { openDesigner(RootDestination.TOOLS) }
                 )
 
                 RootDestination.ANSWER_KEYS -> AnswerKeyScreen(
@@ -278,12 +291,13 @@ fun OmrRootScreen(
                 )
 
                 RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
-                    onBack = { destination = RootDestination.TOOLS }
+                    onBack = { destination = formsReturnDestination },
+                    onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
                 )
 
                 RootDestination.DESIGNER -> StructuredOmrDesignerScreen(
                     openCvReady = openCvReady,
-                    onBack = { destination = RootDestination.TOOLS },
+                    onBack = { destination = designerReturnDestination },
                     onOpenAdvanced = { destination = RootDestination.ADVANCED_DESIGNER }
                 )
 
@@ -729,23 +743,55 @@ private fun RootSettingsScreen(
     onOpenTools: () -> Unit,
     onOpenForms: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("Ayarlar", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    Column(modifier = Modifier.fillMaxSize()) {
+        ProductTopBar(title = "Ayarlar")
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Optik ve form araçları", fontWeight = FontWeight.SemiBold)
-                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenForms) {
-                    Text("Optik Form Tasarımcısı")
+            item { Spacer(Modifier.height(4.dp)) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Optik Formlar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Aktif formu seçin, hazır şablonları görüntüleyin veya yeni form oluşturun.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenForms,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Optik Formları Yönet")
+                        }
+                    }
                 }
-                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenTools) {
-                    Text("Gelişmiş Optik Araçları")
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Gelişmiş Araçlar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Cevap anahtarı, test ve gelişmiş OMR araçlarına erişin.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenTools,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Gelişmiş Optik Araçları")
+                        }
+                    }
                 }
             }
         }
@@ -773,43 +819,36 @@ private fun RootToolsScreen(
         Text("Optik Araçları", style = MaterialTheme.typography.headlineMedium)
         Text(
             modifier = Modifier.padding(top = 8.dp, bottom = 28.dp),
-            text = "Okuma, anahtar ve form tasarımı",
+            text = "Okuma, anahtar ve form yönetimi",
             style = MaterialTheme.typography.bodyMedium
         )
 
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenScanner
-        ) {
+        Button(modifier = Modifier.fillMaxWidth(), onClick = onOpenScanner) {
             Text("Tara · Kamera ve OMR")
         }
-
         OutlinedButton(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenResults
         ) {
-            Text("Tarama Oturumu · Sonuçlar")
+            Text("Sonuçlar")
         }
-
         OutlinedButton(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenAnswerKeys
         ) {
             Text("Cevap Anahtarları")
         }
-
         OutlinedButton(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenActiveTemplate
         ) {
-            Text("Aktif Form / Şablon")
+            Text("Optik Formlar")
         }
-
         OutlinedButton(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             onClick = onOpenDesigner
         ) {
-            Text("Optik Form Tasarımcısı")
+            Text("Form Editörü")
         }
     }
 }
