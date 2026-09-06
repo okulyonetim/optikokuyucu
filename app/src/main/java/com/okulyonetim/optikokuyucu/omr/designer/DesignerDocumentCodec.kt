@@ -161,6 +161,7 @@ object DesignerDocumentCodec {
             is DesignerTextElement -> {
                 out.writeByte(TYPE_TEXT); out.writeUTF(element.id); writeRect(out, element.bounds); out.writeUTF(element.text)
                 out.writeDouble(element.fontSize); out.writeUTF(element.alignment.name); out.writeBoolean(element.locked); out.writeBoolean(element.bold)
+                out.writeUTF(element.label); out.writeBoolean(element.showLabel)
             }
             is DesignerImageElement -> {
                 out.writeByte(TYPE_IMAGE); out.writeUTF(element.id); writeRect(out, element.bounds); out.writeUTF(element.image.mimeType)
@@ -180,7 +181,9 @@ object DesignerDocumentCodec {
         TYPE_TEXT -> {
             val id = input.readUTF(); val bounds = readRect(input); val text = input.readUTF(); val fontSize = input.readDouble()
             val alignment = DesignerTextAlignment.valueOf(input.readUTF()); val locked = input.readBoolean(); val bold = if (schema >= 2) input.readBoolean() else false
-            DesignerTextElement(id, bounds, text, fontSize, alignment, bold, locked)
+            val label = if (schema >= 8) input.readUTF() else DesignerDynamicText.defaultLabel(id)
+            val showLabel = if (schema >= 8) input.readBoolean() else false
+            DesignerTextElement(id, bounds, text, fontSize, alignment, bold, locked, label, showLabel)
         }
         TYPE_IMAGE -> {
             require(schema >= 6) { "Bu tasarım sürümü resim alanını desteklemiyor." }
@@ -220,7 +223,7 @@ object DesignerDocumentCodec {
 
     private const val MAGIC = 0x4F4D5244
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 7
+    private const val SCHEMA_VERSION = 8
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3
