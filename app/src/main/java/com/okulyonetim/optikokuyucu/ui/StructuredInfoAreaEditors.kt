@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDynamicText
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
@@ -56,23 +57,67 @@ internal fun DescriptionAreaEditorScreen(
     onComplete: (DesignerTextElement) -> Unit
 ) {
     val issue = DesignerAreaCatalog.descriptionAreaIssue(document, draft)
+    val dynamic = DesignerDynamicText.descriptor(draft.id)
+    val labelEnabled = dynamic != null && DesignerDynamicText.labelEnabled(draft)
+
     InfoAreaScaffold(
         completeEnabled = issue == null,
         onCancel = onCancel,
         onComplete = { onComplete(draft) }
     ) {
         InfoEditorCard {
-            InfoReadOnlyField("Tür", "Açıklama")
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = draft.text,
-                onValueChange = { if (it.length <= 2_000) onDraftChange(draft.copy(text = it)) },
-                label = { Text("Metin / Açıklama") },
-                supportingText = { Text("${draft.text.length}/2000") },
-                minLines = 4,
-                maxLines = 8,
-                shape = RoundedCornerShape(14.dp)
-            )
+            InfoReadOnlyField("Tür", dynamic?.placeholder ?: "Açıklama")
+
+            if (dynamic != null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Etiket göster", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (labelEnabled) "Kişisel değerin önünde etiket yazdırılır." else "Yalnız kişisel değer yazdırılır.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = labelEnabled,
+                        onCheckedChange = {
+                            onDraftChange(DesignerDynamicText.withLabelEnabled(draft, it))
+                        }
+                    )
+                }
+                if (labelEnabled) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = draft.text,
+                        onValueChange = { value ->
+                            val clean = value.replace("\n", " ").replace("\r", " ").take(80)
+                            if (clean.isNotBlank()) onDraftChange(draft.copy(text = clean))
+                        },
+                        label = { Text("Etiket") },
+                        supportingText = { Text("Örnek: ${draft.text.trimEnd(':')}: ÖĞRENCİ BİLGİSİ") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                } else {
+                    Text(
+                        "İsterseniz etiketi açarak örneğin “${dynamic.suggestedLabel}:” biçiminde sabit bir başlık ekleyebilirsiniz.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = draft.text,
+                    onValueChange = { if (it.length <= 2_000) onDraftChange(draft.copy(text = it)) },
+                    label = { Text("Metin / Açıklama") },
+                    supportingText = { Text("${draft.text.length}/2000") },
+                    minLines = 4,
+                    maxLines = 8,
+                    shape = RoundedCornerShape(14.dp)
+                )
+            }
+
             InfoNumberStepper("Yazı Boyutu", draft.fontSize.toInt(), 8, 72) {
                 onDraftChange(draft.copy(fontSize = it.toDouble()))
             }
