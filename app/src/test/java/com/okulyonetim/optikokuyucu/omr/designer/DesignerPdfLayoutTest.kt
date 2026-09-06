@@ -3,13 +3,14 @@ package com.okulyonetim.optikokuyucu.omr.designer
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesignerPdfLayoutTest {
     @Test
-    fun a4AndA5KeepCanonicalAspectAndStayInsideMargins() {
-        listOf(PdfPageProfile.A4, PdfPageProfile.A5).forEach { profile ->
+    fun allPhysicalProfilesKeepCanonicalAspectAndStayInsideMargins() {
+        PdfPageProfile.entries.forEach { profile ->
             val space = StandardOmrTemplate.DEFAULT_SPACE
             val transform = DesignerPdfLayout.fit(space, profile)
             val topLeft = transform.map(TemplatePoint(0.0, 0.0))
@@ -24,6 +25,32 @@ class DesignerPdfLayoutTest {
             val renderedHeight = bottomRight.y - topLeft.y
             assertEquals(space.aspectRatio, renderedWidth / renderedHeight, 0.000001)
         }
+    }
+
+    @Test
+    fun selectedDesignerPaperMapsToMatchingRealPdfProfile() {
+        assertEquals(
+            PdfPageProfile.A3,
+            DesignerFormSpec(paperSize = DesignerPaperSize.A3, orientation = DesignerPageOrientation.PORTRAIT).pdfProfile()
+        )
+        assertEquals(
+            PdfPageProfile.A4_LANDSCAPE,
+            DesignerFormSpec(paperSize = DesignerPaperSize.A4, orientation = DesignerPageOrientation.LANDSCAPE).pdfProfile()
+        )
+        assertEquals(
+            PdfPageProfile.A6,
+            DesignerFormSpec(paperSize = DesignerPaperSize.A6, orientation = DesignerPageOrientation.PORTRAIT).pdfProfile()
+        )
+        assertEquals(
+            PdfPageProfile.A7_LANDSCAPE,
+            DesignerFormSpec(paperSize = DesignerPaperSize.A7, orientation = DesignerPageOrientation.LANDSCAPE).pdfProfile()
+        )
+        assertNull(DesignerFormSpec(paperSize = DesignerPaperSize.CUSTOM).pdfProfile())
+
+        assertEquals(298, PdfPageProfile.A6.widthPoints)
+        assertEquals(420, PdfPageProfile.A6.heightPoints)
+        assertEquals(210, PdfPageProfile.A7.widthPoints)
+        assertEquals(298, PdfPageProfile.A7.heightPoints)
     }
 
     @Test

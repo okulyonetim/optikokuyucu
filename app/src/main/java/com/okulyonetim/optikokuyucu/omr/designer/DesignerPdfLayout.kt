@@ -15,10 +15,16 @@ enum class PdfPageProfile(
     val marginPoints: Double,
     val displayName: String
 ) {
+    A3(widthPoints = 842, heightPoints = 1191, marginPoints = 34.0, displayName = "A3 Dikey"),
+    A3_LANDSCAPE(widthPoints = 1191, heightPoints = 842, marginPoints = 34.0, displayName = "A3 Yatay"),
     A4(widthPoints = 595, heightPoints = 842, marginPoints = 24.0, displayName = "A4 Dikey"),
     A4_LANDSCAPE(widthPoints = 842, heightPoints = 595, marginPoints = 24.0, displayName = "A4 Yatay"),
     A5(widthPoints = 420, heightPoints = 595, marginPoints = 18.0, displayName = "A5 Dikey"),
     A5_LANDSCAPE(widthPoints = 595, heightPoints = 420, marginPoints = 18.0, displayName = "A5 Yatay"),
+    A6(widthPoints = 298, heightPoints = 420, marginPoints = 12.0, displayName = "A6 Dikey"),
+    A6_LANDSCAPE(widthPoints = 420, heightPoints = 298, marginPoints = 12.0, displayName = "A6 Yatay"),
+    A7(widthPoints = 210, heightPoints = 298, marginPoints = 9.0, displayName = "A7 Dikey"),
+    A7_LANDSCAPE(widthPoints = 298, heightPoints = 210, marginPoints = 9.0, displayName = "A7 Yatay"),
     LETTER(widthPoints = 612, heightPoints = 792, marginPoints = 24.0, displayName = "Letter Dikey"),
     LETTER_LANDSCAPE(widthPoints = 792, heightPoints = 612, marginPoints = 24.0, displayName = "Letter Yatay")
 }
@@ -71,6 +77,16 @@ object DesignerPdfLayout {
             offsetY = (profile.heightPoints - contentHeight) / 2.0
         )
     }
+}
+
+fun DesignerFormSpec.pdfProfile(): PdfPageProfile? = when (paperSize) {
+    DesignerPaperSize.A3 -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.A3 else PdfPageProfile.A3_LANDSCAPE
+    DesignerPaperSize.A4 -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.A4 else PdfPageProfile.A4_LANDSCAPE
+    DesignerPaperSize.A5 -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.A5 else PdfPageProfile.A5_LANDSCAPE
+    DesignerPaperSize.A6 -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.A6 else PdfPageProfile.A6_LANDSCAPE
+    DesignerPaperSize.A7 -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.A7 else PdfPageProfile.A7_LANDSCAPE
+    DesignerPaperSize.LETTER -> if (orientation == DesignerPageOrientation.PORTRAIT) PdfPageProfile.LETTER else PdfPageProfile.LETTER_LANDSCAPE
+    DesignerPaperSize.CUSTOM -> null
 }
 
 fun StructuredFormConfig.pdfProfile(): PdfPageProfile = when (paperSize) {

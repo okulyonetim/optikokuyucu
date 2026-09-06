@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -87,6 +88,11 @@ internal fun InteractivePaperWorkspace(
         val h = if (document.formSpec.orientation == DesignerPageOrientation.PORTRAIT) it.heightMm else it.widthMm
         "${formatWorkspaceMillimetres(w)} × ${formatWorkspaceMillimetres(h)} mm"
     } ?: "Özel ölçü"
+    val editorDisplayWidthScale = DesignerPageGeometry.editorDisplayWidthScale(
+        document.formSpec.paperSize,
+        document.formSpec.orientation
+    )
+    val editorDisplayPercent = (editorDisplayWidthScale * 100.0).roundToInt()
     val safe = remember(document.space) { DesignerPageGeometry.safeArea(document.space) }
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
     val rows = remember(compiled) { compiled.bubbleRows.associateBy { it.id } }
@@ -105,11 +111,15 @@ internal fun InteractivePaperWorkspace(
     val density = LocalDensity.current
 
     var displayMode by remember(document.id) { mutableStateOf(StructuredPaperDisplayMode.EDIT) }
-    var zoom by remember(document.id) { mutableStateOf(DesignerMobileViewport.FIT_ZOOM.toFloat()) }
-    var pan by remember(document.id) { mutableStateOf(Offset.Zero) }
-    var panMode by remember(document.id) { mutableStateOf(false) }
-    var viewportSize by remember(document.id) { mutableStateOf(IntSize.Zero) }
-    var activeGuides by remember(document.id) { mutableStateOf(DesignerAlignmentGuideMatch()) }
+    var zoom by remember(document.id, document.formSpec.paperSize, document.formSpec.orientation) {
+        mutableStateOf(DesignerMobileViewport.FIT_ZOOM.toFloat())
+    }
+    var pan by remember(document.id, document.formSpec.paperSize, document.formSpec.orientation) { mutableStateOf(Offset.Zero) }
+    var panMode by remember(document.id, document.formSpec.paperSize, document.formSpec.orientation) { mutableStateOf(false) }
+    var viewportSize by remember(document.id, document.formSpec.paperSize, document.formSpec.orientation) { mutableStateOf(IntSize.Zero) }
+    var activeGuides by remember(document.id, document.formSpec.paperSize, document.formSpec.orientation) {
+        mutableStateOf(DesignerAlignmentGuideMatch())
+    }
     val currentZoom by rememberUpdatedState(zoom)
     val currentPan by rememberUpdatedState(pan)
     val editorChromeVisible = displayMode.editorChromeVisible
@@ -225,7 +235,7 @@ internal fun InteractivePaperWorkspace(
             }
             Text(
                 if (displayMode == StructuredPaperDisplayMode.EDIT) {
-                    "Canonical ${document.space.width.roundToInt()} × ${document.space.height.roundToInt()} · Grid 2,5 mm · Snap 1 mm"
+                    "Tuval oranı %$editorDisplayPercent · Canonical ${document.space.width.roundToInt()} × ${document.space.height.roundToInt()} · Grid 2,5 mm · Snap 1 mm"
                 } else {
                     "Baskı önizlemesi · Grid, seçim çerçeveleri ve taşıma kılavuzları gizli"
                 },
@@ -262,7 +272,10 @@ internal fun InteractivePaperWorkspace(
                 TextButton(onClick = { setZoom(zoom * 1.25) }) { Text("+") }
             }
             Box(
-                modifier = Modifier.fillMaxWidth().aspectRatio(document.space.aspectRatio.toFloat())
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .fillMaxWidth(editorDisplayWidthScale.toFloat())
+                    .aspectRatio(document.space.aspectRatio.toFloat())
                     .clip(RoundedCornerShape(6.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .onSizeChanged { viewportSize = it; pan = clampPanFor(zoom, pan) }
@@ -276,8 +289,6 @@ internal fun InteractivePaperWorkspace(
                             }
                         }
                     }
-                    // Keep this gesture keyed only by stable interaction mode. Mutable document content changes on
-                    // every snapped move; using it as a key restarts the coroutine and turns one drag into tiny hops.
                     .pointerInput(document.id, panMode, displayMode) {
                         if (directEditingEnabled && !panMode) {
                             var target: StructuredPaperSelection? = null

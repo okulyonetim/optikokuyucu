@@ -23,6 +23,39 @@ class DesignerPageGeometryTest {
     }
 
     @Test
+    fun `editor width scale reflects real physical paper width relative to A4`() {
+        val a4Portrait = DesignerPageGeometry.editorDisplayWidthScale(
+            DesignerPaperSize.A4,
+            DesignerPageOrientation.PORTRAIT
+        )
+        val a5Portrait = DesignerPageGeometry.editorDisplayWidthScale(
+            DesignerPaperSize.A5,
+            DesignerPageOrientation.PORTRAIT
+        )
+        val a6Portrait = DesignerPageGeometry.editorDisplayWidthScale(
+            DesignerPaperSize.A6,
+            DesignerPageOrientation.PORTRAIT
+        )
+        val a7Portrait = DesignerPageGeometry.editorDisplayWidthScale(
+            DesignerPaperSize.A7,
+            DesignerPageOrientation.PORTRAIT
+        )
+        val a6Landscape = DesignerPageGeometry.editorDisplayWidthScale(
+            DesignerPaperSize.A6,
+            DesignerPageOrientation.LANDSCAPE
+        )
+
+        assertEquals(1.0, a4Portrait, 0.000001)
+        assertEquals(148.0 / 210.0, a5Portrait, 0.000001)
+        assertEquals(0.5, a6Portrait, 0.000001)
+        assertEquals(74.0 / 210.0, a7Portrait, 0.000001)
+        assertEquals(148.0 / 297.0, a6Landscape, 0.000001)
+        assertTrue(a5Portrait > a6Portrait)
+        assertTrue(a6Portrait > a7Portrait)
+        assertEquals(1.0, DesignerPageGeometry.editorDisplayWidthScale(DesignerPaperSize.A3, DesignerPageOrientation.PORTRAIT), 0.000001)
+    }
+
+    @Test
     fun `canonical page preserves physical aspect in both orientations`() {
         val dimensions = requireNotNull(DesignerPageGeometry.dimensions(DesignerPaperSize.A5))
         val portrait = DesignerPageGeometry.canonicalSpace(

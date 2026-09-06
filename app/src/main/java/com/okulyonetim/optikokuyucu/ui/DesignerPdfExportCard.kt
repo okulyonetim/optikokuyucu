@@ -30,6 +30,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateSelfTest
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
+import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrResult
 import java.util.Locale
@@ -44,6 +45,9 @@ fun DesignerPdfExportCard(
     val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
     val readability = remember(document, compiled) {
         TemplateReadabilityAnalyzer.analyze(document, compiled)
+    }
+    val selectedProfile = remember(document.formSpec.paperSize, document.formSpec.orientation) {
+        document.formSpec.pdfProfile()
     }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
@@ -138,34 +142,26 @@ fun DesignerPdfExportCard(
             ) {
                 Text("PDF Dışa Aktar", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "A4 ve A5 aynı canonical OMR geometrisinden üretilir. Kağıt boyutu okuyucu şablonunu değiştirmez.",
+                    if (selectedProfile != null) {
+                        "Seçili kağıt ${selectedProfile.displayName}. PDF gerçek seçili fiziksel sayfa boyutunda üretilir; canonical OMR geometrisi değişmez."
+                    } else {
+                        "Bu kağıt türü için fiziksel PDF profili tanımlı değil."
+                    },
                     style = MaterialTheme.typography.bodySmall
                 )
 
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && pendingProfile == null,
+                    enabled = readability.canSave && pendingProfile == null && selectedProfile != null,
                     onClick = {
-                        val profile = PdfPageProfile.A4
-                        pendingProfile = profile
-                        pdfStatus = null
-                        pdfLauncher.launch(suggestedPdfName(document, profile))
+                        selectedProfile?.let { profile ->
+                            pendingProfile = profile
+                            pdfStatus = null
+                            pdfLauncher.launch(suggestedPdfName(document, profile))
+                        }
                     }
                 ) {
-                    Text("A4 PDF Oluştur")
-                }
-
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && pendingProfile == null,
-                    onClick = {
-                        val profile = PdfPageProfile.A5
-                        pendingProfile = profile
-                        pdfStatus = null
-                        pdfLauncher.launch(suggestedPdfName(document, profile))
-                    }
-                ) {
-                    Text("A5 PDF Oluştur")
+                    Text(selectedProfile?.let { "${it.displayName} PDF Oluştur" } ?: "PDF Profili Yok")
                 }
 
                 if (!readability.canSave) {

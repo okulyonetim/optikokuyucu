@@ -40,6 +40,23 @@ object DesignerPageGeometry {
         DesignerPaperSize.CUSTOM -> null
     }
 
+    /**
+     * Relative editor width using A4 in the same orientation as the on-screen reference.
+     * A4 fills the available editor width; smaller paper sizes are visibly smaller while A3
+     * is capped to the available width because a phone cannot render it wider without a second
+     * outer scrolling coordinate system.
+     */
+    fun editorDisplayWidthScale(
+        paperSize: DesignerPaperSize,
+        orientation: DesignerPageOrientation
+    ): Double {
+        val page = dimensions(paperSize) ?: return 1.0
+        val reference = requireNotNull(dimensions(DesignerPaperSize.A4))
+        val pageWidth = if (orientation == DesignerPageOrientation.PORTRAIT) page.widthMm else page.heightMm
+        val referenceWidth = if (orientation == DesignerPageOrientation.PORTRAIT) reference.widthMm else reference.heightMm
+        return (pageWidth / referenceWidth).coerceIn(0.20, 1.0)
+    }
+
     fun canonicalSpace(
         paperSize: DesignerPaperSize,
         orientation: DesignerPageOrientation
