@@ -3,6 +3,41 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val notoSansCommit = "5e35378e6bda803962ee6fd257e444a7d459660d"
+val notoSansGitBlobSha = "75575046c015ff623a848096a15779867ba71453"
+val notoSansUrl = "https://raw.githubusercontent.com/google/fonts/$notoSansCommit/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf"
+val generatedNotoFontResDir = layout.buildDirectory.dir("generated/noto-font/res")
+
+val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
+    val outputFile = generatedNotoFontResDir.map { it.file("font/noto_sans.ttf") }
+    outputs.file(outputFile)
+
+    doLast {
+        fun gitBlobSha(bytes: ByteArray): String {
+            val digest = java.security.MessageDigest.getInstance("SHA-1")
+            digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
+            digest.update(bytes)
+            return digest.digest().joinToString("") { byte ->
+                "%02x".format(byte.toInt() and 0xff)
+            }
+        }
+
+        val target = outputFile.get().asFile
+        if (target.exists()) {
+            val existing = target.readBytes()
+            if (gitBlobSha(existing) == notoSansGitBlobSha) return@doLast
+        }
+
+        val bytes = java.net.URI(notoSansUrl).toURL().openStream().use { it.readBytes() }
+        val actualSha = gitBlobSha(bytes)
+        check(actualSha == notoSansGitBlobSha) {
+            "Noto Sans integrity check failed. Expected $notoSansGitBlobSha but received $actualSha."
+        }
+        target.parentFile.mkdirs()
+        target.writeBytes(bytes)
+    }
+}
+
 android {
     namespace = "com.okulyonetim.optikokuyucu"
 
@@ -16,8 +51,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.12.0"
+        versionCode = 14
+        versionName = "0.12.1"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -44,11 +79,21 @@ android {
         buildConfig = true
     }
 
+    sourceSets {
+        getByName("main") {
+            res.srcDir(generatedNotoFontResDir)
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(prepareNotoSansFont)
 }
 
 dependencies {
