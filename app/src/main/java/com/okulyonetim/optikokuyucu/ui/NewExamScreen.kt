@@ -57,7 +57,8 @@ private data class ExamTemplateOption(
 @Composable
 fun NewExamScreen(
     onBack: () -> Unit,
-    onSaved: (String) -> Unit
+    onSaved: (String) -> Unit,
+    examId: String? = null
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
@@ -67,19 +68,58 @@ fun NewExamScreen(
     val classNames = remember(roster) { roster.map { it.className }.distinct().sorted() }
     val options = remember(context) { loadExamTemplateOptions(appContext) }
     val activeSelection = remember(context) { FileActiveTemplateSelectionRepository(appContext).load() }
+    val existingExam = remember(examId) { examId?.let(repository::load) }
+    val editing = examId != null
 
-    var examName by remember { mutableStateOf("") }
-    var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
-    var folderName by remember { mutableStateOf("") }
-    var dateText by remember { mutableStateOf(todayText()) }
-    var selectedTemplate by remember {
-        mutableStateOf(options.firstOrNull { it.selection == activeSelection } ?: options.first())
+    if (editing && existingExam == null) {
+        Scaffold(
+            topBar = {
+                ProductTopBar(
+                    title = "Sınavı Düzenle",
+                    leadingText = "×",
+                    onLeadingClick = onBack,
+                    onActionClick = null
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Sınav kaydı bulunamadı.", color = MaterialTheme.colorScheme.error)
+            }
+        }
+        return
     }
-    var wrongPolicy by remember { mutableStateOf(WrongAnswerPolicy.KEEP_AS_IS) }
-    var selectedClasses by remember { mutableStateOf(emptySet<String>()) }
-    var selectedStudentNumbers by remember { mutableStateOf(emptySet<String>()) }
-    var bookletCount by remember { mutableStateOf(1) }
-    var personalizedFormsEnabled by remember { mutableStateOf(false) }
+
+    val initialTemplate = remember(existingExam, options, activeSelection) {
+        existingExam?.let { exam ->
+            options.firstOrNull { it.selection == exam.templateSelection }
+                ?: ExamTemplateOption("Kayıtlı Optik Form · v${exam.templateSelection.templateVersion}", exam.templateSelection)
+        } ?: options.firstOrNull { it.selection == activeSelection } ?: options.first()
+    }
+
+    var examName by remember(examId) { mutableStateOf(existingExam?.name.orEmpty()) }
+    var schoolName by remember(examId) {
+        mutableStateOf(existingExam?.schoolName ?: settingsRepository.load().schoolName)
+    }
+    var folderName by remember(examId) { mutableStateOf(existingExam?.folderName.orEmpty()) }
+    var dateText by remember(examId) {
+        mutableStateOf(existingExam?.let { formatExamDate(it.examDateEpochDay) } ?: todayText())
+    }
+    var selectedTemplate by remember(examId, initialTemplate) { mutableStateOf(initialTemplate) }
+    var wrongPolicy by remember(examId) {
+        mutableStateOf(existingExam?.wrongAnswerPolicy ?: WrongAnswerPolicy.KEEP_AS_IS)
+    }
+    var selectedClasses by remember(examId) { mutableStateOf(emptySet<String>()) }
+    var selectedStudentNumbers by remember(examId) {
+        mutableStateOf(existingExam?.participants?.map { it.studentNumber }?.toSet().orEmpty())
+    }
+    var bookletCount by remember(examId) { mutableStateOf(existingExam?.bookletCount ?: 1) }
+    var personalizedFormsEnabled by remember(examId) {
+        mutableStateOf(existingExam?.personalizedFormsEnabled ?: false)
+    }
     var templateMenuOpen by remember { mutableStateOf(false) }
     var wrongMenuOpen by remember { mutableStateOf(false) }
     var classMenuOpen by remember { mutableStateOf(false) }
@@ -87,9 +127,22 @@ fun NewExamScreen(
     var bookletMenuOpen by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
 
-    val selectedParticipants = roster.filter { student ->
+    val rosterParticipants = roster.filter { student ->
         student.className in selectedClasses || student.studentNumber in selectedStudentNumbers
+    }.map { student ->
+        ExamParticipant(
+            studentNumber = student.studentNumber,
+            studentName = student.fullName,
+            className = student.className
+        )
     }
+    val rosterNumbers = roster.map { it.studentNumber }.toSet()
+    val preservedMissingParticipants = existingExam?.participants.orEmpty().filter { participant ->
+        participant.studentNumber in selectedStudentNumbers && participant.studentNumber !in rosterNumbers
+    }
+    val selectedParticipants = (rosterParticipants + preservedMissingParticipants)
+        .map(ExamParticipant::normalized)
+        .distinctBy { it.studentNumber }
     val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
 
     val saveExam = {
@@ -104,23 +157,28 @@ fun NewExamScreen(
                 status = "Öğrenciye özel form için Form Editörü ile oluşturulmuş bir optik form seçin."
             else -> {
                 runCatching {
-                    ExamFactory.create(
+                    val exam = existingExam?.copy(
+                        name = examName.trim(),
+                        schoolName = schoolName.trim(),
+                        wrongAnswerPolicy = wrongPolicy,
+                        folderName = folderName.trim(),
+                        examDateEpochDay = parsedDate.toEpochDay(),
+                        participants = selectedParticipants,
+                        bookletCount = bookletCount,
+                        personalizedFormsEnabled = personalizedFormsEnabled
+                    ) ?: ExamFactory.create(
                         name = examName,
                         schoolName = schoolName,
                         templateSelection = selectedTemplate.selection,
                         examDateEpochDay = parsedDate.toEpochDay(),
                         wrongAnswerPolicy = wrongPolicy,
                         folderName = folderName,
-                        participants = selectedParticipants.map { student ->
-                            ExamParticipant(
-                                studentNumber = student.studentNumber,
-                                studentName = student.fullName,
-                                className = student.className
-                            )
-                        },
+                        participants = selectedParticipants,
                         bookletCount = bookletCount,
                         personalizedFormsEnabled = personalizedFormsEnabled
-                    ).also(repository::save)
+                    )
+                    repository.save(exam)
+                    exam
                 }.onSuccess { exam ->
                     onSaved(exam.id)
                 }.onFailure { error ->
@@ -135,7 +193,7 @@ fun NewExamScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             ProductTopBar(
-                title = "Yeni Sınav",
+                title = if (editing) "Sınavı Düzenle" else "Yeni Sınav",
                 leadingText = "×",
                 onLeadingClick = onBack,
                 actionText = "Kaydet",
@@ -166,7 +224,11 @@ fun NewExamScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "Okul adı Ayarlar bölümündeki kurum bilgisinden otomatik gelir; bu sınav için ayrıca değiştirilebilir.",
+                        if (editing) {
+                            "Sınav bilgilerini güncelleyebilirsiniz. Optik form sürümü, okunmuş kağıtlarla uyumu korumak için değiştirilemez."
+                        } else {
+                            "Okul adı Ayarlar bölümündeki kurum bilgisinden otomatik gelir; bu sınav için ayrıca değiştirilebilir."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -187,6 +249,7 @@ fun NewExamScreen(
                     Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = !editing,
                             onClick = { templateMenuOpen = true },
                             shape = RoundedCornerShape(18.dp)
                         ) {
@@ -205,7 +268,7 @@ fun NewExamScreen(
                             }
                         }
                         DropdownMenu(
-                            expanded = templateMenuOpen,
+                            expanded = templateMenuOpen && !editing,
                             onDismissRequest = { templateMenuOpen = false }
                         ) {
                             options.forEach { option ->
@@ -442,6 +505,14 @@ fun NewExamScreen(
                         }
                     }
 
+                    if (preservedMissingParticipants.isNotEmpty()) {
+                        Text(
+                            "${preservedMissingParticipants.size} kayıtlı katılımcı mevcut öğrenci listesinde bulunmuyor; sınav kaydı korunuyor.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     Text(
                         if (selectedParticipants.isEmpty()) {
                             "Katılımcı seçilmedi. Sınav serbest taramaya açık kalır."
@@ -464,7 +535,7 @@ fun NewExamScreen(
                                 when {
                                     !designerBackedForm -> "Form Editörü ile oluşturulmuş bir form seçildiğinde kullanılabilir."
                                     selectedParticipants.isEmpty() -> "Önce en az bir sınıf veya öğrenci seçin."
-                                    else -> "Seçilen öğrenciler için ad, sınıf ve numara bilgileriyle kişiselleştirilmiş form üretimini etkinleştirir."
+                                    else -> "Seçilen öğrenciler için ad, sınıf, numara, sınav ve okul bilgileriyle kişiselleştirilmiş form üretimini etkinleştirir."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -543,6 +614,8 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
 private val ExamDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.forLanguageTag("tr-TR"))
 
 private fun todayText(): String = LocalDate.now().format(ExamDateFormatter)
+
+private fun formatExamDate(epochDay: Long): String = LocalDate.ofEpochDay(epochDay).format(ExamDateFormatter)
 
 private fun parseExamDate(value: String): LocalDate? = try {
     LocalDate.parse(value.trim(), ExamDateFormatter)
