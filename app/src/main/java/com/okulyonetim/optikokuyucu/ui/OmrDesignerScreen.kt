@@ -52,6 +52,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDraftHandoff
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerResizeHandleGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -724,6 +725,7 @@ private fun CanonicalTemplatePreview(
                             canvas.nativeCanvas.drawText(element.text, textX, baseline, paint)
                         }
                     }
+                    is DesignerImageElement -> Unit
                     is DesignerBoxElement -> {
                         drawRect(
                             color = Color.Black,
