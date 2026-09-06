@@ -144,7 +144,7 @@ internal fun DrawScope.drawDesignerTextElement(
         val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
             color = AndroidColor.BLACK
             textSize = (element.fontSize.toFloat() * averageScale).coerceAtLeast(7f)
-            typeface = DesignerTypography.typeface(element.bold)
+            DesignerTypography.configurePaint(this, element.bold)
             textAlign = when (element.alignment) {
                 DesignerTextAlignment.START -> AndroidPaint.Align.LEFT
                 DesignerTextAlignment.CENTER -> AndroidPaint.Align.CENTER
