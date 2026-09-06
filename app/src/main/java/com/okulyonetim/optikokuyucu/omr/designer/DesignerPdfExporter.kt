@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
+import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.objdetect.Objdetect
@@ -22,7 +23,8 @@ data class DesignerFilledMark(
 
 data class DesignerPdfPageData(
     val textOverrides: Map<String, String> = emptyMap(),
-    val filledMarks: Set<DesignerFilledMark> = emptySet()
+    val filledMarks: Set<DesignerFilledMark> = emptySet(),
+    val numericHeaderValues: Map<String, String> = emptyMap()
 )
 
 /** Renders the same canonical source document into one or more physical PDF pages. */
@@ -52,7 +54,7 @@ object DesignerPdfExporter {
                     val canvas = page.canvas
                     canvas.drawColor(Color.WHITE)
                     drawVisualLayer(canvas, document, transform, pageData)
-                    drawComponentDecorations(canvas, document, transform)
+                    drawComponentDecorations(canvas, document, transform, pageData)
                     drawPrintOmrLayer(canvas, renderPlan, transform)
                     drawFilledMarks(canvas, template, transform, pageData.filledMarks)
                     drawFiducials(canvas, template, transform)
@@ -163,7 +165,12 @@ object DesignerPdfExporter {
         canvas.drawLine(start.x.toFloat(), start.y.toFloat(), end.x.toFloat(), end.y.toFloat(), paint)
     }
 
-    private fun drawComponentDecorations(canvas: Canvas, document: DesignerDocument, transform: CanonicalPageTransform) {
+    private fun drawComponentDecorations(
+        canvas: Canvas,
+        document: DesignerDocument,
+        transform: CanonicalPageTransform,
+        pageData: DesignerPdfPageData
+    ) {
         val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
@@ -192,12 +199,50 @@ object DesignerPdfExporter {
                 }
             }
             if (component is NumericGridComponent) {
-                DesignerEditorLayout.numericHeaderBoxes(component).forEach { box ->
+                val boxes = DesignerEditorLayout.numericHeaderBoxes(component)
+                boxes.forEach { box ->
                     val rect = transform.map(box)
                     canvas.drawRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), boxPaint)
                 }
+                val headerValue = pageData.numericHeaderValues[component.id]
+                if (!headerValue.isNullOrBlank()) {
+                    val normalized = headerValue.filter(Char::isDigit)
+                        .takeLast(component.digits)
+                        .padStart(component.digits, '0')
+                    boxes.forEachIndexed { index, box ->
+                        normalized.getOrNull(index)?.let { digit ->
+                            drawNumericHeaderDigit(
+                                canvas = canvas,
+                                digit = digit,
+                                box = box,
+                                bubbleRadius = component.bubbleRadius,
+                                transform = transform
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+
+    private fun drawNumericHeaderDigit(
+        canvas: Canvas,
+        digit: Char,
+        box: TemplateRect,
+        bubbleRadius: Double,
+        transform: CanonicalPageTransform
+    ) {
+        val rect = transform.map(box)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL
+            textAlign = Paint.Align.CENTER
+            textSize = max(4.2f, transform.length(bubbleRadius * 1.18).toFloat())
+            typeface = DesignerTypography.typeface(bold = true)
+        }
+        val metrics = paint.fontMetrics
+        val baseline = rect.center.y.toFloat() - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(digit.toString(), rect.center.x.toFloat(), baseline, paint)
     }
 
     private fun drawPrintOmrLayer(

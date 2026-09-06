@@ -14,7 +14,8 @@ object ExamPersonalizedForms {
         return exam.participants.map { participant ->
             DesignerPdfPageData(
                 textOverrides = textOverrides(exam, participant, document),
-                filledMarks = studentNumberMarks(participant, document)
+                filledMarks = studentNumberMarks(participant, document),
+                numericHeaderValues = studentNumberHeaderValues(participant, document)
             )
         }
     }
@@ -41,19 +42,8 @@ object ExamPersonalizedForms {
         participant: ExamParticipant,
         document: DesignerDocument
     ): Set<DesignerFilledMark> {
-        val grid = document.components
-            .filterIsInstance<NumericGridComponent>()
-            .firstOrNull { component ->
-                component.id.startsWith("number-") ||
-                    component.label.lowercase().let { label ->
-                        "öğrenci" in label && ("no" in label || "numara" in label)
-                    }
-            }
-            ?: return emptySet()
-
-        val digits = participant.studentNumber.filter(Char::isDigit)
-        if (digits.isBlank()) return emptySet()
-        val normalized = digits.takeLast(grid.digits).padStart(grid.digits, '0')
+        val grid = studentNumberGrid(document) ?: return emptySet()
+        val normalized = normalizedStudentNumber(participant, grid) ?: return emptySet()
 
         return normalized.mapIndexedNotNull { index, digit ->
             val value = digit.toString()
@@ -64,5 +54,33 @@ object ExamPersonalizedForms {
                 markId = value
             )
         }.toSet()
+    }
+
+    private fun studentNumberHeaderValues(
+        participant: ExamParticipant,
+        document: DesignerDocument
+    ): Map<String, String> {
+        val grid = studentNumberGrid(document) ?: return emptyMap()
+        val normalized = normalizedStudentNumber(participant, grid) ?: return emptyMap()
+        return mapOf(grid.id to normalized)
+    }
+
+    private fun studentNumberGrid(document: DesignerDocument): NumericGridComponent? =
+        document.components
+            .filterIsInstance<NumericGridComponent>()
+            .firstOrNull { component ->
+                component.id.startsWith("number-") ||
+                    component.label.lowercase().let { label ->
+                        "öğrenci" in label && ("no" in label || "numara" in label)
+                    }
+            }
+
+    private fun normalizedStudentNumber(
+        participant: ExamParticipant,
+        grid: NumericGridComponent
+    ): String? {
+        val digits = participant.studentNumber.filter(Char::isDigit)
+        if (digits.isBlank()) return null
+        return digits.takeLast(grid.digits).padStart(grid.digits, '0')
     }
 }
