@@ -143,7 +143,8 @@ object StructuredFormDocumentFactory {
         val visuals = mutableListOf<DesignerVisualElement>()
         val components = mutableListOf<DesignerOmrComponent>()
 
-        val titleTop = max(76.0, config.markerInset + config.markerSize + 8.0)
+        // Keep the title below the mandatory fiducial safety halo while still using a compact header.
+        val titleTop = max(100.0, config.markerInset + config.markerSize + 26.0)
         val titleWidth = contentWidth
         visuals += DesignerTextElement(
             id = "structured:title",
@@ -275,7 +276,7 @@ object StructuredFormDocumentFactory {
                 blockHeight < 390.0 -> 27.0
                 else -> 30.0
             }
-            val usableQuestionHeight = blockHeight - 42.0
+            val usableQuestionHeight = blockHeight - 50.0
             val autoMaxRows = max(1, floor(usableQuestionHeight / preferredRowGap).toInt())
             val autoColumns = ceil(lesson.questionCount.toDouble() / autoMaxRows.toDouble())
                 .toInt()
@@ -335,7 +336,7 @@ object StructuredFormDocumentFactory {
                 choices = lesson.choices,
                 columns = internalColumns,
                 firstChoiceX = blockLeft + firstChoiceInset,
-                topY = blockTop + 40.0,
+                topY = blockTop + 48.0,
                 bubbleRadius = lessonBubbleRadius,
                 choiceGap = choiceGap,
                 rowGap = rowGap,
