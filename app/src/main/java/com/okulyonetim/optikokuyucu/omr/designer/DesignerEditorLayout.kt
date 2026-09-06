@@ -78,6 +78,18 @@ object DesignerEditorLayout {
         is SingleChoiceComponent -> component.showLabel
     }
 
+    fun componentLabelFontSize(component: DesignerOmrComponent): Double = when (component) {
+        is QuestionGroupComponent -> component.labelFontSize
+        is NumericGridComponent -> component.labelFontSize
+        is SingleChoiceComponent -> component.labelFontSize
+    }
+
+    fun componentLabelBold(component: DesignerOmrComponent): Boolean = when (component) {
+        is QuestionGroupComponent -> component.labelBold
+        is NumericGridComponent -> component.labelBold
+        is SingleChoiceComponent -> component.labelBold
+    }
+
     fun componentBubbleRadius(component: DesignerOmrComponent): Double = when (component) {
         is QuestionGroupComponent -> component.bubbleRadius
         is NumericGridComponent -> component.bubbleRadius
@@ -108,7 +120,6 @@ object DesignerEditorLayout {
     }
 
     private fun courseSlotCount(document: DesignerDocument): Int = if (
-        document.formSpec.paperSize == DesignerPaperSize.A4 &&
-        document.formSpec.orientation == DesignerPageOrientation.PORTRAIT
+        document.formSpec.paperSize == DesignerPaperSize.A4 && document.formSpec.orientation == DesignerPageOrientation.PORTRAIT
     ) A4_PORTRAIT_COURSE_SLOTS else 4
 }
