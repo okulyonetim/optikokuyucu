@@ -21,6 +21,7 @@ import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.LiveScanRecorder
 import com.okulyonetim.optikokuyucu.omr.results.StoredScanImage
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
+import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.UUID
 
 /** Production exam scanner: every temporally accepted read is persisted and linked to this exam. */
@@ -58,7 +59,8 @@ fun ExamScannerScreen(
         LiveScanRecorder(FileScanRecordRepository(appContext))
     }
     val imageRepository = remember(context) { FileScanImageRepository(appContext) }
-    val registrar = remember(context) { ExamPaperRegistrar(examRepository) }
+    val studentRepository = remember(context) { FileStudentRosterRepository(appContext) }
+    val registrar = remember(context) { ExamPaperRegistrar(examRepository, studentRepository) }
     val template = resolved.template
 
     OmrCameraScreen(

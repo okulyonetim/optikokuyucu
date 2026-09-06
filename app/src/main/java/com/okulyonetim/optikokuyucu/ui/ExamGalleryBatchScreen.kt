@@ -42,6 +42,7 @@ import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.GalleryScanRecorder
 import com.okulyonetim.optikokuyucu.omr.results.StoredScanImage
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
+import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -77,7 +78,8 @@ fun ExamGalleryBatchScreen(
     val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
     val galleryRecorder = remember(context) { GalleryScanRecorder(scanRepository) }
     val imageRepository = remember(context) { FileScanImageRepository(appContext) }
-    val registrar = remember(context) { ExamPaperRegistrar(examRepository) }
+    val studentRepository = remember(context) { FileStudentRosterRepository(appContext) }
+    val registrar = remember(context) { ExamPaperRegistrar(examRepository, studentRepository) }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
     val active = remember { AtomicBoolean(true) }
