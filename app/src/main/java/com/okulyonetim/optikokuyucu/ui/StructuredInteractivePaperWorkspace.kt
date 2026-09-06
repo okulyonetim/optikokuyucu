@@ -73,7 +73,8 @@ internal fun InteractivePaperWorkspace(
     document: DesignerDocument,
     selection: StructuredPaperSelection?,
     onSelectionChange: (StructuredPaperSelection?) -> Unit,
-    onDocumentChange: (DesignerDocument) -> Unit
+    onDocumentChange: (DesignerDocument) -> Unit,
+    onDirectDragActiveChange: (Boolean) -> Unit = {}
 ) {
     val dimensions = DesignerPageGeometry.dimensions(document.formSpec.paperSize)
     val physicalWidthMm = dimensions?.let {
@@ -92,6 +93,7 @@ internal fun InteractivePaperWorkspace(
     val currentSelection by rememberUpdatedState(selection)
     val currentOnSelectionChange by rememberUpdatedState(onSelectionChange)
     val currentOnDocumentChange by rememberUpdatedState(onDocumentChange)
+    val currentOnDirectDragActiveChange by rememberUpdatedState(onDirectDragActiveChange)
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val safeFill = MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
     val safeStroke = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
@@ -113,6 +115,7 @@ internal fun InteractivePaperWorkspace(
 
     fun switchMode(mode: StructuredPaperDisplayMode) {
         if (displayMode == mode) return
+        currentOnDirectDragActiveChange(false)
         displayMode = mode
         panMode = false
         activeGuides = DesignerAlignmentGuideMatch()
@@ -238,20 +241,29 @@ internal fun InteractivePaperWorkspace(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .onSizeChanged { viewportSize = it; pan = clampPanFor(zoom, pan) }
                     .transformable(state = transformableState, enabled = navigationEnabled)
-                    .pointerInput(document.space, document.components.size, document.visualElements.size, panMode, displayMode) {
+                    .pointerInput(document.id, panMode, displayMode) {
                         if (directEditingEnabled && !panMode) {
                             detectTapGestures { offset ->
                                 if (size.width > 0 && size.height > 0) currentOnSelectionChange(hitTest(toCanonical(offset, size.width, size.height)))
                             }
                         }
                     }
-                    .pointerInput(document.space, document.components, document.visualElements, selection, panMode, displayMode) {
+                    // Keep this gesture keyed only by stable interaction mode. Mutable document content changes on
+                    // every snapped move; using it as a key restarts the coroutine and turns one drag into tiny hops.
+                    .pointerInput(document.id, panMode, displayMode) {
                         if (directEditingEnabled && !panMode) {
                             var target: StructuredPaperSelection? = null
                             var resizeVisual = false
                             var baseline: DesignerDocument? = null
                             var totalX = 0.0
                             var totalY = 0.0
+                            fun finishDirectDrag() {
+                                currentOnDirectDragActiveChange(false)
+                                target = null
+                                baseline = null
+                                resizeVisual = false
+                                activeGuides = DesignerAlignmentGuideMatch()
+                            }
                             detectDragGestures(
                                 onDragStart = { offset ->
                                     if (size.width <= 0 || size.height <= 0) return@detectDragGestures
@@ -265,9 +277,10 @@ internal fun InteractivePaperWorkspace(
                                     totalY = 0.0
                                     activeGuides = DesignerAlignmentGuideMatch()
                                     currentOnSelectionChange(target)
+                                    currentOnDirectDragActiveChange(target != null)
                                 },
-                                onDragEnd = { target = null; baseline = null; resizeVisual = false; activeGuides = DesignerAlignmentGuideMatch() },
-                                onDragCancel = { target = null; baseline = null; resizeVisual = false; activeGuides = DesignerAlignmentGuideMatch() }
+                                onDragEnd = ::finishDirectDrag,
+                                onDragCancel = ::finishDirectDrag
                             ) { change, dragAmount ->
                                 val selected = target ?: return@detectDragGestures
                                 val base = baseline ?: return@detectDragGestures
