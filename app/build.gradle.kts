@@ -10,6 +10,7 @@ val notoSansCommit = "5e35378e6bda803962ee6fd257e444a7d459660d"
 val notoSansGitBlobSha = "75575046c015ff623a848096a15779867ba71453"
 val notoSansUrl = "https://raw.githubusercontent.com/google/fonts/$notoSansCommit/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf"
 val generatedNotoFontResDir = layout.buildDirectory.dir("generated/noto-font/res")
+val generatedNotoFontResFile = generatedNotoFontResDir.get().asFile
 
 val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
     val outputFile = generatedNotoFontResDir.map { it.file("font/noto_sans.ttf") }
@@ -84,7 +85,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            res.srcDir(generatedNotoFontResDir)
+            res.srcDir(generatedNotoFontResFile)
         }
     }
 
