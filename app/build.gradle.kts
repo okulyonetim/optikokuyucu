@@ -55,8 +55,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 24
-        versionName = "0.13.1"
+        versionCode = 25
+        versionName = "0.14.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -118,6 +118,7 @@ dependencies {
 
     implementation(libs.opencv)
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("net.sourceforge.jexcelapi:jxl:2.6.12")
 
     testImplementation(libs.junit4)
 
