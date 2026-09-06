@@ -16,18 +16,10 @@ import kotlin.math.max
 
 /** Renders the same canonical source document into a physical PDF page. */
 object DesignerPdfExporter {
-    fun export(
-        document: DesignerDocument,
-        output: OutputStream,
-        profile: PdfPageProfile = PdfPageProfile.A4,
-        context: DesignerPrintContext = DesignerPrintContext()
-    ) {
-        val personalizationIssue = DesignerPrintPersonalization.studentNumberIssue(document, context)
-        require(personalizationIssue == null) { personalizationIssue ?: "Kişiselleştirme hatası." }
-        val printableDocument = DesignerPrintPersonalization.resolveDocument(document, context)
-        val renderPlan = DesignerPrintRenderer.render(printableDocument, context)
+    fun export(document: DesignerDocument, output: OutputStream, profile: PdfPageProfile = PdfPageProfile.A4) {
+        val renderPlan = DesignerPrintRenderer.render(document)
         val template = renderPlan.template
-        val readability = TemplateReadabilityAnalyzer.analyze(printableDocument, template)
+        val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         require(readability.canSave) { "Template cannot be exported while readability errors exist." }
         val transform = DesignerPdfLayout.fit(template.space, profile)
         val pdf = PdfDocument()
@@ -37,13 +29,12 @@ object DesignerPdfExporter {
             try {
                 val canvas = page.canvas
                 canvas.drawColor(Color.WHITE)
-                drawVisualLayer(canvas, printableDocument, transform)
-                drawComponentDecorations(canvas, printableDocument, transform)
+                drawVisualLayer(canvas, document, transform)
+                drawComponentDecorations(canvas, document, transform)
                 drawPrintOmrLayer(canvas, renderPlan, transform)
                 drawFiducials(canvas, template, transform)
             } finally { pdf.finishPage(page) }
-            pdf.writeTo(output)
-            output.flush()
+            pdf.writeTo(output); output.flush()
         } finally { pdf.close() }
     }
 
@@ -61,31 +52,14 @@ object DesignerPdfExporter {
     private fun drawTextElement(canvas: Canvas, element: DesignerTextElement, transform: CanonicalPageTransform) {
         val rect = transform.map(element.bounds)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            style = Paint.Style.FILL
-            textSize = max(5.5f, transform.length(element.fontSize).toFloat())
+            color = Color.BLACK; style = Paint.Style.FILL; textSize = max(5.5f, transform.length(element.fontSize).toFloat())
             typeface = DesignerTypography.typeface(element.bold)
-            textAlign = when (element.alignment) {
-                DesignerTextAlignment.START -> Paint.Align.LEFT
-                DesignerTextAlignment.CENTER -> Paint.Align.CENTER
-                DesignerTextAlignment.END -> Paint.Align.RIGHT
-            }
+            textAlign = when (element.alignment) { DesignerTextAlignment.START -> Paint.Align.LEFT; DesignerTextAlignment.CENTER -> Paint.Align.CENTER; DesignerTextAlignment.END -> Paint.Align.RIGHT }
         }
-        val x = when (element.alignment) {
-            DesignerTextAlignment.START -> rect.left.toFloat()
-            DesignerTextAlignment.CENTER -> rect.center.x.toFloat()
-            DesignerTextAlignment.END -> rect.right.toFloat()
-        }
-        val lineHeight = paint.textSize * 1.22f
-        var baseline = rect.top.toFloat() + paint.textSize
-        canvas.save()
-        canvas.clipRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat())
-        element.text.split('\n').forEach { line ->
-            if (baseline <= rect.bottom.toFloat() + paint.textSize * 0.2f) {
-                canvas.drawText(line, x, baseline, paint)
-                baseline += lineHeight
-            }
-        }
+        val x = when (element.alignment) { DesignerTextAlignment.START -> rect.left.toFloat(); DesignerTextAlignment.CENTER -> rect.center.x.toFloat(); DesignerTextAlignment.END -> rect.right.toFloat() }
+        val lineHeight = paint.textSize * 1.22f; var baseline = rect.top.toFloat() + paint.textSize
+        canvas.save(); canvas.clipRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat())
+        element.text.split('\n').forEach { line -> if (baseline <= rect.bottom.toFloat() + paint.textSize * 0.2f) { canvas.drawText(line, x, baseline, paint); baseline += lineHeight } }
         canvas.restore()
     }
 
@@ -100,25 +74,18 @@ object DesignerPdfExporter {
 
     private fun drawBoxElement(canvas: Canvas, element: DesignerBoxElement, transform: CanonicalPageTransform) {
         val rect = transform.map(element.bounds)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat())
-        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat()) }
         canvas.drawRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), paint)
     }
 
     private fun drawLineElement(canvas: Canvas, element: DesignerLineElement, transform: CanonicalPageTransform) {
-        val start = transform.map(element.start)
-        val end = transform.map(element.end)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat())
-        }
+        val start = transform.map(element.start); val end = transform.map(element.end)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.6f, transform.length(element.strokeWidth).toFloat()) }
         canvas.drawLine(start.x.toFloat(), start.y.toFloat(), end.x.toFloat(), end.y.toFloat(), paint)
     }
 
     private fun drawComponentDecorations(canvas: Canvas, document: DesignerDocument, transform: CanonicalPageTransform) {
-        val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.65f, transform.length(1.0).toFloat())
-        }
+        val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = max(0.65f, transform.length(1.0).toFloat()) }
         document.components.forEach { component ->
             if (DesignerEditorLayout.componentShowsLabel(component)) {
                 val label = DesignerEditorLayout.componentLabel(component)
@@ -129,16 +96,7 @@ object DesignerPdfExporter {
                         DesignerTextAlignment.CENTER -> Paint.Align.CENTER
                         DesignerTextAlignment.END -> Paint.Align.RIGHT
                     }
-                    drawLabel(
-                        canvas,
-                        label,
-                        anchor.x,
-                        anchor.y,
-                        align,
-                        DesignerEditorLayout.componentLabelFontSize(component),
-                        transform,
-                        bold = DesignerEditorLayout.componentLabelBold(component)
-                    )
+                    drawLabel(canvas, label, anchor.x, anchor.y, align, DesignerEditorLayout.componentBubbleRadius(component) * 1.15, transform, bold = true)
                 }
             }
             if (component is NumericGridComponent) {
@@ -150,26 +108,41 @@ object DesignerPdfExporter {
         }
     }
 
-    private fun drawPrintOmrLayer(canvas: Canvas, renderPlan: DesignerPrintRenderPlan, transform: CanonicalPageTransform) {
+    private fun drawPrintOmrLayer(
+        canvas: Canvas,
+        renderPlan: DesignerPrintRenderPlan,
+        transform: CanonicalPageTransform
+    ) {
         renderPlan.bubbles.forEach { bubble ->
             val center = transform.map(bubble.center)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.BLACK
-                style = if (bubble.filled) Paint.Style.FILL else Paint.Style.STROKE
+                style = Paint.Style.STROKE
                 strokeWidth = transform.length(bubble.outlineWidth).toFloat().coerceAtLeast(0.1f)
             }
-            canvas.drawCircle(center.x.toFloat(), center.y.toFloat(), transform.length(bubble.radius).toFloat(), paint)
+            canvas.drawCircle(
+                center.x.toFloat(),
+                center.y.toFloat(),
+                transform.length(bubble.radius).toFloat(),
+                paint
+            )
         }
-        renderPlan.texts.forEach { text -> drawPrintText(canvas, text, transform) }
+        renderPlan.texts.forEach { text ->
+            drawPrintText(canvas, text, transform)
+        }
     }
 
-    private fun drawPrintText(canvas: Canvas, text: DesignerPrintText, transform: CanonicalPageTransform) {
+    private fun drawPrintText(
+        canvas: Canvas,
+        text: DesignerPrintText,
+        transform: CanonicalPageTransform
+    ) {
         val point = transform.map(text.anchor)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = transform.length(text.textSize).toFloat().coerceAtLeast(0.1f)
-            typeface = DesignerTypography.typeface(text.bold)
+            typeface = DesignerTypography.typeface()
             textAlign = when (text.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -193,9 +166,7 @@ object DesignerPdfExporter {
     ) {
         val point = transform.map(com.okulyonetim.optikokuyucu.omr.template.TemplatePoint(canonicalX, canonicalY))
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            style = Paint.Style.FILL
-            textAlign = align
+            color = Color.BLACK; style = Paint.Style.FILL; textAlign = align
             textSize = max(4.2f, transform.length(canonicalTextSize).toFloat())
             typeface = DesignerTypography.typeface(bold)
         }
@@ -206,18 +177,14 @@ object DesignerPdfExporter {
         val dictionary = Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50)
         val markerPaint = Paint().apply { isAntiAlias = false; isFilterBitmap = false }
         template.fiducials.forEach { fiducial ->
-            val markerMat = Mat()
-            var markerBitmap: Bitmap? = null
+            val markerMat = Mat(); var markerBitmap: Bitmap? = null
             try {
                 dictionary.generateImageMarker(fiducial.markerId, MARKER_RASTER_SIZE, markerMat, 1)
                 markerBitmap = Bitmap.createBitmap(MARKER_RASTER_SIZE, MARKER_RASTER_SIZE, Bitmap.Config.ARGB_8888)
                 Utils.matToBitmap(markerMat, markerBitmap)
                 val rect = transform.map(fiducial.bounds)
                 canvas.drawBitmap(markerBitmap, null, RectF(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat()), markerPaint)
-            } finally {
-                markerBitmap?.recycle()
-                markerMat.release()
-            }
+            } finally { markerBitmap?.recycle(); markerMat.release() }
         }
     }
 

@@ -28,8 +28,7 @@ object DesignerPageGeometry {
     const val CANONICAL_SHORT_SIDE = 1000.0
     private const val FIDUCIAL_SIZE_RATIO = 0.050
     private const val FIDUCIAL_INSET_RATIO = 0.032
-    /** Page-wide placement margin. Fiducial safety is enforced separately and locally. */
-    private const val SAFE_MARGIN_RATIO = 0.020
+    private const val SAFE_MARGIN_RATIO = 0.085
 
     fun dimensions(paperSize: DesignerPaperSize): DesignerPaperDimensions? = when (paperSize) {
         DesignerPaperSize.A3 -> DesignerPaperDimensions(297.0, 420.0)
@@ -54,8 +53,11 @@ object DesignerPageGeometry {
                 height = CANONICAL_SHORT_SIDE * dimensions.heightMm / dimensions.widthMm
             )
         }
-        return if (orientation == DesignerPageOrientation.PORTRAIT) portrait
-        else TemplateSize(width = portrait.height, height = portrait.width)
+        return if (orientation == DesignerPageOrientation.PORTRAIT) {
+            portrait
+        } else {
+            TemplateSize(width = portrait.height, height = portrait.width)
+        }
     }
 
     fun fiducialsFor(space: TemplateSize): List<FiducialSpec> {
@@ -63,14 +65,31 @@ object DesignerPageGeometry {
         val markerSize = shortSide * FIDUCIAL_SIZE_RATIO
         val inset = shortSide * FIDUCIAL_INSET_RATIO
         return listOf(
-            FiducialSpec(FiducialCorner.TOP_LEFT, 11, TemplateRect(inset, inset, markerSize, markerSize)),
-            FiducialSpec(FiducialCorner.TOP_RIGHT, 22, TemplateRect(space.width - inset - markerSize, inset, markerSize, markerSize)),
             FiducialSpec(
-                FiducialCorner.BOTTOM_RIGHT,
-                33,
-                TemplateRect(space.width - inset - markerSize, space.height - inset - markerSize, markerSize, markerSize)
+                corner = FiducialCorner.TOP_LEFT,
+                markerId = 11,
+                bounds = TemplateRect(inset, inset, markerSize, markerSize)
             ),
-            FiducialSpec(FiducialCorner.BOTTOM_LEFT, 44, TemplateRect(inset, space.height - inset - markerSize, markerSize, markerSize))
+            FiducialSpec(
+                corner = FiducialCorner.TOP_RIGHT,
+                markerId = 22,
+                bounds = TemplateRect(space.width - inset - markerSize, inset, markerSize, markerSize)
+            ),
+            FiducialSpec(
+                corner = FiducialCorner.BOTTOM_RIGHT,
+                markerId = 33,
+                bounds = TemplateRect(
+                    space.width - inset - markerSize,
+                    space.height - inset - markerSize,
+                    markerSize,
+                    markerSize
+                )
+            ),
+            FiducialSpec(
+                corner = FiducialCorner.BOTTOM_LEFT,
+                markerId = 44,
+                bounds = TemplateRect(inset, space.height - inset - markerSize, markerSize, markerSize)
+            )
         )
     }
 
@@ -93,7 +112,10 @@ object DesignerPageGeometry {
         return document.copy(
             space = space,
             fiducials = fiducialsFor(space),
-            formSpec = document.formSpec.copy(paperSize = paperSize, orientation = orientation)
+            formSpec = document.formSpec.copy(
+                paperSize = paperSize,
+                orientation = orientation
+            )
         )
     }
 }

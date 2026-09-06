@@ -54,8 +54,8 @@ internal fun DrawScope.drawComponentDecorations(
                 val alignment = DesignerEditorLayout.componentLabelAlignment(component)
                 val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
                     color = android.graphics.Color.rgb(40, 40, 40)
-                    DesignerTypography.configurePaint(this, bold = DesignerEditorLayout.componentLabelBold(component))
-                    textSize = DesignerEditorLayout.componentLabelFontSize(component).toFloat() * averageScale
+                    DesignerTypography.configurePaint(this, bold = true)
+                    textSize = (DesignerEditorLayout.componentBubbleRadius(component) * 1.15).toFloat() * averageScale
                     textAlign = when (alignment) {
                         DesignerTextAlignment.START -> AndroidPaint.Align.LEFT
                         DesignerTextAlignment.CENTER -> AndroidPaint.Align.CENTER

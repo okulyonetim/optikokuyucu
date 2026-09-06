@@ -74,13 +74,18 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         )
     }
     var document by remember(initialDocument.id, initialDocument.version) { mutableStateOf(initialDocument) }
-    var formName by remember(initialDocument.id, initialDocument.version) { mutableStateOf(if (openRequest == null) "" else initialDocument.name) }
-    var libraryMode by remember(openRequest) { mutableStateOf(openRequest?.mode ?: DesignerLibraryOpenMode.EDIT) }
+    var formName by remember(initialDocument.id, initialDocument.version) {
+        mutableStateOf(if (openRequest == null) "" else initialDocument.name)
+    }
+    var libraryMode by remember(openRequest) {
+        mutableStateOf(openRequest?.mode ?: DesignerLibraryOpenMode.EDIT)
+    }
     var status by remember { mutableStateOf("") }
     var showAreaPicker by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf<StructuredPaperSelection?>(null) }
     var workspaceDirectDragActive by remember { mutableStateOf(false) }
     var editingExistingId by remember { mutableStateOf<String?>(null) }
+
     var numberDraft by remember { mutableStateOf<NumericGridComponent?>(null) }
     var numberPatternText by remember { mutableStateOf("") }
     var answerDraft by remember { mutableStateOf<QuestionGroupComponent?>(null) }
@@ -96,27 +101,49 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
             document = document.copy(name = formName.trim().ifBlank { document.name }),
             openCvReady = openCvReady,
             onBack = onBack,
-            onEdit = { libraryMode = DesignerLibraryOpenMode.EDIT; selection = null; status = "Düzenleme modu açıldı." }
+            onEdit = {
+                libraryMode = DesignerLibraryOpenMode.EDIT
+                selection = null
+                status = "Düzenleme modu açıldı."
+            }
         )
         return
     }
 
     fun clearEditing() {
-        editingExistingId = null; numberDraft = null; numberPatternText = ""; answerDraft = null; answerPatternText = ""
-        bookletDraft = null; bookletPatternText = ""; descriptionDraft = null; imageDraft = null; imageEditorOpen = false
+        editingExistingId = null
+        numberDraft = null
+        numberPatternText = ""
+        answerDraft = null
+        answerPatternText = ""
+        bookletDraft = null
+        bookletPatternText = ""
+        descriptionDraft = null
+        imageDraft = null
+        imageEditorOpen = false
     }
 
     fun saveDocument() {
         val name = formName.trim()
-        if (name.isBlank()) { status = "Form adı zorunludur."; return }
+        if (name.isBlank()) {
+            status = "Form adı zorunludur."
+            return
+        }
         status = runCatching {
-            val stored = repository.save(document.copy(name = name)); document = stored; formName = stored.name; "Kaydedildi · v${stored.version}"
+            val stored = repository.save(document.copy(name = name))
+            document = stored
+            formName = stored.name
+            "Kaydedildi · v${stored.version}"
         }.getOrElse { "Kaydetme hatası: ${it.message ?: it.javaClass.simpleName}" }
     }
 
     fun storeComponent(component: com.okulyonetim.optikokuyucu.omr.designer.DesignerOmrComponent) {
         val existing = editingExistingId
-        document = if (existing == null) document.copy(components = document.components + component) else DesignerDocumentEditor.replaceComponent(document, component)
+        document = if (existing == null) {
+            document.copy(components = document.components + component)
+        } else {
+            DesignerDocumentEditor.replaceComponent(document, component)
+        }
         selection = StructuredPaperSelection(StructuredSelectionKind.COMPONENT, component.id)
         status = if (existing == null) "Alan eklendi." else "Alan güncellendi."
         clearEditing()
@@ -124,43 +151,93 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
 
     fun storeVisual(element: com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement) {
         val existing = editingExistingId
-        document = if (existing == null) document.copy(visualElements = document.visualElements + element)
-        else document.copy(visualElements = document.visualElements.map { if (it.id == element.id) element else it })
+        document = if (existing == null) {
+            document.copy(visualElements = document.visualElements + element)
+        } else {
+            document.copy(visualElements = document.visualElements.map { if (it.id == element.id) element else it })
+        }
         selection = StructuredPaperSelection(StructuredSelectionKind.VISUAL, element.id)
         status = if (existing == null) "Alan eklendi." else "Alan güncellendi."
         clearEditing()
     }
 
     numberDraft?.let { draft ->
-        NumberAreaEditorScreen(document, draft, numberPatternText, { numberDraft = it }, { text ->
-            numberPatternText = text; DesignerAreaCatalog.parseNumberPattern(text)?.let { numberDraft = numberDraft?.copy(values = it) }
-        }, { clearEditing() }, { storeComponent(it) })
+        NumberAreaEditorScreen(
+            document,
+            draft,
+            numberPatternText,
+            { numberDraft = it },
+            { text ->
+                numberPatternText = text
+                DesignerAreaCatalog.parseNumberPattern(text)?.let { numberDraft = numberDraft?.copy(values = it) }
+            },
+            { clearEditing() },
+            { storeComponent(it) }
+        )
         return
     }
+
     answerDraft?.let { draft ->
-        AnswerAreaEditorScreen(document, draft, answerPatternText, { answerDraft = it }, { text ->
-            answerPatternText = text; DesignerAreaCatalog.parseAnswerPattern(text)?.let { answerDraft = answerDraft?.copy(choices = it) }
-        }, { clearEditing() }, { storeComponent(it) })
+        AnswerAreaEditorScreen(
+            document,
+            draft,
+            answerPatternText,
+            { answerDraft = it },
+            { text ->
+                answerPatternText = text
+                DesignerAreaCatalog.parseAnswerPattern(text)?.let { answerDraft = answerDraft?.copy(choices = it) }
+            },
+            { clearEditing() },
+            { storeComponent(it) }
+        )
         return
     }
+
     bookletDraft?.let { draft ->
-        BookletAreaEditorScreen(document, draft, bookletPatternText, { bookletDraft = it }, { text ->
-            bookletPatternText = text; DesignerAreaCatalog.parseBookletPattern(text)?.let { bookletDraft = bookletDraft?.copy(choices = it) }
-        }, { clearEditing() }, { storeComponent(it) })
+        BookletAreaEditorScreen(
+            document,
+            draft,
+            bookletPatternText,
+            { bookletDraft = it },
+            { text ->
+                bookletPatternText = text
+                DesignerAreaCatalog.parseBookletPattern(text)?.let { bookletDraft = bookletDraft?.copy(choices = it) }
+            },
+            { clearEditing() },
+            { storeComponent(it) }
+        )
         return
     }
+
     descriptionDraft?.let { draft ->
-        DescriptionAreaEditorScreen(document, draft, { descriptionDraft = it }, { clearEditing() }, { storeVisual(it) })
+        DescriptionAreaEditorScreen(
+            document,
+            draft,
+            { descriptionDraft = it },
+            { clearEditing() },
+            { storeVisual(it) }
+        )
         return
     }
+
     if (imageEditorOpen) {
-        ImageAreaEditorScreen(document, imageDraft, { imageDraft = it }, { clearEditing() }, { storeVisual(it) })
+        ImageAreaEditorScreen(
+            document,
+            imageDraft,
+            { imageDraft = it },
+            { clearEditing() },
+            { storeVisual(it) }
+        )
         return
     }
 
     fun nextDuplicateId(sourceId: String, visual: Boolean): String {
-        var n = 1; var id = "$sourceId-copy$n"
-        while (if (visual) document.visualElements.any { it.id == id } else document.components.any { it.id == id }) { n++; id = "$sourceId-copy$n" }
+        var n = 1
+        var id = "$sourceId-copy$n"
+        while (if (visual) document.visualElements.any { it.id == id } else document.components.any { it.id == id }) {
+            n++
+            id = "$sourceId-copy$n"
+        }
         return id
     }
 
@@ -169,7 +246,10 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         editingExistingId = selected.id
         when (selected.kind) {
             StructuredSelectionKind.COMPONENT -> when (val component = document.components.firstOrNull { it.id == selected.id }) {
-                is NumericGridComponent -> { numberDraft = component.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS); numberPatternText = DesignerAreaCatalog.numberPatternText(component.values) }
+                is NumericGridComponent -> {
+                    numberDraft = component.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+                    numberPatternText = DesignerAreaCatalog.numberPatternText(component.values)
+                }
                 is QuestionGroupComponent -> {
                     answerDraft = component.copy(
                         bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
@@ -179,13 +259,23 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                     )
                     answerPatternText = DesignerAreaCatalog.answerPatternText(component.choices)
                 }
-                is SingleChoiceComponent -> { bookletDraft = component.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS); bookletPatternText = DesignerAreaCatalog.bookletPatternText(component.choices) }
+                is SingleChoiceComponent -> {
+                    bookletDraft = component.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+                    bookletPatternText = DesignerAreaCatalog.bookletPatternText(component.choices)
+                }
                 null -> editingExistingId = null
             }
+
             StructuredSelectionKind.VISUAL -> when (val element = document.visualElements.firstOrNull { it.id == selected.id }) {
                 is DesignerTextElement -> descriptionDraft = element
-                is DesignerImageElement -> { imageDraft = element; imageEditorOpen = true }
-                else -> { editingExistingId = null; status = "Bu görsel öğe gelişmiş düzenleyicide düzenlenebilir." }
+                is DesignerImageElement -> {
+                    imageDraft = element
+                    imageEditorOpen = true
+                }
+                else -> {
+                    editingExistingId = null
+                    status = "Bu görsel öğe gelişmiş düzenleyicide düzenlenebilir."
+                }
             }
         }
     }
@@ -196,12 +286,27 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         when (selected.kind) {
             StructuredSelectionKind.COMPONENT -> {
                 val id = nextDuplicateId(selected.id, false)
-                document = DesignerDocumentEditor.duplicateComponent(document, selected.id, id, offset, offset, DesignerEditorLayout.canonicalForMillimeters(document, 1.0))
+                document = DesignerDocumentEditor.duplicateComponent(
+                    document,
+                    selected.id,
+                    id,
+                    offset,
+                    offset,
+                    DesignerEditorLayout.canonicalForMillimeters(document, 1.0)
+                )
                 selection = StructuredPaperSelection(StructuredSelectionKind.COMPONENT, id)
             }
+
             StructuredSelectionKind.VISUAL -> {
                 val id = nextDuplicateId(selected.id, true)
-                document = DesignerDocumentEditor.duplicateVisualElement(document, selected.id, id, offset, offset, DesignerEditorLayout.canonicalForMillimeters(document, 1.0))
+                document = DesignerDocumentEditor.duplicateVisualElement(
+                    document,
+                    selected.id,
+                    id,
+                    offset,
+                    offset,
+                    DesignerEditorLayout.canonicalForMillimeters(document, 1.0)
+                )
                 selection = StructuredPaperSelection(StructuredSelectionKind.VISUAL, id)
             }
         }
@@ -214,29 +319,72 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
             StructuredSelectionKind.COMPONENT -> DesignerDocumentEditor.deleteComponent(document, selected.id)
             StructuredSelectionKind.VISUAL -> DesignerDocumentEditor.deleteVisualElement(document, selected.id)
         }
-        selection = null; status = "Öğe silindi."
+        selection = null
+        status = "Öğe silindi."
     }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))) {
-        EditorTopBar(if (openRequest == null) "Yeni Optik Form" else "Optik Formu Düzenle", onBack, ::saveDocument)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+    ) {
+        EditorTopBar(
+            title = if (openRequest == null) "Yeni Optik Form" else "Optik Formu Düzenle",
+            onBack = onBack,
+            onSave = ::saveDocument
+        )
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = !workspaceDirectDragActive).padding(10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState(), enabled = !workspaceDirectDragActive)
+                .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             FormInformationCard(
                 formName,
-                { formName = it; if (status == "Form adı zorunludur.") status = "" },
+                {
+                    formName = it
+                    if (status == "Form adı zorunludur.") status = ""
+                },
                 document.formSpec,
                 { document = document.copy(formSpec = document.formSpec.copy(examMode = it)) },
                 { document = document.copy(formSpec = document.formSpec.copy(examPreset = it)) },
-                { document = DesignerPageGeometry.apply(document, paperSize = it); selection = null },
-                { document = DesignerPageGeometry.apply(document, orientation = it); selection = null }
+                {
+                    document = DesignerPageGeometry.apply(document, paperSize = it)
+                    selection = null
+                },
+                {
+                    document = DesignerPageGeometry.apply(document, orientation = it)
+                    selection = null
+                }
             )
-            OpticalFormAreaHeader { status = ""; showAreaPicker = true }
-            InteractivePaperWorkspace(document, selection, { selection = it }, { document = it }, { workspaceDirectDragActive = it })
-            selection?.let { SelectionActions(it, ::editSelected, ::duplicateSelected, ::deleteSelected) }
-            if (status.isNotBlank()) Text(status, Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            DesignerPdfExportCard(document.copy(name = formName.trim().ifBlank { document.name }), openCvReady)
+            OpticalFormAreaHeader {
+                status = ""
+                showAreaPicker = true
+            }
+            InteractivePaperWorkspace(
+                document = document,
+                selection = selection,
+                onSelectionChange = { selection = it },
+                onDocumentChange = { document = it },
+                onDirectDragActiveChange = { workspaceDirectDragActive = it }
+            )
+            selection?.let {
+                SelectionActions(it, ::editSelected, ::duplicateSelected, ::deleteSelected)
+            }
+            if (status.isNotBlank()) {
+                Text(
+                    status,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            DesignerPdfExportCard(
+                document = document.copy(name = formName.trim().ifBlank { document.name }),
+                openCvReady = openCvReady
+            )
             Spacer(Modifier.size(8.dp))
         }
     }
@@ -245,14 +393,26 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         OpticalFormAreaPicker(
             onDismiss = { showAreaPicker = false },
             onSelected = { kind ->
-                showAreaPicker = false; editingExistingId = null
+                showAreaPicker = false
+                editingExistingId = null
                 when (kind) {
-                    DesignerAreaKind.NUMBER -> DesignerAreaCatalog.createNumberArea(document).also { numberDraft = it; numberPatternText = DesignerAreaCatalog.numberPatternText(it.values) }
-                    DesignerAreaKind.ANSWERS -> DesignerAreaCatalog.createAnswerArea(document).also { answerDraft = it; answerPatternText = DesignerAreaCatalog.answerPatternText(it.choices) }
-                    DesignerAreaKind.BOOKLET -> DesignerAreaCatalog.createBookletArea(document).also { bookletDraft = it; bookletPatternText = DesignerAreaCatalog.bookletPatternText(it.choices) }
+                    DesignerAreaKind.NUMBER -> DesignerAreaCatalog.createNumberArea(document).also {
+                        numberDraft = it
+                        numberPatternText = DesignerAreaCatalog.numberPatternText(it.values)
+                    }
+                    DesignerAreaKind.ANSWERS -> DesignerAreaCatalog.createAnswerArea(document).also {
+                        answerDraft = it
+                        answerPatternText = DesignerAreaCatalog.answerPatternText(it.choices)
+                    }
+                    DesignerAreaKind.BOOKLET -> DesignerAreaCatalog.createBookletArea(document).also {
+                        bookletDraft = it
+                        bookletPatternText = DesignerAreaCatalog.bookletPatternText(it.choices)
+                    }
                     DesignerAreaKind.DESCRIPTION -> descriptionDraft = DesignerAreaCatalog.createDescriptionArea(document)
-                    DesignerAreaKind.IMAGE -> { imageDraft = null; imageEditorOpen = true }
-                    else -> DesignerAreaCatalog.bindingFor(kind)?.let { binding -> descriptionDraft = DesignerAreaCatalog.createBoundTextArea(document, binding) }
+                    DesignerAreaKind.IMAGE -> {
+                        imageDraft = null
+                        imageEditorOpen = true
+                    }
                 }
             }
         )
@@ -260,14 +420,19 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
 }
 
 @Composable
-private fun SelectionActions(selection: StructuredPaperSelection, onEdit: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun SelectionActions(
+    selection: StructuredPaperSelection,
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Seçili: ${selection.id}", style = MaterialTheme.typography.labelMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Düzenle") }
-                OutlinedButton(onClick = onDuplicate, modifier = Modifier.weight(1f)) { Text("Kopyala") }
-                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("Sil") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                FilledTonalButton(modifier = Modifier.weight(1f), onClick = onEdit) { Text("Düzenle") }
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onDuplicate) { Text("Kopyala") }
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onDelete) { Text("Sil") }
             }
         }
     }
@@ -275,11 +440,22 @@ private fun SelectionActions(selection: StructuredPaperSelection, onEdit: () -> 
 
 @Composable
 private fun EditorTopBar(title: String, onBack: () -> Unit, onSave: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
-        Row(Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("×", style = MaterialTheme.typography.titleLarge) }
-            Text(title, Modifier.weight(1f), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium)
-            TextButton(onClick = onSave, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("Kaydet") }
+    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
+        Row(modifier = Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                onClick = onBack,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+            ) { Text("×", style = MaterialTheme.typography.titleLarge) }
+            Text(
+                title,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.Medium
+            )
+            TextButton(
+                onClick = onSave,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+            ) { Text("Kaydet") }
         }
     }
 }
@@ -294,44 +470,133 @@ private fun FormInformationCard(
     onPaperSizeChange: (DesignerPaperSize) -> Unit,
     onOrientationChange: (DesignerPageOrientation) -> Unit
 ) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("Optik Form Bilgileri", style = MaterialTheme.typography.labelLarge)
-            Text("* Zorunlu Alanlar", Modifier.align(Alignment.CenterHorizontally), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-            OutlinedTextField(formName, onFormNameChange, Modifier.fillMaxWidth(), placeholder = { Text("Ad *") }, singleLine = true, shape = RoundedCornerShape(50.dp))
-            DropdownField("Sınav Türü", if (formSpec.examMode == DesignerExamMode.UNSPECIFIED) "Seçiniz" else formSpec.examMode.displayName, listOf(DesignerExamMode.SINGLE_LESSON, DesignerExamMode.MULTI_LESSON), { it.displayName }, onExamModeChange)
+            Text(
+                "* Zorunlu Alanlar",
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall
+            )
+            OutlinedTextField(
+                value = formName,
+                onValueChange = onFormNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Ad *") },
+                singleLine = true,
+                shape = RoundedCornerShape(50.dp)
+            )
+            DropdownField(
+                "Sınav Türü",
+                if (formSpec.examMode == DesignerExamMode.UNSPECIFIED) "Seçiniz" else formSpec.examMode.displayName,
+                listOf(DesignerExamMode.SINGLE_LESSON, DesignerExamMode.MULTI_LESSON),
+                { it.displayName },
+                onExamModeChange
+            )
             if (formSpec.examMode != DesignerExamMode.UNSPECIFIED) {
-                DropdownField("Deneme Türü", formSpec.examPreset.displayName, listOf(DesignerExamPreset.CUSTOM, DesignerExamPreset.LGS, DesignerExamPreset.TYT, DesignerExamPreset.AYT, DesignerExamPreset.YDT, DesignerExamPreset.ALES, DesignerExamPreset.DGS, DesignerExamPreset.KPSS, DesignerExamPreset.TUS, DesignerExamPreset.SCHOLARSHIP), { it.displayName }, onExamPresetChange)
+                DropdownField(
+                    "Deneme Türü",
+                    formSpec.examPreset.displayName,
+                    listOf(
+                        DesignerExamPreset.CUSTOM,
+                        DesignerExamPreset.LGS,
+                        DesignerExamPreset.TYT,
+                        DesignerExamPreset.AYT,
+                        DesignerExamPreset.YDT,
+                        DesignerExamPreset.ALES,
+                        DesignerExamPreset.DGS,
+                        DesignerExamPreset.KPSS,
+                        DesignerExamPreset.TUS,
+                        DesignerExamPreset.SCHOLARSHIP
+                    ),
+                    { it.displayName },
+                    onExamPresetChange
+                )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DropdownField("Kağıt", formSpec.paperSize.displayName, listOf(DesignerPaperSize.A3, DesignerPaperSize.A4, DesignerPaperSize.A5, DesignerPaperSize.A6, DesignerPaperSize.A7), { it.displayName }, onPaperSizeChange, Modifier.weight(1f))
-                DropdownField("Yön", formSpec.orientation.displayName, listOf(DesignerPageOrientation.PORTRAIT, DesignerPageOrientation.LANDSCAPE), { it.displayName }, onOrientationChange, Modifier.weight(1f))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DropdownField(
+                    "Kağıt",
+                    formSpec.paperSize.displayName,
+                    listOf(
+                        DesignerPaperSize.A3,
+                        DesignerPaperSize.A4,
+                        DesignerPaperSize.A5,
+                        DesignerPaperSize.A6,
+                        DesignerPaperSize.A7
+                    ),
+                    { it.displayName },
+                    onPaperSizeChange,
+                    Modifier.weight(1f)
+                )
+                DropdownField(
+                    "Yön",
+                    formSpec.orientation.displayName,
+                    listOf(DesignerPageOrientation.PORTRAIT, DesignerPageOrientation.LANDSCAPE),
+                    { it.displayName },
+                    onOrientationChange,
+                    Modifier.weight(1f)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun <T> DropdownField(label: String, value: String, options: List<T>, optionLabel: (T) -> String, onSelected: (T) -> Unit, modifier: Modifier = Modifier) {
+private fun <T> DropdownField(
+    label: String,
+    value: String,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    onSelected: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
+    Box(modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(label, Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelSmall)
-            Surface(Modifier.fillMaxWidth().clickable { expanded = true }, shape = RoundedCornerShape(50.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) { Text(value, Modifier.weight(1f), maxLines = 1); Text("⌄") }
+            Text(label, modifier = Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelSmall)
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+                shape = RoundedCornerShape(50.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(value, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text("⌄")
+                }
             }
         }
-        DropdownMenu(expanded, { expanded = false }) {
-            options.forEach { option -> DropdownMenuItem(text = { Text(optionLabel(option)) }, onClick = { expanded = false; onSelected(option) }) }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        expanded = false
+                        onSelected(option)
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun OpticalFormAreaHeader(onAdd: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Optik Form Alanı", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-        Surface(Modifier.size(28.dp).clickable(onClick = onAdd), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) { Box(contentAlignment = Alignment.Center) { Text("+", fontWeight = FontWeight.Bold) } }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("Optik Form Alanı", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+        Surface(
+            modifier = Modifier.size(28.dp).clickable(onClick = onAdd),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) { Text("+", fontWeight = FontWeight.Bold) }
+        }
     }
 }
 
@@ -339,15 +604,40 @@ private fun OpticalFormAreaHeader(onAdd: () -> Unit) {
 @Composable
 private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAreaKind) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text("Optik Form Alanı", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             DesignerAreaCatalog.sections.forEach { section ->
-                Text(section.title, Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    section.title,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
                 section.kinds.forEach { kind ->
-                    Surface(Modifier.fillMaxWidth().clickable { onSelected(kind) }, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Surface(Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) { Box(contentAlignment = Alignment.Center) { Text(areaKindSymbol(kind), fontWeight = FontWeight.Bold) } }
-                            Text(kind.displayName, Modifier.weight(1f)); Text("›")
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelected(kind) },
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(38.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(areaKindSymbol(kind), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text(kind.displayName, modifier = Modifier.weight(1f))
+                            Text("›")
                         }
                     }
                 }
@@ -363,5 +653,4 @@ private fun areaKindSymbol(kind: DesignerAreaKind): String = when (kind) {
     DesignerAreaKind.BOOKLET -> "A/B"
     DesignerAreaKind.DESCRIPTION -> "T"
     DesignerAreaKind.IMAGE -> "▧"
-    else -> "Aa"
 }
