@@ -65,6 +65,8 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.ScoringPolicy
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
 import java.time.LocalDate
@@ -73,6 +75,11 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 private enum class ExamDetailTab { PAPERS, KEYS, REPORTS }
+
+private data class EditExamTemplateOption(
+    val name: String,
+    val selection: ActiveTemplateSelection
+)
 
 @Composable
 fun ExamDetailScreen(
@@ -440,12 +447,21 @@ private fun EditExamDialog(
     onDismiss: () -> Unit,
     onSave: (Exam) -> Unit
 ) {
+    val context = LocalContext.current
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale("tr", "TR")) }
+    val templateOptions = remember(context, exam.id, exam.templateSelection) {
+        loadEditExamTemplateOptions(context.applicationContext, exam.templateSelection)
+    }
+    val initialTemplate = remember(templateOptions, exam.templateSelection) {
+        templateOptions.first { it.selection == exam.templateSelection }
+    }
     var examName by remember(exam.id) { mutableStateOf(exam.name) }
     var schoolName by remember(exam.id) { mutableStateOf(exam.schoolName) }
     var folderName by remember(exam.id) { mutableStateOf(exam.folderName) }
     var dateText by remember(exam.id) { mutableStateOf(LocalDate.ofEpochDay(exam.examDateEpochDay).format(dateFormatter)) }
     var bookletText by remember(exam.id) { mutableStateOf(exam.bookletCount.toString()) }
+    var selectedTemplate by remember(exam.id, exam.templateSelection) { mutableStateOf(initialTemplate) }
+    var templateMenu by remember { mutableStateOf(false) }
     var wrongPolicy by remember(exam.id) { mutableStateOf(exam.wrongAnswerPolicy) }
     var wrongPolicyMenu by remember { mutableStateOf(false) }
     var personalizedEnabled by remember(exam.id) { mutableStateOf(exam.personalizedFormsEnabled) }
@@ -456,7 +472,7 @@ private fun EditExamDialog(
         title = { Text("Sınavı Düzenle") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
@@ -472,6 +488,57 @@ private fun EditExamDialog(
                     onValueChange = { schoolName = it },
                     label = { Text("Okul Adı") },
                     singleLine = true
+                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = exam.papers.isEmpty(),
+                        onClick = { templateMenu = true }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("Optik Form", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                selectedTemplate.name,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = templateMenu,
+                        onDismissRequest = { templateMenu = false }
+                    ) {
+                        templateOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(option.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                },
+                                onClick = {
+                                    selectedTemplate = option
+                                    if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
+                                        personalizedEnabled = false
+                                    }
+                                    templateMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Text(
+                    if (exam.papers.isEmpty()) {
+                        "Optik form değiştirilebilir. Yeni okunacak kağıtlar seçilen formu kullanır."
+                    } else {
+                        "Bu sınavda ${exam.papers.size} okunmuş kağıt var. Okuma geometrisini bozmamak için optik form değişikliği kilitlidir."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (exam.papers.isEmpty()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
@@ -531,12 +598,12 @@ private fun EditExamDialog(
                     }
                     Switch(
                         checked = personalizedEnabled,
-                        enabled = exam.participants.isNotEmpty() && exam.templateSelection.source == ActiveTemplateSource.DESIGNER_DOCUMENT,
+                        enabled = exam.participants.isNotEmpty() && selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT,
                         onCheckedChange = { personalizedEnabled = it }
                     )
                 }
                 Text(
-                    "Optik form şablonu ve seçili öğrenci listesi mevcut sınavla bağlı kalır.",
+                    "Sınav adı, okul, tarih, klasör, optik form, kitapçık sayısı, yanlış cevap kuralı ve kişiselleştirme ayarı bu ekrandan güncellenir.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -555,7 +622,11 @@ private fun EditExamDialog(
                         schoolName.isBlank() -> "Okul adı zorunludur."
                         parsedDate == null -> "Sınav tarihini GG.AA.YYYY biçiminde girin."
                         bookletCount !in 1..8 -> "Kitapçık sayısı 1-8 arasında olmalıdır."
+                        selectedTemplate.selection != exam.templateSelection && exam.papers.isNotEmpty() ->
+                            "Okunmuş kağıdı bulunan sınavın optik formu değiştirilemez."
                         personalizedEnabled && exam.participants.isEmpty() -> "Öğrenciye özel form için seçili öğrenci gerekir."
+                        personalizedEnabled && selectedTemplate.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT ->
+                            "Öğrenciye özel form için Form Editörü ile hazırlanmış bir form seçin."
                         else -> ""
                     }
                     if (validationError.isEmpty() && parsedDate != null && bookletCount != null) {
@@ -563,6 +634,7 @@ private fun EditExamDialog(
                             exam.copy(
                                 name = examName.trim(),
                                 schoolName = schoolName.trim(),
+                                templateSelection = selectedTemplate.selection,
                                 folderName = folderName.trim(),
                                 examDateEpochDay = parsedDate.toEpochDay(),
                                 wrongAnswerPolicy = wrongPolicy,
@@ -716,6 +788,50 @@ private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenReports) {
             Text("Sınav Raporunu Aç")
         }
+    }
+}
+
+private fun loadEditExamTemplateOptions(
+    context: android.content.Context,
+    currentSelection: ActiveTemplateSelection
+): List<EditExamTemplateOption> {
+    val starter = DesignerStarterTemplates.all().map { document ->
+        EditExamTemplateOption(
+            name = document.name,
+            selection = ActiveTemplateSelection(
+                source = ActiveTemplateSource.DESIGNER_DOCUMENT,
+                templateId = document.id,
+                templateVersion = document.version
+            )
+        )
+    }
+    val saved = FileDesignerDocumentRepository(context).list().map { document ->
+        EditExamTemplateOption(
+            name = "${document.name} · Kayıtlı",
+            selection = ActiveTemplateSelection(
+                source = ActiveTemplateSource.DESIGNER_DOCUMENT,
+                templateId = document.id,
+                templateVersion = document.version
+            )
+        )
+    }
+    val available = (listOf(
+        EditExamTemplateOption(
+            name = ActiveOmrTemplateDefaults.displayName,
+            selection = ActiveOmrTemplateDefaults.selection
+        )
+    ) + starter + saved).distinctBy {
+        Triple(it.selection.source, it.selection.templateId, it.selection.templateVersion)
+    }
+    return if (available.any { it.selection == currentSelection }) {
+        available
+    } else {
+        listOf(
+            EditExamTemplateOption(
+                name = "Mevcut Form · ${currentSelection.templateId} · v${currentSelection.templateVersion}",
+                selection = currentSelection
+            )
+        ) + available
     }
 }
 

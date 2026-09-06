@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerFormTransfer
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -56,6 +58,7 @@ fun ActiveTemplateScreen(
     val appContext = context.applicationContext
     val selectionRepository = remember(context) { FileActiveTemplateSelectionRepository(appContext) }
     val documentRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
+    val examRepository = remember(context) { FileExamRepository(appContext) }
     val starters = remember { DesignerStarterTemplates.all() }
 
     var savedDocuments by remember { mutableStateOf(documentRepository.list()) }
@@ -64,6 +67,7 @@ fun ActiveTemplateScreen(
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(FormLibraryFilter.ALL) }
     var pendingExport by remember { mutableStateOf<DesignerDocument?>(null) }
+    var pendingDelete by remember { mutableStateOf<DesignerDocument?>(null) }
 
     fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
         DesignerLibraryOpenHandoff.offer(document, mode)
@@ -126,6 +130,16 @@ fun ActiveTemplateScreen(
     fun exportDocument(document: DesignerDocument) {
         pendingExport = document
         exportLauncher.launch(DesignerFormTransfer.fileName(document))
+    }
+
+    fun requestDelete(document: DesignerDocument) {
+        val selection = documentSelection(document)
+        val linkedExamCount = examRepository.list().count { it.templateSelection == selection }
+        if (linkedExamCount > 0) {
+            status = "${document.name} $linkedExamCount sınavda kullanılıyor. Sınavın optik formunu değiştirin veya sınavı silin; ardından form silinebilir."
+        } else {
+            pendingDelete = document
+        }
     }
 
     val locale = Locale("tr", "TR")
@@ -328,7 +342,8 @@ fun ActiveTemplateScreen(
                     onSelect = { choose(selection, document.name) },
                     onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
                     onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) },
-                    onExport = { exportDocument(document) }
+                    onExport = { exportDocument(document) },
+                    onDelete = { requestDelete(document) }
                 )
             }
 
@@ -352,6 +367,44 @@ fun ActiveTemplateScreen(
             }
             item { Spacer(Modifier.height(12.dp)) }
         }
+    }
+
+    pendingDelete?.let { document ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Optik Formu Sil") },
+            text = {
+                Text("${document.name} cihazdan silinecek. Bu işlem geri alınamaz.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selection = documentSelection(document)
+                        val wasSelected = selected == selection
+                        pendingDelete = null
+                        runCatching {
+                            check(documentRepository.delete(document.id, document.version)) {
+                                "Form dosyası silinemedi."
+                            }
+                        }.onSuccess {
+                            savedDocuments = documentRepository.list()
+                            if (wasSelected) {
+                                runCatching { selectionRepository.save(ActiveOmrTemplateDefaults.selection) }
+                                selected = ActiveOmrTemplateDefaults.selection
+                            }
+                            status = "${document.name} silindi."
+                        }.onFailure { error ->
+                            status = "Form silinemedi: ${error.message ?: error.javaClass.simpleName}"
+                        }
+                    }
+                ) {
+                    Text("Sil", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("İptal") }
+            }
+        )
     }
 }
 
@@ -440,7 +493,8 @@ private fun TemplateLibraryCard(
     onSelect: () -> Unit,
     onPreview: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
-    onExport: (() -> Unit)? = null
+    onExport: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -512,13 +566,29 @@ private fun TemplateLibraryCard(
                     }
                 }
             }
-            if (onExport != null) {
-                OutlinedButton(
+            if (onExport != null || onDelete != null) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = onExport,
-                    shape = RoundedCornerShape(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Düzenlenebilir Formu Dışa Aktar (.omrd)", fontSize = 11.sp)
+                    if (onExport != null) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onExport,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Dışa Aktar (.omrd)", fontSize = 11.sp)
+                        }
+                    }
+                    if (onDelete != null) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onDelete,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                        }
+                    }
                 }
             }
         }

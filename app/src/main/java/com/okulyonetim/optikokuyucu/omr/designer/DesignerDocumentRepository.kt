@@ -5,11 +5,36 @@ import java.io.File
 import java.util.Base64
 
 interface DesignerDocumentRepository {
-    /** Saves without mutating an existing version and returns the actual stored version. */
+    /**
+     * Saves a form and returns its persisted identity. Once an id/version exists in device storage,
+     * later saves update that same form in place instead of creating another visible version.
+     * Immutable built-in starter baselines can still receive a one-time safe derived version.
+     */
     fun save(document: DesignerDocument): DesignerDocument
     fun load(id: String, version: Int): DesignerDocument?
     fun list(): List<DesignerDocument>
     fun delete(id: String, version: Int): Boolean
+}
+
+internal object DesignerDocumentSavePolicy {
+    fun resolveForSave(
+        document: DesignerDocument,
+        existing: List<DesignerDocument>,
+        immutableBaselines: List<DesignerDocument> = emptyList()
+    ): DesignerDocument {
+        val exactStoredVersionExists = existing.any { candidate ->
+            candidate.id == document.id && candidate.version == document.version
+        }
+        return if (exactStoredVersionExists) {
+            document
+        } else {
+            DesignerTemplateVersioning.resolveForSave(
+                document = document,
+                existing = existing,
+                immutableBaselines = immutableBaselines
+            )
+        }
+    }
 }
 
 /**
@@ -21,7 +46,7 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
 
     override fun save(document: DesignerDocument): DesignerDocument {
         val existing = list()
-        val resolved = DesignerTemplateVersioning.resolveForSave(
+        val resolved = DesignerDocumentSavePolicy.resolveForSave(
             document = document,
             existing = existing,
             immutableBaselines = DesignerStarterTemplates.all()
@@ -39,12 +64,15 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         if (target.isFile) {
             val stored = runCatching { DesignerDocumentCodec.decode(target.readBytes()) }.getOrNull()
             if (stored == resolved) return resolved
-            error("Şablon sürümü zaten kullanılıyor ve üzerine yazılamaz.")
         }
 
         val temp = File(directory, target.name + ".tmp")
         val bytes = DesignerDocumentCodec.encode(resolved)
         temp.outputStream().buffered().use { it.write(bytes) }
+        if (target.exists() && !target.delete()) {
+            temp.delete()
+            error("Mevcut şablon güncellenemedi.")
+        }
         if (!temp.renameTo(target)) {
             temp.delete()
             error("Şablon dosyası kaydedilemedi.")
@@ -67,7 +95,6 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         .toList()
 
     override fun delete(id: String, version: Int): Boolean {
-        if (DesignerTemplateVersioning.isHistoricalVersion(id, version, list())) return false
         val file = fileFor(id, version)
         return !file.exists() || file.delete()
     }

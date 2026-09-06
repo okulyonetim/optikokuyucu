@@ -7,8 +7,10 @@ import java.security.MessageDigest
 internal object ExamTemplateBindingPolicy {
     fun validateUpdate(stored: Exam, incoming: Exam) {
         require(stored.id == incoming.id) { "Sınav kimliği değiştirilemez." }
-        require(stored.templateSelection == incoming.templateSelection) {
-            "Sınavın optik form sürümü oluşturulduktan sonra değiştirilemez."
+        if (stored.templateSelection != incoming.templateSelection) {
+            require(stored.papers.isEmpty() && incoming.papers.isEmpty()) {
+                "Okunmuş kağıdı bulunan sınavın optik formu değiştirilemez. Önce bağlı kağıtları kaldırın."
+            }
         }
     }
 }
