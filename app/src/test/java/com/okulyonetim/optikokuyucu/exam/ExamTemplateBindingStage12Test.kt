@@ -9,8 +9,8 @@ import org.junit.Test
 class ExamTemplateBindingStage12Test {
     private fun exam(version: Int = 1): Exam = Exam(
         id = "exam-stage12",
-        name = "Deneme",
-        schoolName = "Okul",
+        name = "Sentetik Deneme",
+        schoolName = "Sentetik Okul",
         templateSelection = ActiveTemplateSelection(
             source = ActiveTemplateSource.DESIGNER_DOCUMENT,
             templateId = "form-stage12",
@@ -24,7 +24,7 @@ class ExamTemplateBindingStage12Test {
     fun `metadata and paper updates keep original template binding`() {
         val original = exam()
         val updated = original.copy(
-            name = "Güncellenmiş Deneme",
+            name = "Güncellenmiş Sentetik Deneme",
             papers = listOf(ExamPaperLink("scan-1", linkedAtEpochMs = 2L))
         )
 
@@ -34,8 +34,22 @@ class ExamTemplateBindingStage12Test {
     }
 
     @Test
-    fun `changing template version on existing exam is rejected`() {
+    fun `template can change before any paper is linked`() {
         val original = exam(version = 1)
+        val changed = original.copy(
+            templateSelection = original.templateSelection.copy(templateVersion = 2)
+        )
+
+        ExamTemplateBindingPolicy.validateUpdate(original, changed)
+
+        assertEquals(2, changed.templateSelection.templateVersion)
+    }
+
+    @Test
+    fun `changing template after a paper is linked is rejected`() {
+        val original = exam(version = 1).copy(
+            papers = listOf(ExamPaperLink("scan-sentetik", linkedAtEpochMs = 2L))
+        )
         val changed = original.copy(
             templateSelection = original.templateSelection.copy(templateVersion = 2)
         )
