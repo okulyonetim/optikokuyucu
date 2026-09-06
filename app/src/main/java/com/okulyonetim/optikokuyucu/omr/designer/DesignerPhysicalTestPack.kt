@@ -79,7 +79,7 @@ object DesignerPhysicalTestPack {
                 fontSize = 24.0,
                 alignment = DesignerTextAlignment.CENTER,
                 bold = true,
-                locked = true
+                locked = false
             )
         )
     )
