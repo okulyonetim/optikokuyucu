@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDynamicText
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
@@ -55,6 +56,7 @@ internal fun DescriptionAreaEditorScreen(
     onCancel: () -> Unit,
     onComplete: (DesignerTextElement) -> Unit
 ) {
+    val dynamicField = DesignerDynamicText.fieldForId(draft.id)
     val issue = DesignerAreaCatalog.descriptionAreaIssue(document, draft)
     InfoAreaScaffold(
         completeEnabled = issue == null,
@@ -62,15 +64,58 @@ internal fun DescriptionAreaEditorScreen(
         onComplete = { onComplete(draft) }
     ) {
         InfoEditorCard {
-            InfoReadOnlyField("Tür", "Açıklama")
+            InfoReadOnlyField("Tür", dynamicField?.displayName ?: "Açıklama")
+            if (dynamicField != null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Etiketi Göster", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (draft.showLabel) "Değerin önünde etiket gösterilir." else "Yalnız otomatik değer gösterilir.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = draft.showLabel,
+                        onCheckedChange = { checked ->
+                            onDraftChange(
+                                draft.copy(
+                                    showLabel = checked,
+                                    label = if (checked && draft.label.isBlank()) dynamicField.defaultLabel else draft.label
+                                )
+                            )
+                        }
+                    )
+                }
+                if (draft.showLabel) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = draft.label,
+                        onValueChange = { value ->
+                            if ('\n' !in value && '\r' !in value && value.length <= 80) {
+                                onDraftChange(draft.copy(label = value))
+                            }
+                        },
+                        label = { Text("Etiket") },
+                        supportingText = { Text("Örnek: ${dynamicField.defaultLabel}") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+            }
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = draft.text,
                 onValueChange = { if (it.length <= 2_000) onDraftChange(draft.copy(text = it)) },
-                label = { Text("Metin / Açıklama") },
-                supportingText = { Text("${draft.text.length}/2000") },
-                minLines = 4,
-                maxLines = 8,
+                label = { Text(if (dynamicField == null) "Metin / Açıklama" else "Tasarım Önizleme Değeri") },
+                supportingText = {
+                    Text(
+                        if (dynamicField == null) "${draft.text.length}/2000"
+                        else "Öğrenciye özel formda bu değer sınav/öğrenci bilgisiyle otomatik değiştirilir."
+                    )
+                },
+                minLines = if (dynamicField == null) 4 else 1,
+                maxLines = if (dynamicField == null) 8 else 2,
                 shape = RoundedCornerShape(14.dp)
             )
             InfoNumberStepper("Yazı Boyutu", draft.fontSize.toInt(), 8, 72) {
