@@ -9,12 +9,28 @@ import org.junit.Test
 class DesignerAreaCatalogTest {
     @Test
     fun `add area catalog exposes number answers booklet and approved information fields`() {
-        assertEquals(listOf("İşaretleme Alanı", "Bilgilendirme Alanı"), DesignerAreaCatalog.sections.map { it.title })
+        assertEquals(
+            listOf("İşaretleme Alanı", "Öğrenci / Sınav Bilgileri", "Bilgilendirme Alanı"),
+            DesignerAreaCatalog.sections.map { it.title }
+        )
         assertEquals(
             listOf(DesignerAreaKind.NUMBER, DesignerAreaKind.ANSWERS, DesignerAreaKind.BOOKLET),
             DesignerAreaCatalog.sections[0].kinds
         )
-        assertEquals(listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE), DesignerAreaCatalog.sections[1].kinds)
+        assertEquals(
+            listOf(
+                DesignerAreaKind.STUDENT_NAME,
+                DesignerAreaKind.STUDENT_CLASS,
+                DesignerAreaKind.STUDENT_NUMBER_TEXT,
+                DesignerAreaKind.EXAM_NAME,
+                DesignerAreaKind.SCHOOL_NAME
+            ),
+            DesignerAreaCatalog.sections[1].kinds
+        )
+        assertEquals(
+            listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE),
+            DesignerAreaCatalog.sections[2].kinds
+        )
         assertEquals(DesignerAreaKind.entries.toSet(), DesignerAreaCatalog.allKinds.toSet())
     }
 
@@ -22,7 +38,22 @@ class DesignerAreaCatalogTest {
     fun `student photo is never offered`() {
         val labels = DesignerAreaCatalog.allKinds.map { it.displayName }
         assertFalse(labels.any { it.contains("Öğrenci Fotoğraf", ignoreCase = true) })
-        assertTrue(labels.containsAll(listOf("Numara", "Cevaplar", "Kitapçık Türü", "Açıklama", "Resim")))
+        assertTrue(
+            labels.containsAll(
+                listOf(
+                    "Numara",
+                    "Cevaplar",
+                    "Kitapçık Türü",
+                    "Öğrenci Adı Soyadı",
+                    "Sınıfı",
+                    "Öğrenci Numarası",
+                    "Sınav Adı",
+                    "Okul Adı",
+                    "Açıklama",
+                    "Resim"
+                )
+            )
+        )
     }
 
     @Test
