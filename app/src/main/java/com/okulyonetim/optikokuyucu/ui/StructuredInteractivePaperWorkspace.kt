@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerAlignmentGuideMatch
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditSafety
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerMobilePrecision
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerMobileViewport
@@ -97,6 +99,8 @@ internal fun InteractivePaperWorkspace(
     val selectionColor = MaterialTheme.colorScheme.tertiary
     val safeFill = MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
     val safeStroke = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+    val exclusionFill = MaterialTheme.colorScheme.error.copy(alpha = 0.06f)
+    val exclusionStroke = MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
     val guideColor = MaterialTheme.colorScheme.secondary
     val density = LocalDensity.current
 
@@ -112,6 +116,10 @@ internal fun InteractivePaperWorkspace(
     val directEditingEnabled = displayMode.directEditingEnabled
     val navigationEnabled = displayMode.viewportNavigationAlwaysEnabled || panMode
     val omrColor = if (displayMode.usesPrintInk) Color.Black else Color(0xFFB54848)
+
+    DisposableEffect(document.id) {
+        onDispose { currentOnDirectDragActiveChange(false) }
+    }
 
     fun switchMode(mode: StructuredPaperDisplayMode) {
         if (displayMode == mode) return
@@ -160,7 +168,9 @@ internal fun InteractivePaperWorkspace(
     fun hitTest(point: TemplatePoint): StructuredPaperSelection? {
         val visual = DesignerVisualGeometry.hitTest(currentDocument, point)
         if (visual != null) return StructuredPaperSelection(StructuredSelectionKind.VISUAL, visual)
-        return DesignerComponentGeometry.hitTest(currentDocument, point)?.let { StructuredPaperSelection(StructuredSelectionKind.COMPONENT, it) }
+        return DesignerComponentGeometry.hitTest(currentDocument, point)?.let {
+            StructuredPaperSelection(StructuredSelectionKind.COMPONENT, it)
+        }
     }
 
     fun boundsFor(candidate: DesignerDocument, target: StructuredPaperSelection): TemplateRect? = when (target.kind) {
@@ -168,18 +178,27 @@ internal fun InteractivePaperWorkspace(
         StructuredSelectionKind.VISUAL -> candidate.visualElements.firstOrNull { it.id == target.id }?.let(DesignerVisualGeometry::bounds)
     }
 
+    fun placementBoundsFor(candidate: DesignerDocument, target: StructuredPaperSelection): TemplateRect? = when (target.kind) {
+        StructuredSelectionKind.COMPONENT -> candidate.components.firstOrNull { it.id == target.id }
+            ?.let(DesignerComponentGeometry::interactionBounds)
+        StructuredSelectionKind.VISUAL -> candidate.visualElements.firstOrNull { it.id == target.id }?.let(DesignerVisualGeometry::bounds)
+    }
+
     fun insideSafe(candidate: DesignerDocument, target: StructuredPaperSelection): Boolean {
-        val bounds = boundsFor(candidate, target) ?: return false
-        val area = DesignerPageGeometry.safeArea(candidate.space)
-        return bounds.left >= area.left && bounds.top >= area.top && bounds.right <= area.right && bounds.bottom <= area.bottom
+        val bounds = placementBoundsFor(candidate, target) ?: return false
+        return DesignerEditSafety.isPlacementSafe(candidate, bounds)
     }
 
     fun stationaryBounds(candidate: DesignerDocument, target: StructuredPaperSelection): List<TemplateRect> = buildList {
         candidate.components.forEach { component ->
-            if (target.kind != StructuredSelectionKind.COMPONENT || component.id != target.id) add(DesignerComponentGeometry.bounds(component))
+            if (target.kind != StructuredSelectionKind.COMPONENT || component.id != target.id) {
+                add(DesignerComponentGeometry.bounds(component))
+            }
         }
         candidate.visualElements.forEach { element ->
-            if (target.kind != StructuredSelectionKind.VISUAL || element.id != target.id) add(DesignerVisualGeometry.bounds(element))
+            if (target.kind != StructuredSelectionKind.VISUAL || element.id != target.id) {
+                add(DesignerVisualGeometry.bounds(element))
+            }
         }
     }
 
@@ -226,7 +245,14 @@ internal fun InteractivePaperWorkspace(
                     if (panMode) {
                         FilledTonalButton(modifier = Modifier.weight(1f), onClick = { panMode = false }) { Text("Gezdir ✓") }
                     } else {
-                        OutlinedButton(modifier = Modifier.weight(1f), onClick = { panMode = true; activeGuides = DesignerAlignmentGuideMatch() }) { Text("Gezdir") }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                panMode = true
+                                activeGuides = DesignerAlignmentGuideMatch()
+                                currentOnDirectDragActiveChange(false)
+                            }
+                        ) { Text("Gezdir") }
                     }
                 }
             }
@@ -244,7 +270,9 @@ internal fun InteractivePaperWorkspace(
                     .pointerInput(document.id, panMode, displayMode) {
                         if (directEditingEnabled && !panMode) {
                             detectTapGestures { offset ->
-                                if (size.width > 0 && size.height > 0) currentOnSelectionChange(hitTest(toCanonical(offset, size.width, size.height)))
+                                if (size.width > 0 && size.height > 0) {
+                                    currentOnSelectionChange(hitTest(toCanonical(offset, size.width, size.height)))
+                                }
                             }
                         }
                     }
@@ -254,16 +282,20 @@ internal fun InteractivePaperWorkspace(
                         if (directEditingEnabled && !panMode) {
                             var target: StructuredPaperSelection? = null
                             var resizeVisual = false
+                            var panningCanvas = false
                             var baseline: DesignerDocument? = null
                             var totalX = 0.0
                             var totalY = 0.0
+
                             fun finishDirectDrag() {
                                 currentOnDirectDragActiveChange(false)
                                 target = null
                                 baseline = null
                                 resizeVisual = false
+                                panningCanvas = false
                                 activeGuides = DesignerAlignmentGuideMatch()
                             }
+
                             detectDragGestures(
                                 onDragStart = { offset ->
                                     if (size.width <= 0 || size.height <= 0) return@detectDragGestures
@@ -271,17 +303,28 @@ internal fun InteractivePaperWorkspace(
                                     val selectedVisual = currentSelection?.takeIf { it.kind == StructuredSelectionKind.VISUAL }
                                         ?.let { selected -> currentDocument.visualElements.firstOrNull { it.id == selected.id } }
                                     resizeVisual = selectedVisual?.let { DesignerResizeHandleGeometry.hitTest(it, point) } == true
-                                    target = if (resizeVisual && selectedVisual != null) StructuredPaperSelection(StructuredSelectionKind.VISUAL, selectedVisual.id) else hitTest(point)
-                                    baseline = currentDocument
+                                    target = if (resizeVisual && selectedVisual != null) {
+                                        StructuredPaperSelection(StructuredSelectionKind.VISUAL, selectedVisual.id)
+                                    } else {
+                                        hitTest(point)
+                                    }
+                                    panningCanvas = target == null && currentZoom > DesignerMobileViewport.FIT_ZOOM.toFloat() + 0.001f
+                                    baseline = if (target != null) currentDocument else null
                                     totalX = 0.0
                                     totalY = 0.0
                                     activeGuides = DesignerAlignmentGuideMatch()
-                                    currentOnSelectionChange(target)
-                                    currentOnDirectDragActiveChange(target != null)
+                                    if (target != null) currentOnSelectionChange(target)
+                                    currentOnDirectDragActiveChange(target != null || panningCanvas)
                                 },
                                 onDragEnd = ::finishDirectDrag,
                                 onDragCancel = ::finishDirectDrag
                             ) { change, dragAmount ->
+                                if (panningCanvas) {
+                                    change.consume()
+                                    pan = clampPanFor(currentZoom, pan + dragAmount)
+                                    return@detectDragGestures
+                                }
+
                                 val selected = target ?: return@detectDragGestures
                                 val base = baseline ?: return@detectDragGestures
                                 change.consume()
@@ -290,8 +333,16 @@ internal fun InteractivePaperWorkspace(
                                 totalY += dragAmount.y / size.height.toDouble() * base.space.height / z
                                 val snap = DesignerEditorLayout.canonicalForMillimeters(base, DesignerEditorLayout.DRAG_SNAP_MM)
                                 val rawCandidate = when {
-                                    resizeVisual -> DesignerVisualTransform.resize(base, selected.id, totalX, totalY, snapStep = snap, minSize = snap * 6.0)
-                                    selected.kind == StructuredSelectionKind.COMPONENT -> DesignerDocumentEditor.moveComponent(base, selected.id, totalX, totalY, snap)
+                                    resizeVisual -> DesignerVisualTransform.resize(
+                                        base,
+                                        selected.id,
+                                        totalX,
+                                        totalY,
+                                        snapStep = snap,
+                                        minSize = snap * 6.0
+                                    )
+                                    selected.kind == StructuredSelectionKind.COMPONENT ->
+                                        DesignerDocumentEditor.moveComponent(base, selected.id, totalX, totalY, snap)
                                     else -> DesignerDocumentEditor.moveVisualElement(base, selected.id, totalX, totalY, snap)
                                 }
                                 if (!insideSafe(rawCandidate, selected)) return@detectDragGestures
@@ -305,11 +356,24 @@ internal fun InteractivePaperWorkspace(
                                     moving = moving,
                                     stationary = stationaryBounds(rawCandidate, selected),
                                     safeArea = DesignerPageGeometry.safeArea(rawCandidate.space),
-                                    tolerance = DesignerEditorLayout.canonicalForMillimeters(base, DesignerMobilePrecision.ALIGNMENT_GUIDE_MM)
+                                    tolerance = DesignerEditorLayout.canonicalForMillimeters(
+                                        base,
+                                        DesignerMobilePrecision.ALIGNMENT_GUIDE_MM
+                                    )
                                 )
                                 val aligned = when (selected.kind) {
-                                    StructuredSelectionKind.COMPONENT -> DesignerMobilePrecision.translateComponentExact(rawCandidate, selected.id, guideMatch.deltaX, guideMatch.deltaY)
-                                    StructuredSelectionKind.VISUAL -> DesignerMobilePrecision.translateVisualExact(rawCandidate, selected.id, guideMatch.deltaX, guideMatch.deltaY)
+                                    StructuredSelectionKind.COMPONENT -> DesignerMobilePrecision.translateComponentExact(
+                                        rawCandidate,
+                                        selected.id,
+                                        guideMatch.deltaX,
+                                        guideMatch.deltaY
+                                    )
+                                    StructuredSelectionKind.VISUAL -> DesignerMobilePrecision.translateVisualExact(
+                                        rawCandidate,
+                                        selected.id,
+                                        guideMatch.deltaX,
+                                        guideMatch.deltaY
+                                    )
                                 }
                                 if (insideSafe(aligned, selected)) {
                                     activeGuides = guideMatch
@@ -343,27 +407,78 @@ internal fun InteractivePaperWorkspace(
                             var gx = minorStep
                             while (gx < document.space.width) {
                                 val major = abs((gx / majorStep) - (gx / majorStep).roundToInt()) < 0.02
-                                drawLine(if (major) majorColor else minorColor, Offset(gx.toFloat() * sx, 0f), Offset(gx.toFloat() * sx, size.height), if (major) 1.05f else 0.55f)
+                                drawLine(
+                                    if (major) majorColor else minorColor,
+                                    Offset(gx.toFloat() * sx, 0f),
+                                    Offset(gx.toFloat() * sx, size.height),
+                                    if (major) 1.05f else 0.55f
+                                )
                                 gx += minorStep
                             }
                             var gy = minorStep
                             while (gy < document.space.height) {
                                 val major = abs((gy / majorStep) - (gy / majorStep).roundToInt()) < 0.02
-                                drawLine(if (major) majorColor else minorColor, Offset(0f, gy.toFloat() * sy), Offset(size.width, gy.toFloat() * sy), if (major) 1.05f else 0.55f)
+                                drawLine(
+                                    if (major) majorColor else minorColor,
+                                    Offset(0f, gy.toFloat() * sy),
+                                    Offset(size.width, gy.toFloat() * sy),
+                                    if (major) 1.05f else 0.55f
+                                )
                                 gy += minorStep
                             }
-                            drawRect(safeFill, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy))
-                            drawRect(safeStroke, Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy), Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy), style = Stroke(1.1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))))
+                            drawRect(
+                                safeFill,
+                                Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy),
+                                Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy)
+                            )
+                            drawRect(
+                                safeStroke,
+                                Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy),
+                                Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy),
+                                style = Stroke(1.1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)))
+                            )
+                            DesignerEditSafety.fiducialExclusionAreas(document).forEach { exclusion ->
+                                val topLeft = Offset(exclusion.left.toFloat() * sx, exclusion.top.toFloat() * sy)
+                                val areaSize = Size(exclusion.width.toFloat() * sx, exclusion.height.toFloat() * sy)
+                                drawRect(exclusionFill, topLeft, areaSize)
+                                drawRect(
+                                    exclusionStroke,
+                                    topLeft,
+                                    areaSize,
+                                    style = Stroke(1.2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 4f)))
+                                )
+                            }
                         }
                         drawDesignerVisualElements(document.visualElements, images, sx, sy)
-                        document.components.filterIsInstance<QuestionGroupComponent>().forEach { drawAnswerGroup(it, rows, document.formSpec.answerAppearance, sx, sy, omrColor) }
-                        document.components.filterIsInstance<NumericGridComponent>().forEach { component -> compiled.markGrids.firstOrNull { it.id == component.id }?.let { drawNumberGrid(component, it, sx, sy, omrColor) } }
-                        document.components.filterIsInstance<SingleChoiceComponent>().forEach { component -> compiled.markGrids.firstOrNull { it.id == component.id }?.let { drawSingleChoice(component, it, sx, sy, omrColor) } }
+                        document.components.filterIsInstance<QuestionGroupComponent>().forEach {
+                            drawAnswerGroup(it, rows, document.formSpec.answerAppearance, sx, sy, omrColor)
+                        }
+                        document.components.filterIsInstance<NumericGridComponent>().forEach { component ->
+                            compiled.markGrids.firstOrNull { it.id == component.id }
+                                ?.let { drawNumberGrid(component, it, sx, sy, omrColor) }
+                        }
+                        document.components.filterIsInstance<SingleChoiceComponent>().forEach { component ->
+                            compiled.markGrids.firstOrNull { it.id == component.id }
+                                ?.let { drawSingleChoice(component, it, sx, sy, omrColor) }
+                        }
                         drawComponentDecorations(document, sx, sy)
-                        document.fiducials.forEach { marker -> drawRect(Color.Black, Offset(marker.bounds.left.toFloat() * sx, marker.bounds.top.toFloat() * sy), Size(marker.bounds.width.toFloat() * sx, marker.bounds.height.toFloat() * sy)) }
+                        document.fiducials.forEach { marker ->
+                            drawRect(
+                                Color.Black,
+                                Offset(marker.bounds.left.toFloat() * sx, marker.bounds.top.toFloat() * sy),
+                                Size(marker.bounds.width.toFloat() * sx, marker.bounds.height.toFloat() * sy)
+                            )
+                        }
                         if (editorChromeVisible) {
                             val selectedBounds = selection?.let { selected -> boundsFor(document, selected) }
-                            selectedBounds?.let { drawRect(selectionColor, Offset(it.left.toFloat() * sx, it.top.toFloat() * sy), Size(it.width.toFloat() * sx, it.height.toFloat() * sy), style = Stroke(2.3f)) }
+                            selectedBounds?.let {
+                                drawRect(
+                                    selectionColor,
+                                    Offset(it.left.toFloat() * sx, it.top.toFloat() * sy),
+                                    Size(it.width.toFloat() * sx, it.height.toFloat() * sy),
+                                    style = Stroke(2.3f)
+                                )
+                            }
                             selection?.takeIf { it.kind == StructuredSelectionKind.VISUAL }
                                 ?.let { selected -> document.visualElements.firstOrNull { it.id == selected.id } }
                                 ?.let(DesignerResizeHandleGeometry::handlePoint)
@@ -373,10 +488,20 @@ internal fun InteractivePaperWorkspace(
                                     drawCircle(selectionColor, 5.5f, center)
                                 }
                             activeGuides.verticalGuideX?.let { x ->
-                                drawLine(guideColor, Offset(x.toFloat() * sx, safe.top.toFloat() * sy), Offset(x.toFloat() * sx, safe.bottom.toFloat() * sy), 1.5f)
+                                drawLine(
+                                    guideColor,
+                                    Offset(x.toFloat() * sx, safe.top.toFloat() * sy),
+                                    Offset(x.toFloat() * sx, safe.bottom.toFloat() * sy),
+                                    1.5f
+                                )
                             }
                             activeGuides.horizontalGuideY?.let { y ->
-                                drawLine(guideColor, Offset(safe.left.toFloat() * sx, y.toFloat() * sy), Offset(safe.right.toFloat() * sx, y.toFloat() * sy), 1.5f)
+                                drawLine(
+                                    guideColor,
+                                    Offset(safe.left.toFloat() * sx, y.toFloat() * sy),
+                                    Offset(safe.right.toFloat() * sx, y.toFloat() * sy),
+                                    1.5f
+                                )
                             }
                             drawRect(Color(0xFFBFC5D0), style = Stroke(1.1f))
                         }
@@ -385,9 +510,12 @@ internal fun InteractivePaperWorkspace(
             }
             Text(
                 when {
-                    displayMode == StructuredPaperDisplayMode.PREVIEW -> "Önizleme modu: baskı mürekkebi gösterilir; grid, seçim ve taşıma işaretleri kapalıdır. Yakınlaştırıp sayfayı gezdirebilirsiniz."
-                    panMode -> "Gezdir modu: tek parmakla kaydırın, iki parmakla pinch zoom yapın. Düzenlemeye dönmek için Gezdir düğmesine dokunun."
-                    else -> "Düzenle modu: öğeyi seçip sürükleyin. Grid snap 1 mm; yakın hizalamalarda kılavuz otomatik devreye girer."
+                    displayMode == StructuredPaperDisplayMode.PREVIEW ->
+                        "Önizleme modu: baskı mürekkebi gösterilir; grid, seçim ve taşıma işaretleri kapalıdır. Yakınlaştırıp sayfayı gezdirebilirsiniz."
+                    panMode ->
+                        "Gezdir modu: tek parmakla kaydırın, iki parmakla pinch zoom yapın. Düzenlemeye dönmek için Gezdir düğmesine dokunun."
+                    else ->
+                        "Düzenle modu: öğeyi sürükleyin. Yakınlaştırınca boş tuvalden sürüklemek sayfayı gezdirir; kırmızı kesikli marker bölgelerine öğe bırakılamaz."
                 },
                 style = MaterialTheme.typography.labelSmall
             )
@@ -437,16 +565,39 @@ private fun PrecisionGeometryCard(
                 PrecisionField("Yükseklik", heightText, { heightText = it }, !locked && canResizeHeight, Modifier.weight(1f))
             }
             if (component != null && (!canResizeWidth || !canResizeHeight)) {
-                Text("OMR alanında eksen dışı boyut standart baloncuk geometrisinden türetilir.", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "OMR alanında eksen dışı boyut standart baloncuk geometrisinden türetilir.",
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
-            if (locked) Text("Kilitli görsel öğe hassas düzenlenemez.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            if (locked) {
+                Text(
+                    "Kilitli görsel öğe hassas düzenlenemez.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = valid,
                 onClick = {
                     val updated = when (selection.kind) {
-                        StructuredSelectionKind.COMPONENT -> DesignerMobilePrecision.setComponentFrameMm(document, selection.id, x!!, y!!, width!!, height!!)
-                        StructuredSelectionKind.VISUAL -> DesignerMobilePrecision.setVisualFrameMm(document, selection.id, x!!, y!!, width!!, height!!)
+                        StructuredSelectionKind.COMPONENT -> DesignerMobilePrecision.setComponentFrameMm(
+                            document,
+                            selection.id,
+                            x!!,
+                            y!!,
+                            width!!,
+                            height!!
+                        )
+                        StructuredSelectionKind.VISUAL -> DesignerMobilePrecision.setVisualFrameMm(
+                            document,
+                            selection.id,
+                            x!!,
+                            y!!,
+                            width!!,
+                            height!!
+                        )
                     }
                     onDocumentChange(updated)
                 }
@@ -465,7 +616,11 @@ private fun PrecisionField(
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { input -> if (input.length <= 10 && input.all { it.isDigit() || it == '.' || it == ',' || it == '-' }) onValueChange(input) },
+        onValueChange = { input ->
+            if (input.length <= 10 && input.all { it.isDigit() || it == '.' || it == ',' || it == '-' }) {
+                onValueChange(input)
+            }
+        },
         modifier = modifier,
         label = { Text(label) },
         enabled = enabled,
@@ -478,4 +633,8 @@ private fun parsePrecisionMillimetres(text: String): Double? = text.trim().repla
 
 private fun formatPrecisionMillimetres(value: Double): String = String.format(java.util.Locale.US, "%.2f", value)
 
-private fun formatWorkspaceMillimetres(value: Double): String = if (value == value.roundToInt().toDouble()) value.roundToInt().toString() else String.format(java.util.Locale.US, "%.1f", value)
+private fun formatWorkspaceMillimetres(value: Double): String = if (value == value.roundToInt().toDouble()) {
+    value.roundToInt().toString()
+} else {
+    String.format(java.util.Locale.US, "%.1f", value)
+}
