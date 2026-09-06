@@ -440,13 +440,7 @@ private fun ProductHomeScreen(
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Hızlı İşlemler", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
+            Text("Hızlı İşlemler", fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
 
         item {
@@ -891,56 +885,102 @@ private fun RootToolsScreen(
     onOpenActiveTemplate: () -> Unit,
     onOpenDesigner: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        TextButton(onClick = onBackToExams) { Text("‹ Sınavlar") }
-        Text("Optik Araçları", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            modifier = Modifier.padding(top = 8.dp, bottom = 28.dp),
-            text = "Okuma, anahtar ve form yönetimi",
-            style = MaterialTheme.typography.bodyMedium
+    Column(modifier = Modifier.fillMaxSize()) {
+        ProductTopBar(
+            title = "Optik Araçları",
+            leadingText = "‹",
+            onLeadingClick = onBackToExams
         )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            item { Spacer(Modifier.height(3.dp)) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(17.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("OMR çalışma merkezi", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Tarama, sonuç, cevap anahtarı ve form araçlarını tek noktadan yönetin.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            item {
+                ToolActionCard("▣", "Kamera ile Tara", "Aktif optik form ile canlı OMR okuma", onOpenScanner, true)
+            }
+            item {
+                ToolActionCard("▥", "Sonuçlar", "Sınav analizleri ve öğrenci sonuçları", onOpenResults)
+            }
+            item {
+                ToolActionCard("✓", "Cevap Anahtarları", "Sınav cevap anahtarlarını oluştur ve yönet", onOpenAnswerKeys)
+            }
+            item {
+                ToolActionCard("◎", "Optik Formlar", "Aktif, hazır ve kurum formlarını yönet", onOpenActiveTemplate)
+            }
+            item {
+                ToolActionCard("✎", "Form Editörü", "Yeni form oluştur veya yerleşimi düzenle", onOpenDesigner)
+            }
+            item { Spacer(Modifier.height(12.dp)) }
+        }
+    }
+}
 
-        Button(modifier = Modifier.fillMaxWidth(), onClick = onOpenScanner) {
-            Text("Tara · Kamera ve OMR")
-        }
-        OutlinedButton(
+@Composable
+private fun ToolActionCard(
+    symbol: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    primary: Boolean = false
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            contentColor = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (primary) 0.dp else 1.dp)
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
-            onClick = onOpenResults
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Sonuçlar")
-        }
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            onClick = onOpenAnswerKeys
-        ) {
-            Text("Cevap Anahtarları")
-        }
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            onClick = onOpenActiveTemplate
-        ) {
-            Text("Optik Formlar")
-        }
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            onClick = onOpenDesigner
-        ) {
-            Text("Form Editörü")
+            Surface(
+                color = if (primary) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f) else MaterialTheme.colorScheme.primaryContainer,
+                contentColor = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(11.dp)
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    text = symbol,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    description,
+                    fontSize = 10.sp,
+                    color = if (primary) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", fontSize = 20.sp, color = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
         }
     }
 }
