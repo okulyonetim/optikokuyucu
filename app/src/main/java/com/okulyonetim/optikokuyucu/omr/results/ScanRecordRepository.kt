@@ -4,6 +4,15 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 
+internal object ScanRecordImmutabilityPolicy {
+    fun validateExisting(stored: ScanRecord, incoming: ScanRecord) {
+        require(stored.id == incoming.id) { "Ham OMR kaydı kimliği değiştirilemez." }
+        require(stored == incoming) {
+            "Ham OMR kaydı immutable olduğu için aynı kayıt kimliği farklı içerikle değiştirilemez."
+        }
+    }
+}
+
 interface ScanRecordRepository {
     fun save(record: ScanRecord)
     fun load(id: String): ScanRecord?
@@ -19,12 +28,17 @@ class FileScanRecordRepository(
 
     override fun save(record: ScanRecord) {
         val destination = fileFor(record.id)
+        if (destination.isFile) {
+            val stored = runCatching { ScanRecordCodec.decode(destination.readBytes()) }
+                .getOrElse { error ->
+                    throw IllegalStateException("Mevcut ham OMR kaydı okunamadı.", error)
+                }
+            ScanRecordImmutabilityPolicy.validateExisting(stored, record)
+            return
+        }
+
         val temporary = File(directory, destination.name + ".tmp")
         temporary.writeBytes(ScanRecordCodec.encode(record))
-        if (destination.exists() && !destination.delete()) {
-            temporary.delete()
-            error("Eski OMR kaydı değiştirilemedi.")
-        }
         if (!temporary.renameTo(destination)) {
             temporary.delete()
             error("OMR kaydı kalıcı depoya taşınamadı.")

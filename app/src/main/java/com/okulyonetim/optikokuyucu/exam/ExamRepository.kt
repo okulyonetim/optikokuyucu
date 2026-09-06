@@ -4,6 +4,15 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 
+internal object ExamTemplateBindingPolicy {
+    fun validateUpdate(stored: Exam, incoming: Exam) {
+        require(stored.id == incoming.id) { "Sınav kimliği değiştirilemez." }
+        require(stored.templateSelection == incoming.templateSelection) {
+            "Sınavın optik form sürümü oluşturulduktan sonra değiştirilemez."
+        }
+    }
+}
+
 interface ExamRepository {
     fun save(exam: Exam)
     fun load(id: String): Exam?
@@ -17,6 +26,14 @@ class FileExamRepository(context: Context) : ExamRepository {
 
     override fun save(exam: Exam) {
         val destination = fileFor(exam.id)
+        if (destination.isFile) {
+            val stored = runCatching { ExamCodec.decode(destination.readBytes()) }
+                .getOrElse { error ->
+                    throw IllegalStateException("Mevcut sınav kaydı okunamadı.", error)
+                }
+            ExamTemplateBindingPolicy.validateUpdate(stored, exam)
+        }
+
         val temporary = File(directory, destination.name + ".tmp")
         temporary.writeBytes(ExamCodec.encode(exam))
         if (destination.exists() && !destination.delete()) {

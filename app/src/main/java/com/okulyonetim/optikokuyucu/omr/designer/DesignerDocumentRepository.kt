@@ -21,7 +21,11 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
 
     override fun save(document: DesignerDocument): DesignerDocument {
         val existing = list()
-        val resolved = DesignerTemplateVersioning.resolveForSave(document, existing)
+        val resolved = DesignerTemplateVersioning.resolveForSave(
+            document = document,
+            existing = existing,
+            immutableBaselines = DesignerStarterTemplates.all()
+        )
         val safety = TemplateReadabilityAnalyzer.analyze(resolved)
         require(safety.canSave) {
             val firstError = safety.issues.firstOrNull { it.severity == ReadabilitySeverity.ERROR }
@@ -63,6 +67,7 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         .toList()
 
     override fun delete(id: String, version: Int): Boolean {
+        if (DesignerTemplateVersioning.isHistoricalVersion(id, version, list())) return false
         val file = fileFor(id, version)
         return !file.exists() || file.delete()
     }
