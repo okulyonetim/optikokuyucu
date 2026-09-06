@@ -265,9 +265,9 @@ private fun SelectionActions(selection: StructuredPaperSelection, onEdit: () -> 
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Seçili: ${selection.id}", style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                FilledTonalButton(Modifier.weight(1f), onClick = onEdit) { Text("Düzenle") }
-                OutlinedButton(Modifier.weight(1f), onClick = onDuplicate) { Text("Kopyala") }
-                OutlinedButton(Modifier.weight(1f), onClick = onDelete) { Text("Sil") }
+                FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Düzenle") }
+                OutlinedButton(onClick = onDuplicate, modifier = Modifier.weight(1f)) { Text("Kopyala") }
+                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("Sil") }
             }
         }
     }
