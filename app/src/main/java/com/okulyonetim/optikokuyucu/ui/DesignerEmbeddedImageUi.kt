@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDynamicText
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageData
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
@@ -135,6 +136,7 @@ internal fun DrawScope.drawDesignerTextElement(
     scaleY: Float
 ) {
     val averageScale = (scaleX + scaleY) / 2f
+    val renderedText = DesignerDynamicText.render(element)
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas
         val left = element.bounds.left.toFloat() * scaleX
@@ -160,7 +162,7 @@ internal fun DrawScope.drawDesignerTextElement(
         var baseline = top + paint.textSize
         native.save()
         native.clipRect(left, top, right, bottom)
-        element.text.split('\n').forEach { line ->
+        renderedText.split('\n').forEach { line ->
             if (baseline <= bottom + paint.textSize * 0.2f) {
                 native.drawText(line, x, baseline, paint)
                 baseline += lineHeight
