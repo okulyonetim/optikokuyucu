@@ -1,12 +1,8 @@
 package com.okulyonetim.optikokuyucu.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,85 +61,41 @@ fun ExamScannerScreen(
     val registrar = remember(context) { ExamPaperRegistrar(examRepository) }
     val template = resolved.template
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        OmrCameraScreen(
-            openCvReady = openCvReady,
-            selfTest = selfTest,
-            template = template,
-            onAcceptedRead = { result ->
-                runCatching {
-                    val recordId = UUID.randomUUID().toString()
-                    val record = scanRecorder.record(
-                        template = template,
-                        result = result,
-                        id = recordId
-                    )
-                    registrar.register(examId = examId, record = record)
+    OmrCameraScreen(
+        openCvReady = openCvReady,
+        selfTest = selfTest,
+        template = template,
+        title = exam.name,
+        subtitle = "${resolved.name} · ${template.bubbleRows.size} soru",
+        onBack = onBack,
+        onOpenGallery = onOpenGalleryBatch,
+        onAcceptedRead = { result ->
+            runCatching {
+                val recordId = UUID.randomUUID().toString()
+                val record = scanRecorder.record(
+                    template = template,
+                    result = result,
+                    id = recordId
+                )
+                registrar.register(examId = examId, record = record)
 
-                    val canonical = result.canonicalLuma
-                    if (canonical != null && result.canonicalWidth > 0 && result.canonicalHeight > 0) {
-                        // Image persistence is best-effort: an I/O error must never discard a valid OMR record.
-                        runCatching {
-                            imageRepository.save(
-                                StoredScanImage(
-                                    scanRecordId = record.id,
-                                    width = result.canonicalWidth,
-                                    height = result.canonicalHeight,
-                                    luma = canonical
-                                )
+                val canonical = result.canonicalLuma
+                if (canonical != null && result.canonicalWidth > 0 && result.canonicalHeight > 0) {
+                    // Image persistence is best-effort: an I/O error must never discard a valid OMR record.
+                    runCatching {
+                        imageRepository.save(
+                            StoredScanImage(
+                                scanRecordId = record.id,
+                                width = result.canonicalWidth,
+                                height = result.canonicalHeight,
+                                luma = canonical
                             )
-                        }
+                        )
                     }
                 }
             }
-        )
-
-        TextButton(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(start = 12.dp, top = 8.dp)
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-                    RoundedCornerShape(14.dp)
-                ),
-            onClick = onBack
-        ) {
-            Text("‹ ${exam.name}")
         }
-
-        TextButton(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 12.dp, top = 8.dp)
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-                    RoundedCornerShape(14.dp)
-                ),
-            onClick = onOpenGalleryBatch
-        ) {
-            Text("Toplu Galeri")
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                    RoundedCornerShape(16.dp)
-                )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("${resolved.name} · ${template.bubbleRows.size} soru")
-            Text(
-                "Kabul edilen kağıtlar otomatik olarak bu sınava eklenir.",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
+    )
 }
 
 @Composable

@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -63,7 +64,6 @@ import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
 import com.okulyonetim.optikokuyucu.camera.LiveOmrReadResult
-import com.okulyonetim.optikokuyucu.omr.bubble.QuestionState
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
@@ -76,7 +76,11 @@ fun OmrCameraScreen(
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
     template: OmrTemplate,
-    onAcceptedRead: (LiveOmrReadResult) -> Unit = {}
+    onAcceptedRead: (LiveOmrReadResult) -> Unit = {},
+    title: String = "Optik Tarama",
+    subtitle: String? = null,
+    onBack: (() -> Unit)? = null,
+    onOpenGallery: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var cameraGranted by remember {
@@ -99,40 +103,54 @@ fun OmrCameraScreen(
             openCvReady = openCvReady,
             selfTest = selfTest,
             template = template,
-            onAcceptedRead = onAcceptedRead
+            onAcceptedRead = onAcceptedRead,
+            title = title,
+            subtitle = subtitle,
+            onBack = onBack,
+            onOpenGallery = onOpenGallery
         )
     } else {
         CameraPermissionContent(
+            title = title,
+            onBack = onBack,
             onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) }
         )
     }
 }
 
 @Composable
-private fun CameraPermissionContent(onRequestPermission: () -> Unit) {
+private fun CameraPermissionContent(
+    title: String,
+    onBack: (() -> Unit)?,
+    onRequestPermission: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize()) {
-        ProductTopBar(title = "Kamera")
+        ProductTopBar(
+            title = title,
+            leadingText = if (onBack != null) "‹" else null,
+            onLeadingClick = onBack
+        )
         Box(
             modifier = Modifier.fillMaxSize().padding(20.dp),
             contentAlignment = Alignment.Center
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("▣", fontSize = 42.sp, color = MaterialTheme.colorScheme.primary)
-                    Text("Kamera izni gerekli", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("▣", fontSize = 38.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("Kamera izni gerekli", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
                         "Optik formları canlı okuyabilmek için kameraya erişim vermelisiniz.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Button(onClick = onRequestPermission, shape = RoundedCornerShape(18.dp)) {
+                    Button(onClick = onRequestPermission, shape = RoundedCornerShape(16.dp)) {
                         Text("Kamera İzni Ver")
                     }
                 }
@@ -146,7 +164,11 @@ private fun CameraPreviewContent(
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
     template: OmrTemplate,
-    onAcceptedRead: (LiveOmrReadResult) -> Unit
+    onAcceptedRead: (LiveOmrReadResult) -> Unit,
+    title: String,
+    subtitle: String?,
+    onBack: (() -> Unit)?,
+    onOpenGallery: (() -> Unit)?
 ) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
@@ -270,13 +292,16 @@ private fun CameraPreviewContent(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(12.dp),
-            template = template,
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            title = title,
+            subtitle = subtitle ?: "${template.id} · v${template.version}",
             stats = stats,
             openCvReady = openCvReady,
             selfTest = selfTest,
             torchEnabled = torchEnabled,
             torchAvailable = boundCamera?.cameraInfo?.hasFlashUnit() == true,
+            onBack = onBack,
+            onOpenGallery = onOpenGallery,
             onToggleTorch = {
                 val camera = boundCamera ?: return@CameraProductHeader
                 if (!camera.cameraInfo.hasFlashUnit()) return@CameraProductHeader
@@ -292,10 +317,10 @@ private fun CameraPreviewContent(
                 .padding(horizontal = 24.dp),
             color = Color.Black.copy(alpha = 0.62f),
             contentColor = Color.White,
-            shape = RoundedCornerShape(18.dp)
+            shape = RoundedCornerShape(16.dp)
         ) {
             Text(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
                 text = cameraMessage,
                 fontWeight = FontWeight.SemiBold
             )
@@ -305,8 +330,8 @@ private fun CameraPreviewContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             liveRead?.let { result -> LiveReadResultCard(result = result) }
             CameraStatusPanel(
@@ -321,48 +346,81 @@ private fun CameraPreviewContent(
 @Composable
 private fun CameraProductHeader(
     modifier: Modifier,
-    template: OmrTemplate,
+    title: String,
+    subtitle: String,
     stats: CameraFrameStats,
     openCvReady: Boolean,
     selfTest: OmrSelfTestResult,
     torchEnabled: Boolean,
     torchAvailable: Boolean,
+    onBack: (() -> Unit)?,
+    onOpenGallery: (() -> Unit)?,
     onToggleTorch: () -> Unit
 ) {
+    val stateText = when {
+        !openCvReady -> "Okuma motoru hazır değil"
+        !selfTest.passed -> "Okuma motoru kontrol gerekli"
+        stats.markerCount > 0 -> "${stats.markerCount}/4 köşe · güven %${(stats.pageConfidence * 100).toInt()}"
+        else -> "Otomatik okuma açık"
+    }
+
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = RoundedCornerShape(22.dp)
+        color = Color.Black.copy(alpha = 0.76f),
+        contentColor = Color.White,
+        shape = RoundedCornerShape(18.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Optik Tarama", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "${template.id} · v${template.version}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
-                )
-                Text(
-                    when {
-                        !openCvReady -> "Okuma motoru hazır değil"
-                        !selfTest.passed -> "Okuma motoru kontrol gerekli"
-                        stats.markerCount > 0 -> "${stats.markerCount}/4 köşe · güven %${(stats.pageConfidence * 100).toInt()}"
-                        else -> "Otomatik okuma açık"
-                    },
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-            OutlinedButton(
-                onClick = onToggleTorch,
-                enabled = torchAvailable,
-                shape = RoundedCornerShape(16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", color = MaterialTheme.colorScheme.onPrimary)
+                if (onBack != null) {
+                    TextButton(onClick = onBack) { Text("‹", color = Color.White, fontSize = 24.sp) }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        title,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.76f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (onOpenGallery != null) {
+                    TextButton(onClick = onOpenGallery) {
+                        Text("Galeri", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stateText, style = MaterialTheme.typography.labelMedium)
+                OutlinedButton(
+                    onClick = onToggleTorch,
+                    enabled = torchAvailable,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", color = Color.White)
+                }
             }
         }
     }
@@ -376,13 +434,13 @@ private fun CameraStatusPanel(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.Black.copy(alpha = 0.78f),
+            containerColor = Color.Black.copy(alpha = 0.76f),
             contentColor = Color.White
         )
     ) {
-        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -405,19 +463,19 @@ private fun LiveReadResultCard(result: LiveOmrReadResult) {
     val bubbles = result.bubbleResult
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f),
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     ) {
-        Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("✓ Form Okundu", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("✓ Form Okundu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(String.format(Locale.US, "%.0f%%", result.decisionConfidence * 100.0))
             }
             val student = result.markGridResult.grids.firstOrNull { it.gridId == "studentNumber" }?.value
