@@ -77,6 +77,15 @@ enum class QuestionGroupOrientation(val displayName: String) { VERTICAL("Dikey")
 
 enum class DesignerTextAlignment { START, CENTER, END }
 
+enum class DesignerTextBinding(val displayName: String) {
+    STATIC("Serbest Metin"),
+    STUDENT_NAME("Öğrenci Adı Soyadı"),
+    CLASS_NAME("Sınıfı"),
+    STUDENT_NUMBER("Öğrenci Numarası"),
+    EXAM_NAME("Sınav Adı"),
+    SCHOOL_NAME("Okul Adı")
+}
+
 data class QuestionGroupComponent(
     override val id: String,
     val startQuestion: Int,
@@ -93,7 +102,9 @@ data class QuestionGroupComponent(
     val orientation: QuestionGroupOrientation = QuestionGroupOrientation.VERTICAL,
     val label: String = "Ders",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    val labelFontSize: Double = bubbleRadius * 1.15,
+    val labelBold: Boolean = true
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -107,6 +118,7 @@ data class QuestionGroupComponent(
         require(choiceGap > 0.0 && rowGap > 0.0 && columnGap > 0.0)
         require('\n' !in questionIdPrefix && '\r' !in questionIdPrefix)
         require('\n' !in label && '\r' !in label)
+        require(labelFontSize in 4.0..72.0)
     }
 }
 
@@ -124,7 +136,9 @@ data class NumericGridComponent(
     val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL,
     val label: String = "Numara",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    val labelFontSize: Double = bubbleRadius * 1.15,
+    val labelBold: Boolean = true
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -135,6 +149,7 @@ data class NumericGridComponent(
         require(bubbleRadius > 0.0)
         require(columnGap > 0.0 && rowGap > 0.0)
         require('\n' !in label && '\r' !in label)
+        require(labelFontSize in 4.0..72.0)
     }
 }
 
@@ -149,7 +164,9 @@ data class SingleChoiceComponent(
     val axis: ChoiceAxis = ChoiceAxis.HORIZONTAL,
     val label: String = "Kitapçık Türü",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    val labelFontSize: Double = bubbleRadius * 1.15,
+    val labelBold: Boolean = true
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -159,6 +176,7 @@ data class SingleChoiceComponent(
         require(bubbleRadius > 0.0)
         require(gap > 0.0)
         require('\n' !in label && '\r' !in label)
+        require(labelFontSize in 4.0..72.0)
     }
 }
 
@@ -171,7 +189,8 @@ data class DesignerTextElement(
     val fontSize: Double,
     val alignment: DesignerTextAlignment = DesignerTextAlignment.START,
     val bold: Boolean = false,
-    override val locked: Boolean = false
+    override val locked: Boolean = false,
+    val binding: DesignerTextBinding = DesignerTextBinding.STATIC
 ) : DesignerVisualElement {
     init {
         require(id.isNotBlank())
