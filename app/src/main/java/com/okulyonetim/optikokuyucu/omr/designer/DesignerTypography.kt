@@ -47,7 +47,7 @@ object DesignerTypography {
             .filterNot(Char::isWhitespace)
             .filterNot { probe.hasGlyph(it.toString()) }
         check(missing.isEmpty()) {
-            "Embedded Noto Sans is missing Turkish glyphs: ${missing.joinToString("")}"
+            "Embedded Noto Sans is missing Turkish glyphs: $missing"
         }
 
         regularTypeface = regular
