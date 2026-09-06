@@ -118,6 +118,8 @@ object DesignerDocumentCodec {
                 out.writeDouble(component.rowGap)
                 writeStrings(out, component.values)
                 out.writeUTF(component.orientation.name)
+                out.writeUTF(component.label)
+                out.writeBoolean(component.showLabel)
             }
             is SingleChoiceComponent -> {
                 out.writeByte(TYPE_SINGLE_CHOICE)
@@ -147,21 +149,36 @@ object DesignerDocumentCodec {
                 columnGap = input.readDouble(),
                 questionIdPrefix = if (schema >= 2) input.readUTF() else ""
             )
-            TYPE_NUMERIC_GRID -> NumericGridComponent(
-                id = input.readUTF(),
-                digits = input.readInt(),
-                startX = input.readDouble(),
-                topY = input.readDouble(),
-                bubbleRadius = input.readDouble(),
-                columnGap = input.readDouble(),
-                rowGap = input.readDouble(),
-                values = readStrings(input),
-                orientation = if (schema >= 2) {
+            TYPE_NUMERIC_GRID -> {
+                val id = input.readUTF()
+                val digits = input.readInt()
+                val startX = input.readDouble()
+                val topY = input.readDouble()
+                val bubbleRadius = input.readDouble()
+                val columnGap = input.readDouble()
+                val rowGap = input.readDouble()
+                val values = readStrings(input)
+                val orientation = if (schema >= 2) {
                     NumericGridOrientation.valueOf(input.readUTF())
                 } else {
                     NumericGridOrientation.DIGITS_HORIZONTAL
                 }
-            )
+                val label = if (schema >= 4) input.readUTF() else "Numara"
+                val showLabel = if (schema >= 4) input.readBoolean() else true
+                NumericGridComponent(
+                    id = id,
+                    digits = digits,
+                    startX = startX,
+                    topY = topY,
+                    bubbleRadius = bubbleRadius,
+                    columnGap = columnGap,
+                    rowGap = rowGap,
+                    values = values,
+                    orientation = orientation,
+                    label = label,
+                    showLabel = showLabel
+                )
+            }
             TYPE_SINGLE_CHOICE -> SingleChoiceComponent(
                 id = input.readUTF(),
                 choices = readStrings(input),
@@ -309,7 +326,7 @@ object DesignerDocumentCodec {
 
     private const val MAGIC = 0x4F4D5244 // OMRD
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 3
+    private const val SCHEMA_VERSION = 4
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3

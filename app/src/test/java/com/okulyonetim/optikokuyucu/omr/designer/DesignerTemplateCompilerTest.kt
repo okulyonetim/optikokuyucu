@@ -32,7 +32,9 @@ class DesignerTemplateCompilerTest {
                     topY = 650.0,
                     bubbleRadius = 10.0,
                     columnGap = 45.0,
-                    rowGap = 36.0
+                    rowGap = 36.0,
+                    label = "Öğrenci No",
+                    showLabel = true
                 ),
                 SingleChoiceComponent(
                     id = "booklet",
@@ -55,5 +57,38 @@ class DesignerTemplateCompilerTest {
 
         assertEquals(120.0, template.bubbleRows.first().bubbles.first().center.x, 0.001)
         assertEquals(480.0, template.bubbleRows[4].bubbles.first().center.x, 0.001)
+    }
+
+    @Test
+    fun `vertical number area custom pattern compiles from same canonical component`() {
+        val component = NumericGridComponent(
+            id = "number-1",
+            digits = 3,
+            startX = 200.0,
+            topY = 300.0,
+            bubbleRadius = 10.0,
+            columnGap = 50.0,
+            rowGap = 40.0,
+            values = listOf("A", "B", "C"),
+            orientation = NumericGridOrientation.DIGITS_VERTICAL,
+            label = "Kod",
+            showLabel = false
+        )
+        val template = DesignerTemplateCompiler.compile(
+            DesignerDocument(
+                id = "number-test",
+                version = 1,
+                name = "Number Test",
+                components = listOf(component)
+            )
+        )
+
+        val grid = template.markGrids.single()
+
+        assertEquals(listOf("1", "2", "3"), grid.columns.map { it.id })
+        assertEquals(listOf("A", "B", "C"), grid.columns.first().marks.map { it.id })
+        assertEquals(200.0, grid.columns.first().marks.first().center.x, 0.001)
+        assertEquals(240.0, grid.columns.first().marks[1].center.x, 0.001)
+        assertEquals(350.0, grid.columns[1].marks.first().center.y, 0.001)
     }
 }

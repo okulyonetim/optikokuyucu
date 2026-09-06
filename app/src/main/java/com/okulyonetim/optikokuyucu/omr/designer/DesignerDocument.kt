@@ -149,10 +149,10 @@ data class QuestionGroupComponent(
 }
 
 enum class NumericGridOrientation {
-    /** Digit positions run left-to-right; 0..9 values run top-to-bottom. */
+    /** Digit positions run left-to-right; selectable values run top-to-bottom. */
     DIGITS_HORIZONTAL,
 
-    /** Digit positions run top-to-bottom; 0..9 values run left-to-right, like common OMR forms. */
+    /** Digit positions run top-to-bottom; selectable values run left-to-right. */
     DIGITS_VERTICAL
 }
 
@@ -165,7 +165,10 @@ data class NumericGridComponent(
     val columnGap: Double,
     val rowGap: Double,
     val values: List<String> = (0..9).map { it.toString() },
-    val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL
+    val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL,
+    /** User-visible title printed with this number field. Recognition ignores this text. */
+    val label: String = "Numara",
+    val showLabel: Boolean = true
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -175,6 +178,7 @@ data class NumericGridComponent(
         require(values.toSet().size == values.size)
         require(bubbleRadius > 0.0)
         require(columnGap > 0.0 && rowGap > 0.0)
+        require('\n' !in label && '\r' !in label)
     }
 }
 

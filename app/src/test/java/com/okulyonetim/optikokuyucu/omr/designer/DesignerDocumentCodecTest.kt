@@ -3,6 +3,8 @@ package com.okulyonetim.optikokuyucu.omr.designer
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import com.okulyonetim.optikokuyucu.omr.template.TemplateSize
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -35,7 +37,9 @@ class DesignerDocumentCodecTest {
                     topY = 850.0,
                     bubbleRadius = 10.0,
                     columnGap = 44.0,
-                    rowGap = 34.0
+                    rowGap = 34.0,
+                    label = "Öğrenci No",
+                    showLabel = false
                 ),
                 SingleChoiceComponent(
                     id = "booklet",
@@ -83,6 +87,50 @@ class DesignerDocumentCodecTest {
         val decoded = DesignerDocumentCodec.decode(DesignerDocumentCodec.encode(document))
 
         assertEquals(document, decoded)
+    }
+
+    @Test
+    fun `schema three numeric grids gain backward compatible label defaults`() {
+        val bytes = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { out ->
+                out.writeInt(0x4F4D5244)
+                out.writeInt(3)
+                out.writeUTF("legacy-form")
+                out.writeInt(2)
+                out.writeUTF("Legacy")
+                out.writeDouble(1000.0)
+                out.writeDouble(1414.0)
+                out.writeInt(0) // fiducials
+                out.writeInt(1) // components
+                out.writeByte(2) // numeric grid
+                out.writeUTF("studentNumber")
+                out.writeInt(6)
+                out.writeDouble(120.0)
+                out.writeDouble(300.0)
+                out.writeDouble(10.0)
+                out.writeDouble(44.0)
+                out.writeDouble(34.0)
+                out.writeInt(10)
+                (0..9).forEach { out.writeUTF(it.toString()) }
+                out.writeUTF(NumericGridOrientation.DIGITS_HORIZONTAL.name)
+                out.writeInt(0) // visuals
+                out.writeUTF(DesignerPaperSize.A4.name)
+                out.writeUTF(DesignerPageOrientation.PORTRAIT.name)
+                out.writeUTF(DesignerExamMode.UNSPECIFIED.name)
+                out.writeUTF(DesignerExamPreset.CUSTOM.name)
+                out.writeDouble(1.2)
+                out.writeDouble(0.82)
+                out.writeDouble(0.92)
+                out.writeDouble(2.0)
+            }
+        }.toByteArray()
+
+        val decoded = DesignerDocumentCodec.decode(bytes)
+        val number = decoded.components.single() as NumericGridComponent
+
+        assertEquals("Numara", number.label)
+        assertTrue(number.showLabel)
+        assertEquals(DesignerPageOrientation.PORTRAIT, decoded.formSpec.orientation)
     }
 
     @Test
