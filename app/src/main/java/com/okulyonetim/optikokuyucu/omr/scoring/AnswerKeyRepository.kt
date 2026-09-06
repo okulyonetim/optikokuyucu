@@ -11,6 +11,9 @@ import java.security.MessageDigest
 
 enum class AnswerKeySource {
     GALLERY,
+    CAMERA,
+    MANUAL,
+    SPREADSHEET,
     SCAN_RECORD
 }
 
