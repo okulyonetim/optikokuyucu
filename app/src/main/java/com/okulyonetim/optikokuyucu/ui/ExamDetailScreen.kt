@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
+import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
 import com.okulyonetim.optikokuyucu.exam.ExamPersonalizedForms
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
@@ -60,7 +61,6 @@ import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
-import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyResolver
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.ScoringPolicy
@@ -665,7 +665,7 @@ private fun ExamPaperCard(
     val name = link.studentName.ifBlank {
         if (number.isBlank()) "İsimsiz Öğrenci" else "Öğrenci $number"
     }
-    val key = record?.let { AnswerKeyResolver.resolve(it, keys) }
+    val key = record?.let { ExamPaperResolution.answerKey(link, it, keys) }
     val score = if (record != null && key != null) {
         runCatching { OmrScorer.score(record, key.answerKey, scoringPolicy(exam.wrongAnswerPolicy)) }.getOrNull()
     } else null
@@ -866,10 +866,10 @@ private fun keyMatchesExam(key: StoredAnswerKey, exam: Exam): Boolean =
         key.templateVersion == exam.templateSelection.templateVersion
 
 private fun paperNumber(link: ExamPaperLink, record: ScanRecord?): String =
-    link.studentNumber.ifBlank { record?.grid("studentNumber")?.value.orEmpty() }
+    if (record == null) link.studentNumber else ExamPaperResolution.metadata(link, record).studentNumber
 
 private fun paperClass(link: ExamPaperLink, record: ScanRecord?): String =
-    link.className.ifBlank { record?.grid("class")?.value.orEmpty() }
+    if (record == null) link.className else ExamPaperResolution.metadata(link, record).className
 
 private fun initials(name: String): String {
     val words = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
