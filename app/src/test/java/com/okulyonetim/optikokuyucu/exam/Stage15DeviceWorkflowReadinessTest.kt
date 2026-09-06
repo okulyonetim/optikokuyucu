@@ -1,12 +1,15 @@
 package com.okulyonetim.optikokuyucu.exam
 
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
+import com.okulyonetim.optikokuyucu.omr.designer.ChoiceAxis
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPrintRenderer
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
+import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile
 import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
+import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
@@ -22,6 +25,7 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.AnswerKeyTemplateTargetResolver
+import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -72,13 +76,13 @@ class Stage15DeviceWorkflowReadinessTest {
         val readability = TemplateReadabilityAnalyzer.analyze(document, template)
         val pdfTransform = DesignerPdfLayout.fit(template.space, PdfPageProfile.A4)
 
-        assertTrue(readability.canSave)
+        assertTrue(readability.issues.joinToString { it.code.name }, readability.canSave)
         assertEquals(template, renderPlan.template)
         assertTrue(renderPlan.bubbles.isNotEmpty())
         assertTrue(pdfTransform.scale > 0.0)
 
-        val number = document.components.first { it.id.startsWith("number-") }
-        val booklet = document.components.first { it.id.startsWith("booklet-") }
+        val number = document.components.filterIsInstance<NumericGridComponent>().single()
+        val booklet = document.components.filterIsInstance<SingleChoiceComponent>().single()
         val answers = document.components.filterIsInstance<QuestionGroupComponent>().single()
         val questionId = DesignerTemplateCompiler.questionReadId(answers, answers.startQuestion)
 
@@ -103,7 +107,7 @@ class Stage15DeviceWorkflowReadinessTest {
                 )
             ),
             markGrids = listOf(
-                grid(number.id, "123"),
+                grid(number.id, "123456"),
                 grid(booklet.id, "B")
             )
         )
@@ -136,26 +140,54 @@ class Stage15DeviceWorkflowReadinessTest {
         )
         val row = ExamReportBuilder.build(linked, listOf(record), listOf(key)).rows.single()
 
-        assertEquals("123", linked.papers.single().studentNumber)
+        assertEquals("123456", linked.papers.single().studentNumber)
         assertEquals("B", linked.papers.single().bookletCode)
         assertEquals(ExamReportRowStatus.SCORED, row.status)
         assertEquals(1, row.correct)
         assertEquals(0, row.wrong)
     }
 
-    private fun printableDocument(): DesignerDocument {
-        var document = DesignerDocument(
-            id = "stage15-form",
-            version = 5,
-            name = "Aşama 15 Formu"
+    private fun printableDocument(): DesignerDocument = DesignerDocument(
+        id = "stage15-form",
+        version = 5,
+        name = "Aşama 15 Formu",
+        components = listOf(
+            NumericGridComponent(
+                id = "number-1",
+                digits = 6,
+                startX = 180.0,
+                topY = 260.0,
+                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
+                columnGap = DesignerEditorLayout.NUMBER_POSITION_GAP,
+                rowGap = DesignerEditorLayout.NUMBER_VALUE_GAP,
+                label = "Öğrenci No"
+            ),
+            SingleChoiceComponent(
+                id = "booklet-1",
+                choices = listOf("A", "B"),
+                start = TemplatePoint(180.0, 620.0),
+                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
+                gap = DesignerEditorLayout.BOOKLET_GAP,
+                axis = ChoiceAxis.HORIZONTAL,
+                label = "Kitapçık Türü"
+            ),
+            QuestionGroupComponent(
+                id = "answers-1",
+                startQuestion = 1,
+                questionCount = 20,
+                choices = listOf("A", "B", "C", "D"),
+                columns = 1,
+                firstChoiceX = 650.0,
+                topY = 260.0,
+                bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
+                choiceGap = DesignerEditorLayout.ANSWER_CHOICE_GAP,
+                rowGap = DesignerEditorLayout.ANSWER_ROW_GAP,
+                columnGap = 220.0,
+                questionIdPrefix = "answers-1",
+                label = "Ders 1"
+            )
         )
-        val number = DesignerAreaCatalog.createNumberArea(document)
-        document = document.copy(components = listOf(number))
-        val booklet = DesignerAreaCatalog.createBookletArea(document)
-        document = document.copy(components = document.components + booklet)
-        val answers = DesignerAreaCatalog.createAnswerArea(document)
-        return document.copy(components = document.components + answers)
-    }
+    )
 
     private fun selection(document: DesignerDocument) = ActiveTemplateSelection(
         source = ActiveTemplateSource.DESIGNER_DOCUMENT,
