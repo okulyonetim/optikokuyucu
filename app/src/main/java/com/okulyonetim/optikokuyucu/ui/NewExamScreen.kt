@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -26,8 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.exam.ExamFactory
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
@@ -71,6 +70,32 @@ fun NewExamScreen(
     var wrongMenuOpen by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
 
+    val saveExam = {
+        val parsedDate = parseExamDate(dateText)
+        when {
+            examName.isBlank() -> status = "Sınav adı zorunludur."
+            schoolName.isBlank() -> status = "Okul alanı zorunludur."
+            parsedDate == null -> status = "Tarih GG.AA.YYYY biçiminde olmalıdır."
+            else -> {
+                runCatching {
+                    ExamFactory.create(
+                        name = examName,
+                        schoolName = schoolName,
+                        templateSelection = selectedTemplate.selection,
+                        examDateEpochDay = parsedDate.toEpochDay(),
+                        wrongAnswerPolicy = wrongPolicy,
+                        folderName = folderName
+                    ).also(repository::save)
+                }.onSuccess { exam ->
+                    onSaved(exam.id)
+                }.onFailure { error ->
+                    status = "Sınav kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                }
+            }
+        }
+        Unit
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -79,30 +104,7 @@ fun NewExamScreen(
                 leadingText = "×",
                 onLeadingClick = onBack,
                 actionText = "Kaydet",
-                onActionClick = {
-                    val parsedDate = parseExamDate(dateText)
-                    when {
-                        examName.isBlank() -> status = "Sınav adı zorunludur."
-                        schoolName.isBlank() -> status = "Okul alanı zorunludur."
-                        parsedDate == null -> status = "Tarih GG.AA.YYYY biçiminde olmalıdır."
-                        else -> {
-                            runCatching {
-                                ExamFactory.create(
-                                    name = examName,
-                                    schoolName = schoolName,
-                                    templateSelection = selectedTemplate.selection,
-                                    examDateEpochDay = parsedDate.toEpochDay(),
-                                    wrongAnswerPolicy = wrongPolicy,
-                                    folderName = folderName
-                                ).also(repository::save)
-                            }.onSuccess { exam ->
-                                onSaved(exam.id)
-                            }.onFailure { error ->
-                                status = "Sınav kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                            }
-                        }
-                    }
-                }
+                onActionClick = saveExam
             )
         }
     ) { innerPadding ->
@@ -111,28 +113,27 @@ fun NewExamScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         "Sınav Bilgileri",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "* Zorunlu Alanlar",
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.error,
-                        fontStyle = FontStyle.Italic
+                        "Sınav adı ve okul zorunludur.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     RoundedExamField(
@@ -152,17 +153,19 @@ fun NewExamScreen(
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { templateMenuOpen = true },
-                            shape = RoundedCornerShape(28.dp)
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                Text("Optik Form *", style = MaterialTheme.typography.labelMedium)
+                                Text("Optik Form *", style = MaterialTheme.typography.labelSmall)
                                 Text(
                                     selectedTemplate.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -173,13 +176,11 @@ fun NewExamScreen(
                             options.forEach { option ->
                                 DropdownMenuItem(
                                     text = {
-                                        Column {
-                                            Text(option.name)
-                                            Text(
-                                                "${option.selection.templateId} · v${option.selection.templateVersion}",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
+                                        Text(
+                                            option.name,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     },
                                     onClick = {
                                         selectedTemplate = option
@@ -194,14 +195,14 @@ fun NewExamScreen(
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { wrongMenuOpen = true },
-                            shape = RoundedCornerShape(28.dp)
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                Text("Yanlış Cevaplara Ne Yapılsın", style = MaterialTheme.typography.labelMedium)
-                                Text(wrongPolicyLabel(wrongPolicy), style = MaterialTheme.typography.bodyLarge)
+                                Text("Yanlış Cevaplar", style = MaterialTheme.typography.labelSmall)
+                                Text(wrongPolicyLabel(wrongPolicy), style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                         DropdownMenu(
@@ -234,35 +235,11 @@ fun NewExamScreen(
                     )
 
                     if (status.isNotBlank()) {
-                        Text(status, color = MaterialTheme.colorScheme.error)
-                    }
-
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            val parsedDate = parseExamDate(dateText)
-                            when {
-                                examName.isBlank() -> status = "Sınav adı zorunludur."
-                                schoolName.isBlank() -> status = "Okul alanı zorunludur."
-                                parsedDate == null -> status = "Tarih GG.AA.YYYY biçiminde olmalıdır."
-                                else -> runCatching {
-                                    ExamFactory.create(
-                                        name = examName,
-                                        schoolName = schoolName,
-                                        templateSelection = selectedTemplate.selection,
-                                        examDateEpochDay = parsedDate.toEpochDay(),
-                                        wrongAnswerPolicy = wrongPolicy,
-                                        folderName = folderName
-                                    ).also(repository::save)
-                                }.onSuccess { onSaved(it.id) }
-                                    .onFailure { error ->
-                                        status = "Sınav kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                                    }
-                            }
-                        },
-                        shape = RoundedCornerShape(24.dp)
-                    ) {
-                        Text("Sınavı Kaydet", modifier = Modifier.padding(vertical = 6.dp))
+                        Text(
+                            status,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
@@ -284,7 +261,7 @@ private fun RoundedExamField(
         label = { Text(label) },
         leadingIcon = { Text(prefix) },
         singleLine = true,
-        shape = RoundedCornerShape(28.dp)
+        shape = RoundedCornerShape(18.dp)
     )
 }
 
