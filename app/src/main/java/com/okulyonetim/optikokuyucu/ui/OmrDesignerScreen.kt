@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
 import android.graphics.Paint as AndroidPaint
+import android.graphics.Typeface
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -49,6 +50,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDraftHandoff
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerHistory
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerResizeHandleGeometry
@@ -87,9 +89,9 @@ fun OmrDesignerScreen(
         FileDesignerDocumentRepository(context.applicationContext)
     }
     val starters = remember { DesignerStarterTemplates.all() }
-    val initialDocument = remember { starters.first() }
-    val history = remember { DesignerHistory(initialDocument) }
-    var document by remember { mutableStateOf(initialDocument) }
+    val initialDocument = remember { DesignerDraftHandoff.consume() ?: starters.first() }
+    val history = remember(initialDocument) { DesignerHistory(initialDocument) }
+    var document by remember(initialDocument) { mutableStateOf(initialDocument) }
     var selection by remember { mutableStateOf<DesignerCanvasSelection?>(null) }
     var showOmrRegions by remember { mutableStateOf(true) }
     var savedDocuments by remember { mutableStateOf(repository.list()) }
@@ -182,12 +184,12 @@ fun OmrDesignerScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = onBack) { Text("← Geri") }
-            Text("Optik Form Tasarımcısı", style = MaterialTheme.typography.titleLarge)
+            Text("Serbest Form Editörü", style = MaterialTheme.typography.titleLarge)
         }
 
         Text(
-            "Editör ve okuyucu aynı canonical form koordinatlarını kullanır. " +
-                "Kağıt boyutu yalnız baskı/dışa aktarma katmanında belirlenir.",
+            "Kağıt üzerindeki metin, kutu, çizgi ve OMR gruplarını seçip doğrudan sürükleyebilirsiniz. " +
+                "Seçili görsel öğenin sağ-alt tutamacı yeniden boyutlandırır; tüm değişiklikler okunabilirlik denetiminden geçer.",
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -201,7 +203,7 @@ fun OmrDesignerScreen(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Başlangıç şablonları", style = MaterialTheme.typography.titleSmall)
+                Text("Düzenlenebilir başlangıç şablonları", style = MaterialTheme.typography.titleSmall)
                 starters.forEach { starter ->
                     if (starter.id == document.id && starter.version == document.version) {
                         FilledTonalButton(
@@ -698,6 +700,10 @@ private fun CanonicalTemplatePreview(
                             val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
                                 color = android.graphics.Color.BLACK
                                 textSize = (element.fontSize.toFloat() * averageScale).coerceAtLeast(7f)
+                                typeface = Typeface.create(
+                                    Typeface.DEFAULT,
+                                    if (element.bold) Typeface.BOLD else Typeface.NORMAL
+                                )
                             }
                             val left = x(element.bounds.left)
                             val right = x(element.bounds.right)

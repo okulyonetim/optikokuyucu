@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerBoxElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDraftHandoff
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerLineElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfExporter
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
@@ -129,14 +130,14 @@ fun StructuredOmrDesignerScreen(
         ) {
             TextButton(onClick = onBack) { Text("← Geri") }
             Column(horizontalAlignment = Alignment.End) {
-                Text("Optik Form Tasarımcısı", style = MaterialTheme.typography.titleLarge)
-                Text("Güvenli otomatik yerleşim", style = MaterialTheme.typography.bodySmall)
+                Text("Optik Form Editörü", style = MaterialTheme.typography.titleLarge)
+                Text("Otomatik düzen + serbest sürükle/bırak", style = MaterialTheme.typography.bodySmall)
             }
         }
 
         DesignerSectionCard("Hazır Formlar") {
             Text(
-                "Bir başlangıç seçin; ders, soru, kitapçık, öğrenci no, kağıt ve metin ayarlarının tamamını sonradan değiştirebilirsiniz.",
+                "Bir şablon seçin; dersler, sütunlar, başlıklar, kağıt kullanımı ve ardından tüm öğelerin konumu yeniden düzenlenebilir.",
                 style = MaterialTheme.typography.bodySmall
             )
             presets.forEach { preset ->
@@ -144,7 +145,7 @@ fun StructuredOmrDesignerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         config = preset.instantiate()
-                        status = "${preset.displayName} düzenlemeye açıldı"
+                        status = "${preset.displayName} düzenlemeye açıldı · tüm alanlar değiştirilebilir"
                     }
                 ) {
                     Column(
@@ -192,6 +193,52 @@ fun StructuredOmrDesignerScreen(
                 labels = StructuredOrientation.entries.map { it.displayName },
                 selectedIndex = StructuredOrientation.entries.indexOf(config.orientation),
                 onSelect = { config = config.copy(orientation = StructuredOrientation.entries[it]) }
+            )
+        }
+
+        DesignerSectionCard("Alan Kullanımı") {
+            Text(
+                "Varsayılan yerleşim kağıdın daha büyük bölümünü kullanır. Gerçek OMR okunabilirlik kapısı her durumda açık kalır.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text("Sayfa kenar boşluğu", style = MaterialTheme.typography.labelMedium)
+            NumberStepper(
+                value = config.pageMargin.toInt(),
+                min = 44,
+                max = 120,
+                step = 4,
+                suffix = " birim",
+                onValueChange = { config = config.copy(pageMargin = it.toDouble()) }
+            )
+            Text("Köşe marker boyutu", style = MaterialTheme.typography.labelMedium)
+            NumberStepper(
+                value = config.markerSize.toInt(),
+                min = 44,
+                max = 70,
+                step = 2,
+                suffix = " birim",
+                onValueChange = { config = config.copy(markerSize = it.toDouble()) }
+            )
+            Text("Marker kenar mesafesi", style = MaterialTheme.typography.labelMedium)
+            NumberStepper(
+                value = config.markerInset.toInt(),
+                min = 16,
+                max = 60,
+                step = 2,
+                suffix = " birim",
+                onValueChange = { config = config.copy(markerInset = it.toDouble()) }
+            )
+            Text("Önizleme OMR tamponu", style = MaterialTheme.typography.labelMedium)
+            NumberStepper(
+                value = (config.protectedPaddingRatio * 1000.0).toInt(),
+                min = 10,
+                max = 30,
+                suffix = "‰",
+                onValueChange = { config = config.copy(protectedPaddingRatio = it / 1000.0) }
+            )
+            Text(
+                "Bu tampon yalnız editördeki koruma alanı gösterimini sıkıştırır; baloncuk ve marker güvenlik denetimi ayrıca çalışır ve kapatılamaz.",
+                style = MaterialTheme.typography.bodySmall
             )
         }
 
@@ -396,7 +443,16 @@ fun StructuredOmrDesignerScreen(
                                     onValueChange = { count ->
                                         config = config.copy(
                                             lessons = config.lessons.map {
-                                                if (it.id == lesson.id) it.copy(questionCount = count) else it
+                                                if (it.id == lesson.id) {
+                                                    it.copy(
+                                                        questionCount = count,
+                                                        questionColumns = when {
+                                                            it.questionColumns == 0 -> 0
+                                                            it.questionColumns > count -> count
+                                                            else -> it.questionColumns
+                                                        }
+                                                    )
+                                                } else it
                                             }
                                         )
                                     }
@@ -422,6 +478,71 @@ fun StructuredOmrDesignerScreen(
                                 )
                             }
                         }
+
+                        Text("Soru sütunları", style = MaterialTheme.typography.labelMedium)
+                        val columnLabels = if (lesson.questionCount > 1) {
+                            listOf("Otomatik", "Tek sütun", "Çok sütun")
+                        } else {
+                            listOf("Otomatik", "Tek sütun")
+                        }
+                        ChoiceButtonRow(
+                            labels = columnLabels,
+                            selectedIndex = when {
+                                lesson.questionColumns == 0 -> 0
+                                lesson.questionColumns == 1 -> 1
+                                else -> 2
+                            }.coerceAtMost(columnLabels.lastIndex),
+                            onSelect = { index ->
+                                val nextColumns = when (index) {
+                                    0 -> 0
+                                    1 -> 1
+                                    else -> maxOf(2, lesson.questionColumns)
+                                        .coerceAtMost(minOf(8, lesson.questionCount))
+                                }
+                                config = config.copy(
+                                    lessons = config.lessons.map {
+                                        if (it.id == lesson.id) it.copy(questionColumns = nextColumns) else it
+                                    }
+                                )
+                            }
+                        )
+                        if (lesson.questionColumns >= 2) {
+                            NumberStepper(
+                                value = lesson.questionColumns,
+                                min = 2,
+                                max = minOf(8, lesson.questionCount),
+                                suffix = " sütun",
+                                onValueChange = { columns ->
+                                    config = config.copy(
+                                        lessons = config.lessons.map {
+                                            if (it.id == lesson.id) it.copy(questionColumns = columns) else it
+                                        }
+                                    )
+                                }
+                            )
+                        }
+
+                        Text("Ders başlığı hizası", style = MaterialTheme.typography.labelMedium)
+                        ChoiceButtonRow(
+                            labels = listOf("Sol", "Orta", "Sağ"),
+                            selectedIndex = when (lesson.titleAlignment) {
+                                DesignerTextAlignment.START -> 0
+                                DesignerTextAlignment.CENTER -> 1
+                                DesignerTextAlignment.END -> 2
+                            },
+                            onSelect = { index ->
+                                val alignment = when (index) {
+                                    0 -> DesignerTextAlignment.START
+                                    1 -> DesignerTextAlignment.CENTER
+                                    else -> DesignerTextAlignment.END
+                                }
+                                config = config.copy(
+                                    lessons = config.lessons.map {
+                                        if (it.id == lesson.id) it.copy(titleAlignment = alignment) else it
+                                    }
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -453,8 +574,8 @@ fun StructuredOmrDesignerScreen(
             ) {
                 Text("OMR Güvenli Bölge", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Pembe alanlar baloncuk, öğrenci numarası, kitapçık ve köşe markerlarının koruma alanıdır. " +
-                        "Metin ve diğer görsel öğeler bu alanlara yerleştirilmez; ayrıca kaydetme sırasında ikinci kez geometrik kontrol yapılır.",
+                    "Pembe alanlar baloncuk, öğrenci numarası, kitapçık ve köşe markerlarının editör koruma alanıdır. " +
+                        "Kompakt yerleşim kullanılsa bile kaydetme sırasında bağımsız geometrik okunabilirlik kontrolü yeniden yapılır.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 buildError?.let {
@@ -501,9 +622,14 @@ fun StructuredOmrDesignerScreen(
 
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenAdvanced
+            enabled = buildResult != null,
+            onClick = {
+                val result = buildResult ?: return@OutlinedButton
+                DesignerDraftHandoff.offer(result.document)
+                onOpenAdvanced()
+            }
         ) {
-            Text("Gelişmiş serbest düzenleyiciyi aç")
+            Text("Serbest yerleşime geç · sürükle / yeniden boyutlandır")
         }
 
         if (!openCvReady) {
@@ -565,8 +691,10 @@ private fun NumberStepper(
     min: Int,
     max: Int,
     suffix: String,
+    step: Int = 1,
     onValueChange: (Int) -> Unit
 ) {
+    require(step > 0)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -574,12 +702,12 @@ private fun NumberStepper(
     ) {
         OutlinedButton(
             enabled = value > min,
-            onClick = { onValueChange(value - 1) }
+            onClick = { onValueChange((value - step).coerceAtLeast(min)) }
         ) { Text("−") }
         Text("$value$suffix", style = MaterialTheme.typography.labelLarge)
         OutlinedButton(
             enabled = value < max,
-            onClick = { onValueChange(value + 1) }
+            onClick = { onValueChange((value + step).coerceAtMost(max)) }
         ) { Text("+") }
     }
 }
