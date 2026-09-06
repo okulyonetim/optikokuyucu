@@ -110,7 +110,9 @@ fun DesignerPdfExportCard(document: DesignerDocument, openCvReady: Boolean) {
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) analyzeGallery(uri) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) analyzeGallery(uri)
+    }
 
     if (personalizationOpen) {
         DesignerPersonalizedPrintDialog(
@@ -127,15 +129,32 @@ fun DesignerPdfExportCard(document: DesignerDocument, openCvReady: Boolean) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("PDF Dışa Aktar", style = MaterialTheme.typography.titleSmall)
-                Text("A4 ve A5 aynı canonical OMR geometrisinden üretilir. Dış paylar küçültülmüştür; marker güvenliği canonical şablonda korunur.", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(Modifier.fillMaxWidth(), enabled = readability.canSave && pendingProfile == null, onClick = { launchPdf(PdfPageProfile.A4) }) { Text("A4 PDF Oluştur") }
-                OutlinedButton(Modifier.fillMaxWidth(), enabled = readability.canSave && pendingProfile == null, onClick = { launchPdf(PdfPageProfile.A5) }) { Text("A5 PDF Oluştur") }
+                Text(
+                    "A4 ve A5 aynı canonical OMR geometrisinden üretilir. Dış paylar küçültülmüştür; marker güvenliği canonical şablonda korunur.",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 OutlinedButton(
-                    Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && pendingProfile == null,
-                    onClick = { personalizationOpen = true }
+                    onClick = { launchPdf(PdfPageProfile.A4) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && pendingProfile == null
+                ) { Text("A4 PDF Oluştur") }
+                OutlinedButton(
+                    onClick = { launchPdf(PdfPageProfile.A5) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && pendingProfile == null
+                ) { Text("A5 PDF Oluştur") }
+                OutlinedButton(
+                    onClick = { personalizationOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && pendingProfile == null
                 ) { Text("Kişiye Özel A4 PDF") }
-                if (!readability.canSave) Text("PDF üretimi okunabilirlik hataları giderilene kadar kapalı.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                if (!readability.canSave) {
+                    Text(
+                        "PDF üretimi okunabilirlik hataları giderilene kadar kapalı.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
                 pdfStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
@@ -143,54 +162,139 @@ fun DesignerPdfExportCard(document: DesignerDocument, openCvReady: Boolean) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Otomatik Şablon Self-Test", style = MaterialTheme.typography.titleSmall)
-                Text("Telefon kendi cevap desenini üretir ve aynı marker → canonical → OMR zinciriyle tekrar okur. Yazıcı, kağıt veya manuel işaretleme gerekmez.", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Telefon kendi cevap desenini üretir ve aynı marker → canonical → OMR zinciriyle tekrar okur. Yazıcı, kağıt veya manuel işaretleme gerekmez.",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 OutlinedButton(
-                    Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy,
                     onClick = {
-                        selfTestBusy = true; selfTestResult = null; selfTestStatus = "Round-trip OMR testi çalışıyor…"
+                        selfTestBusy = true
+                        selfTestResult = null
+                        selfTestStatus = "Round-trip OMR testi çalışıyor…"
                         val documentAtStart = document
                         worker.execute {
                             runCatching { DesignerTemplateSelfTest.run(documentAtStart) }
-                                .onSuccess { result -> mainExecutor.execute { selfTestResult = result; selfTestBusy = false; selfTestStatus = if (result.passed) "Şablon self-test ✓" else "Şablon self-test başarısız" } }
-                                .onFailure { error -> mainExecutor.execute { selfTestBusy = false; selfTestStatus = "Self-test hatası: ${error.message ?: error.javaClass.simpleName}" } }
+                                .onSuccess { result ->
+                                    mainExecutor.execute {
+                                        selfTestResult = result
+                                        selfTestBusy = false
+                                        selfTestStatus = if (result.passed) "Şablon self-test ✓" else "Şablon self-test başarısız"
+                                    }
+                                }
+                                .onFailure { error ->
+                                    mainExecutor.execute {
+                                        selfTestBusy = false
+                                        selfTestStatus = "Self-test hatası: ${error.message ?: error.javaClass.simpleName}"
+                                    }
+                                }
                         }
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy
                 ) { Text("Otomatik round-trip testi çalıştır") }
                 selfTestStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 selfTestResult?.let { result ->
-                    Text(String.format(Locale.US, "Marker %d/4 · soru %d/%d · alan sütunu %d/%d · %.1f ms", result.markerCount, result.correctQuestionCount, result.expectedQuestionCount, result.correctGridColumnCount, result.expectedGridColumnCount, result.elapsedMs), style = MaterialTheme.typography.labelMedium)
-                    if (result.failedIds.isNotEmpty()) Text("Hata: ${result.failedIds.take(8).joinToString(", ")}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        String.format(
+                            Locale.US,
+                            "Marker %d/4 · soru %d/%d · alan sütunu %d/%d · %.1f ms",
+                            result.markerCount,
+                            result.correctQuestionCount,
+                            result.expectedQuestionCount,
+                            result.correctGridColumnCount,
+                            result.expectedGridColumnCount,
+                            result.elapsedMs
+                        ),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    if (result.failedIds.isNotEmpty()) {
+                        Text(
+                            "Hata: ${result.failedIds.take(8).joinToString(", ")}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
-                if (!openCvReady) Text("Self-test için OpenCV hazır değil.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                if (!openCvReady) {
+                    Text(
+                        "Self-test için OpenCV hazır değil.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Bu Şablonu Galeride Test Et", style = MaterialTheme.typography.titleSmall)
-                Text("Güncel tasarım markerlar, OMR alanları, etiketler ve görsel öğelerle PNG olarak oluşturulur. Baloncukları telefonun fotoğraf düzenleyicisinde doldurup aynı şablonla yeniden okuyabilirsiniz.", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Güncel tasarım markerlar, OMR alanları, etiketler ve görsel öğelerle PNG olarak oluşturulur. Baloncukları telefonun fotoğraf düzenleyicisinde doldurup aynı şablonla yeniden okuyabilirsiniz.",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 OutlinedButton(
-                    Modifier.fillMaxWidth(),
-                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy,
                     onClick = {
-                        galleryBusy = true; galleryStatus = "Özel şablon PNG oluşturuluyor…"; gallerySummary = null
+                        galleryBusy = true
+                        galleryStatus = "Özel şablon PNG oluşturuluyor…"
+                        gallerySummary = null
                         val documentAtStart = document
                         worker.execute {
                             runCatching { DesignerGalleryTestAsset.saveToGallery(context, documentAtStart) }
-                                .onSuccess { uri -> mainExecutor.execute { galleryBusy = false; galleryStatus = "Test PNG Galeriye kaydedildi ✓"; runCatching { context.startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "image/png"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } } }
-                                .onFailure { error -> mainExecutor.execute { galleryBusy = false; galleryStatus = "PNG oluşturma hatası: ${error.message ?: error.javaClass.simpleName}" } }
+                                .onSuccess { uri ->
+                                    mainExecutor.execute {
+                                        galleryBusy = false
+                                        galleryStatus = "Test PNG Galeriye kaydedildi ✓"
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(uri, "image/png")
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                .onFailure { error ->
+                                    mainExecutor.execute {
+                                        galleryBusy = false
+                                        galleryStatus = "PNG oluşturma hatası: ${error.message ?: error.javaClass.simpleName}"
+                                    }
+                                }
                         }
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy
                 ) { Text("1 · Test PNG oluştur ve Galeride aç") }
-                OutlinedButton(Modifier.fillMaxWidth(), enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy, onClick = { imagePicker.launch("image/*") }) { Text("2 · Galeriden bu şablonla oku") }
+                OutlinedButton(
+                    onClick = { imagePicker.launch("image/*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = readability.canSave && openCvReady && !galleryBusy && !selfTestBusy
+                ) { Text("2 · Galeriden bu şablonla oku") }
                 galleryStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 gallerySummary?.let { summary ->
-                    Text(String.format(Locale.US, "Marker %d/4 · toplam %.1f ms · canonical %s", summary.markerCount, summary.elapsedMs, if (summary.rectificationReady) "✓" else "!"), style = MaterialTheme.typography.labelMedium)
-                    Text("İşaretli ${summary.markedCount} · Boş ${summary.blankCount} · Çift ${summary.doubleMarkCount} · Şüpheli ${summary.suspiciousCount}", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        String.format(
+                            Locale.US,
+                            "Marker %d/4 · toplam %.1f ms · canonical %s",
+                            summary.markerCount,
+                            summary.elapsedMs,
+                            if (summary.rectificationReady) "✓" else "!"
+                        ),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        "İşaretli ${summary.markedCount} · Boş ${summary.blankCount} · Çift ${summary.doubleMarkCount} · Şüpheli ${summary.suspiciousCount}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
                     if (summary.gridSummary.isNotBlank()) Text(summary.gridSummary, style = MaterialTheme.typography.bodySmall)
                 }
-                if (!readability.canSave) Text("Galeri testi okunabilirlik hataları giderilene kadar kapalı.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                if (!readability.canSave) {
+                    Text(
+                        "Galeri testi okunabilirlik hataları giderilene kadar kapalı.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
@@ -212,16 +316,38 @@ private data class DesignerGallerySummary(
         fun from(result: GalleryOmrResult): DesignerGallerySummary {
             val bubbles = result.bubbleResult
             val grids = result.markGridResult.grids.joinToString(" · ") { grid ->
-                val value = grid.value ?: when { grid.blankCount == grid.columns.size -> "boş"; grid.suspiciousCount > 0 -> "şüpheli"; else -> "tamamlanmadı" }
+                val value = grid.value ?: when {
+                    grid.blankCount == grid.columns.size -> "boş"
+                    grid.suspiciousCount > 0 -> "şüpheli"
+                    else -> "tamamlanmadı"
+                }
                 "${grid.gridId}: $value"
             }
-            return DesignerGallerySummary(result.markerCount, result.registrationReady, result.rectificationReady, bubbles.questions.size, bubbles.markedCount, bubbles.blankCount, bubbles.doubleMarkCount, bubbles.suspiciousCount, grids, result.elapsedMs)
+            return DesignerGallerySummary(
+                result.markerCount,
+                result.registrationReady,
+                result.rectificationReady,
+                bubbles.questions.size,
+                bubbles.markedCount,
+                bubbles.blankCount,
+                bubbles.doubleMarkCount,
+                bubbles.suspiciousCount,
+                grids,
+                result.elapsedMs
+            )
         }
     }
 }
 
-private fun suggestedPdfName(document: DesignerDocument, profile: PdfPageProfile, context: DesignerPrintContext = DesignerPrintContext()): String {
-    val safeName = document.name.replace(Regex("[^\\p{L}\\p{N}._-]+"), "_").trim('_').ifBlank { "optik-form" }
+private fun suggestedPdfName(
+    document: DesignerDocument,
+    profile: PdfPageProfile,
+    context: DesignerPrintContext = DesignerPrintContext()
+): String {
+    val safeName = document.name
+        .replace(Regex("[^\\p{L}\\p{N}._-]+"), "_")
+        .trim('_')
+        .ifBlank { "optik-form" }
     val student = context.studentNumber.trim().takeIf { it.isNotBlank() }?.let { "-$it" }.orEmpty()
     return "$safeName$student-${profile.displayName}.pdf"
 }
