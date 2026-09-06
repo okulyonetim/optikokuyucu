@@ -29,38 +29,38 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val ProductPurple = Color(0xFF6B3FD6)
-private val ProductPurpleLight = Color(0xFFEFE9FF)
-private val ProductBackground = Color(0xFFF8F7FC)
-private val ProductGreen = Color(0xFF2E9B66)
+private val ProductPurple = Color(0xFF7357E8)
+private val ProductPurpleLight = Color(0xFFEDE8FF)
+private val ProductBackground = Color(0xFFF7F7FC)
+private val ProductGreen = Color(0xFF25865E)
 private val ProductGreenSoft = Color(0xFFE8F7F0)
-private val ProductOrange = Color(0xFFE48A14)
-private val ProductOrangeSoft = Color(0xFFFFF3E3)
-private val ProductRed = Color(0xFFD84B45)
-private val ProductRedSoft = Color(0xFFFFECEB)
+private val ProductOrange = Color(0xFFCF7A11)
+private val ProductOrangeSoft = Color(0xFFFFF2E2)
+private val ProductRed = Color(0xFFC94743)
+private val ProductRedSoft = Color(0xFFFFEBEA)
 
 private val LightProductScheme = lightColorScheme(
     primary = ProductPurple,
     onPrimary = Color.White,
     primaryContainer = ProductPurpleLight,
-    onPrimaryContainer = Color(0xFF31116F),
-    secondary = Color(0xFF7255D8),
+    onPrimaryContainer = Color(0xFF2E176A),
+    secondary = Color(0xFF6652C6),
     background = ProductBackground,
     surface = Color.White,
-    surfaceVariant = Color(0xFFF1EFF7),
-    outline = Color(0xFFB8B3C2)
+    surfaceVariant = Color(0xFFF1EFF8),
+    outline = Color(0xFFD4D0DF)
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFFC8B5FF),
-    onPrimary = Color(0xFF2F0E71),
-    primaryContainer = Color(0xFF4B289A),
-    onPrimaryContainer = Color(0xFFE9E0FF),
-    secondary = Color(0xFFCEBDFF),
-    background = Color(0xFF121116),
-    surface = Color(0xFF1C1A21),
-    surfaceVariant = Color(0xFF292630),
-    outline = Color(0xFF938D9C)
+    primary = Color(0xFFBCA9FF),
+    onPrimary = Color(0xFF28115E),
+    primaryContainer = Color(0xFF352861),
+    onPrimaryContainer = Color(0xFFEAE4FF),
+    secondary = Color(0xFFCABEFF),
+    background = Color(0xFF101016),
+    surface = Color(0xFF19181F),
+    surfaceVariant = Color(0xFF24222C),
+    outline = Color(0xFF827D8C)
 )
 
 enum class ProductTab {
@@ -89,30 +89,31 @@ fun ProductTopBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp
     ) {
         Row(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 13.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingText != null && onLeadingClick != null) {
                 TextButton(onClick = onLeadingClick) {
-                    Text(leadingText, color = MaterialTheme.colorScheme.onPrimary, fontSize = 27.sp)
+                    Text(leadingText, color = MaterialTheme.colorScheme.primary, fontSize = 23.sp)
                 }
             } else {
-                Spacer(Modifier.size(48.dp))
+                Spacer(Modifier.size(42.dp))
             }
 
             Text(
                 text = title,
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontSize = 22.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 19.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -120,10 +121,10 @@ fun ProductTopBar(
 
             if (onActionClick != null) {
                 TextButton(onClick = onActionClick) {
-                    Text(actionText, color = MaterialTheme.colorScheme.onPrimary, fontSize = 25.sp)
+                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 22.sp)
                 }
             } else {
-                Spacer(Modifier.size(48.dp))
+                Spacer(Modifier.size(42.dp))
             }
         }
     }
@@ -136,22 +137,22 @@ fun ProductFilterPill(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val text = if (count == null) label else "$label   $count"
+    val text = if (count == null) label else "$label  $count"
     if (selected) {
         Button(
             onClick = onClick,
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             contentPadding = ButtonDefaults.ContentPadding
         ) {
-            Text(text)
+            Text(text, fontSize = 12.sp)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         ) {
-            Text(text, color = MaterialTheme.colorScheme.onSurface)
+            Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }
     }
 }
@@ -173,11 +174,12 @@ fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
         ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFF938C)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(10.dp)) {
+    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(8.dp)) {
         Text(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             text = text,
-            fontWeight = FontWeight.Medium
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -190,21 +192,21 @@ fun ProductBottomBar(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
+        tonalElevation = 3.dp,
         shadowElevation = 8.dp,
-        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 7.dp),
+                .padding(horizontal = 5.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             ProductBottomItem(Modifier.weight(1f), "Anasayfa", "⌂", selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
             ProductBottomItem(Modifier.weight(1f), "Kamera", "▣", selected == ProductTab.CAMERA) { onSelect(ProductTab.CAMERA) }
-            ProductBottomItem(Modifier.weight(1f), "Öğrenciler", "◉", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
-            ProductBottomItem(Modifier.weight(1f), "Sonuçlar", "▤", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
+            ProductBottomItem(Modifier.weight(1f), "Öğrenciler", "●", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
+            ProductBottomItem(Modifier.weight(1f), "Sonuçlar", "▥", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
             ProductBottomItem(Modifier.weight(1f), "Ayarlar", "⚙", selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
         }
     }
@@ -219,22 +221,22 @@ private fun ProductBottomItem(
     onClick: () -> Unit
 ) {
     TextButton(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 2.dp),
         onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.textButtonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+            contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+        ),
         contentPadding = ButtonDefaults.TextButtonContentPadding
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                symbol,
-                fontSize = 21.sp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-            )
+            Text(symbol, fontSize = 18.sp)
             Text(
                 label,
                 maxLines = 1,
-                fontSize = 10.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                fontSize = 9.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
             )
         }
     }
