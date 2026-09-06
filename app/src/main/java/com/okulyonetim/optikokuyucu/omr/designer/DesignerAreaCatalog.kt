@@ -6,9 +6,14 @@ import kotlin.math.ceil
 import kotlin.math.min
 
 enum class DesignerAreaKind(val displayName: String) {
-    NUMBER("Numara"),
+    NUMBER("Öğrenci No Kodlama"),
     ANSWERS("Cevaplar"),
     BOOKLET("Kitapçık Türü"),
+    STUDENT_NAME("Öğrenci Adı Soyadı"),
+    CLASS_NAME("Sınıfı"),
+    STUDENT_NUMBER_TEXT("Öğrenci Numarası"),
+    EXAM_NAME("Sınav Adı"),
+    SCHOOL_NAME("Okul Adı"),
     DESCRIPTION("Açıklama"),
     IMAGE("Resim")
 }
@@ -20,6 +25,16 @@ data class DesignerAreaSection(val title: String, val kinds: List<DesignerAreaKi
 object DesignerAreaCatalog {
     val sections: List<DesignerAreaSection> = listOf(
         DesignerAreaSection("İşaretleme Alanı", listOf(DesignerAreaKind.NUMBER, DesignerAreaKind.ANSWERS, DesignerAreaKind.BOOKLET)),
+        DesignerAreaSection(
+            "Otomatik Bilgi Alanı",
+            listOf(
+                DesignerAreaKind.STUDENT_NAME,
+                DesignerAreaKind.CLASS_NAME,
+                DesignerAreaKind.STUDENT_NUMBER_TEXT,
+                DesignerAreaKind.EXAM_NAME,
+                DesignerAreaKind.SCHOOL_NAME
+            )
+        ),
         DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE))
     )
     val allKinds: List<DesignerAreaKind> = sections.flatMap { it.kinds }
@@ -29,14 +44,43 @@ object DesignerAreaCatalog {
 
     init { require(allKinds.distinct().size == allKinds.size) }
 
+    fun bindingFor(kind: DesignerAreaKind): DesignerTextBinding? = when (kind) {
+        DesignerAreaKind.STUDENT_NAME -> DesignerTextBinding.STUDENT_NAME
+        DesignerAreaKind.CLASS_NAME -> DesignerTextBinding.CLASS_NAME
+        DesignerAreaKind.STUDENT_NUMBER_TEXT -> DesignerTextBinding.STUDENT_NUMBER
+        DesignerAreaKind.EXAM_NAME -> DesignerTextBinding.EXAM_NAME
+        DesignerAreaKind.SCHOOL_NAME -> DesignerTextBinding.SCHOOL_NAME
+        else -> null
+    }
+
+    fun createBoundTextArea(document: DesignerDocument, binding: DesignerTextBinding): DesignerTextElement {
+        require(binding != DesignerTextBinding.STATIC)
+        val safe = DesignerPageGeometry.safeArea(document.space)
+        val id = nextVisualId(document, "bound-${binding.name.lowercase().replace('_', '-')}")
+        val existingBoundCount = document.visualElements.filterIsInstance<DesignerTextElement>().count { it.binding != DesignerTextBinding.STATIC }
+        val row = existingBoundCount % 6
+        val top = (safe.top + 40.0 + row * 48.0).coerceAtMost(safe.bottom - 48.0)
+        val width = min(560.0, safe.width - 160.0).coerceAtLeast(220.0)
+        val left = ((document.space.width - width) / 2.0).coerceIn(safe.left, safe.right - width)
+        return DesignerTextElement(
+            id = id,
+            bounds = TemplateRect(left, top, width, 38.0),
+            text = binding.displayName,
+            fontSize = 18.0,
+            alignment = DesignerTextAlignment.CENTER,
+            bold = false,
+            binding = binding
+        )
+    }
+
     fun createNumberArea(document: DesignerDocument): NumericGridComponent {
         val safe = DesignerPageGeometry.safeArea(document.space)
         val id = nextComponentId(document, "number")
         return NumericGridComponent(
             id = id,
             digits = 6,
-            startX = safe.left + 50.0,
-            topY = safe.top + 120.0,
+            startX = safe.left + 120.0,
+            topY = safe.top + 180.0,
             bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
             columnGap = DesignerEditorLayout.NUMBER_POSITION_GAP,
             rowGap = DesignerEditorLayout.NUMBER_VALUE_GAP,
@@ -77,7 +121,7 @@ object DesignerAreaCatalog {
         return SingleChoiceComponent(
             id = nextComponentId(document, "booklet"),
             choices = listOf("A", "B"),
-            start = TemplatePoint(safe.left + 55.0, safe.top + 420.0),
+            start = TemplatePoint(safe.left + 120.0, safe.top + 500.0),
             bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
             gap = DesignerEditorLayout.BOOKLET_GAP,
             axis = ChoiceAxis.HORIZONTAL,
@@ -94,7 +138,9 @@ object DesignerAreaCatalog {
         val stagger = ((suffix - 1) % 4) * 18.0
         val width = min(520.0, safe.width - 60.0).coerceAtLeast(160.0)
         val height = min(150.0, safe.height - 60.0).coerceAtLeast(70.0)
-        return DesignerTextElement(id, TemplateRect(safe.left + 30.0 + stagger, safe.top + 70.0 + stagger, width, height), "Açıklama", 22.0)
+        val left = (safe.left + 130.0 + stagger).coerceAtMost(safe.right - width)
+        val top = (safe.top + 120.0 + stagger).coerceAtMost(safe.bottom - height)
+        return DesignerTextElement(id, TemplateRect(left, top, width, height), "Açıklama", 22.0)
     }
 
     fun createImageArea(document: DesignerDocument, image: DesignerImageData): DesignerImageElement {
@@ -105,7 +151,11 @@ object DesignerAreaCatalog {
         val maxWidth = min(320.0, safe.width - 60.0).coerceAtLeast(100.0)
         val maxHeight = min(240.0, safe.height - 60.0).coerceAtLeast(80.0)
         val scale = min(maxWidth / image.pixelWidth, maxHeight / image.pixelHeight)
-        return DesignerImageElement(id, TemplateRect(safe.left + 30.0 + stagger, safe.top + 250.0 + stagger, image.pixelWidth * scale, image.pixelHeight * scale), image)
+        val width = image.pixelWidth * scale
+        val height = image.pixelHeight * scale
+        val left = (safe.left + 130.0 + stagger).coerceAtMost(safe.right - width)
+        val top = (safe.top + 300.0 + stagger).coerceAtMost(safe.bottom - height)
+        return DesignerImageElement(id, TemplateRect(left, top, width, height), image)
     }
 
     fun parseNumberPattern(text: String): List<String>? = parsePattern(text, 24)
@@ -120,6 +170,7 @@ object DesignerAreaCatalog {
         if (component.digits !in 1..16) return "Hane sayısı 1–16 arasında olmalıdır."
         if (component.values.size !in 2..24) return "Desen 2–24 benzersiz değerden oluşmalıdır."
         if (component.showLabel && component.label.isBlank()) return "Etiket görünürken etiket metni boş olamaz."
+        if (component.labelFontSize !in 4.0..72.0) return "Etiket yazı boyutu 4–72 arasında olmalıdır."
         if (component.bubbleRadius != DesignerEditorLayout.STANDARD_BUBBLE_RADIUS) return "Tüm işaretleme alanları standart baloncuk boyutunu kullanmalıdır."
         val minimumGap = component.bubbleRadius * 2.0 + 3.0
         if (component.columnGap < minimumGap || component.rowGap < minimumGap) return "Baloncuklar çakışıyor."
@@ -132,6 +183,7 @@ object DesignerAreaCatalog {
         if (component.choices.size !in 2..8) return "Desen 2–8 benzersiz şıktan oluşmalıdır."
         if (component.columns !in 1..minOf(8, component.questionCount)) return "Sütun sayısı soru sayısını aşamaz ve en fazla 8 olabilir."
         if (component.showLabel && component.label.isBlank()) return "Ders adı görünürken boş olamaz."
+        if (component.labelFontSize !in 4.0..72.0) return "Etiket yazı boyutu 4–72 arasında olmalıdır."
         if (component.bubbleRadius != DesignerEditorLayout.STANDARD_BUBBLE_RADIUS) return "Tüm işaretleme alanları standart baloncuk boyutunu kullanmalıdır."
         val minGap = component.bubbleRadius * 2.0 + 3.0
         if (component.choiceGap < minGap || component.rowGap < minGap) return "Şık veya soru aralığı baloncuklar için çok dar."
@@ -141,16 +193,17 @@ object DesignerAreaCatalog {
     fun bookletAreaIssue(document: DesignerDocument, component: SingleChoiceComponent): String? {
         if (component.choices.size !in 2..8) return "Kitapçık deseni 2–8 benzersiz değerden oluşmalıdır."
         if (component.showLabel && component.label.isBlank()) return "Kitapçık etiketi görünürken boş olamaz."
+        if (component.labelFontSize !in 4.0..72.0) return "Etiket yazı boyutu 4–72 arasında olmalıdır."
         if (component.bubbleRadius != DesignerEditorLayout.STANDARD_BUBBLE_RADIUS) return "Tüm işaretleme alanları standart baloncuk boyutunu kullanmalıdır."
         if (component.gap < component.bubbleRadius * 2.0 + 3.0) return "Kitapçık baloncukları çakışıyor."
         return componentBoundsIssue(document, component, "Kitapçık")
     }
 
     fun descriptionAreaIssue(document: DesignerDocument, element: DesignerTextElement): String? {
-        if (element.text.isBlank()) return "Açıklama metni boş olamaz."
-        if (element.text.length > 2_000) return "Açıklama en fazla 2000 karakter olabilir."
+        if (element.text.isBlank()) return "Metin boş olamaz."
+        if (element.text.length > 2_000) return "Metin en fazla 2000 karakter olabilir."
         if (element.fontSize !in 8.0..72.0) return "Yazı boyutu 8–72 arasında olmalıdır."
-        return visualBoundsIssue(document, element.bounds, "Açıklama")
+        return visualBoundsIssue(document, element.bounds, element.binding.displayName)
     }
 
     fun imageAreaIssue(document: DesignerDocument, element: DesignerImageElement): String? {
@@ -175,9 +228,10 @@ object DesignerAreaCatalog {
         val used = document.visualElements.map { it.id }.toSet(); var n = 1; var id = "$prefix-$n"
         while (id in used) { n++; id = "$prefix-$n" }; return id
     }
-    private fun componentBoundsIssue(document: DesignerDocument, component: DesignerOmrComponent, label: String): String? = visualBoundsIssue(document, DesignerComponentGeometry.bounds(component), label)
-    private fun visualBoundsIssue(document: DesignerDocument, bounds: TemplateRect, label: String): String? {
-        val safe = DesignerPageGeometry.safeArea(document.space)
-        return if (bounds.left < safe.left || bounds.top < safe.top || bounds.right > safe.right || bounds.bottom > safe.bottom) "$label alanı güvenli yerleşim alanının içinde kalmalıdır." else null
-    }
+
+    private fun componentBoundsIssue(document: DesignerDocument, component: DesignerOmrComponent, label: String): String? =
+        visualBoundsIssue(document, DesignerComponentGeometry.bounds(component), label)
+
+    private fun visualBoundsIssue(document: DesignerDocument, bounds: TemplateRect, label: String): String? =
+        if (!DesignerEditSafety.isPlacementSafe(document, bounds)) "$label alanı sayfa/marker güvenli yerleşim alanında kalmalıdır." else null
 }
