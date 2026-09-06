@@ -38,7 +38,10 @@ data class StructuredLesson(
     val id: String,
     val name: String,
     val questionCount: Int,
-    val choices: List<String> = listOf("A", "B", "C", "D")
+    val choices: List<String> = listOf("A", "B", "C", "D"),
+    /** 0 = automatic. Positive values force the question group to the requested column count. */
+    val questionColumns: Int = 0,
+    val titleAlignment: DesignerTextAlignment = DesignerTextAlignment.CENTER
 ) {
     init {
         require(id.isNotBlank())
@@ -47,6 +50,8 @@ data class StructuredLesson(
         require(choices.size in 2..6)
         require(choices.all { it.isNotBlank() })
         require(choices.toSet().size == choices.size)
+        require(questionColumns in 0..8)
+        require(questionColumns == 0 || questionColumns <= questionCount)
     }
 }
 
@@ -70,6 +75,11 @@ data class StructuredFormConfig(
     val orientation: StructuredOrientation = StructuredOrientation.PORTRAIT,
     val bookletTypeCount: Int = 2,
     val studentNumberDigits: Int = 6,
+    /** Compact defaults intentionally use more of the canonical page than the old designer. */
+    val pageMargin: Double = 60.0,
+    val markerSize: Double = 48.0,
+    val markerInset: Double = 24.0,
+    val protectedPaddingRatio: Double = 0.012,
     val infoFields: List<StructuredInfoField> = defaultInfoFields(),
     val infoTextStyle: StructuredTextStyle = StructuredTextStyle(fontSize = 16.0),
     val titleTextStyle: StructuredTextStyle = StructuredTextStyle(
@@ -90,6 +100,10 @@ data class StructuredFormConfig(
         require(title.isNotBlank())
         require(bookletTypeCount in 2..8)
         require(studentNumberDigits in 1..12)
+        require(pageMargin in 44.0..180.0)
+        require(markerSize in 44.0..80.0)
+        require(markerInset in 16.0..80.0)
+        require(protectedPaddingRatio in 0.010..0.040)
         require(infoFields.map { it.id }.toSet().size == infoFields.size)
         require(lessons.isNotEmpty())
         require(lessons.size <= 12)
@@ -121,95 +135,97 @@ data class StructuredFormBuildResult(
 object StructuredFormDocumentFactory {
     fun build(config: StructuredFormConfig): StructuredFormBuildResult {
         val space = canonicalSpace(config.orientation)
-        val fiducials = fiducialsFor(space)
-        val margin = if (config.orientation == StructuredOrientation.PORTRAIT) 92.0 else 100.0
+        val fiducials = fiducialsFor(space, config.markerSize, config.markerInset)
+        val margin = config.pageMargin
         val contentLeft = margin
         val contentRight = space.width - margin
         val contentWidth = contentRight - contentLeft
         val visuals = mutableListOf<DesignerVisualElement>()
         val components = mutableListOf<DesignerOmrComponent>()
 
-        val titleWidth = min(720.0, contentWidth * 0.72)
+        val titleTop = max(76.0, config.markerInset + config.markerSize + 8.0)
+        val titleWidth = contentWidth
         visuals += DesignerTextElement(
             id = "structured:title",
             bounds = TemplateRect(
-                left = (space.width - titleWidth) / 2.0,
-                top = 108.0,
+                left = contentLeft,
+                top = titleTop,
                 width = titleWidth,
-                height = 44.0
+                height = 40.0
             ),
             text = config.title,
             fontSize = config.titleTextStyle.fontSize,
             alignment = config.titleTextStyle.alignment,
             bold = config.titleTextStyle.bold,
-            locked = true
+            locked = false
         )
         if (config.subtitle.isNotBlank()) {
             visuals += DesignerTextElement(
                 id = "structured:subtitle",
                 bounds = TemplateRect(
-                    left = (space.width - titleWidth) / 2.0,
-                    top = 150.0,
+                    left = contentLeft,
+                    top = titleTop + 40.0,
                     width = titleWidth,
-                    height = 30.0
+                    height = 26.0
                 ),
                 text = config.subtitle,
                 fontSize = max(10.0, config.titleTextStyle.fontSize * 0.56),
-                alignment = DesignerTextAlignment.CENTER,
+                alignment = config.titleTextStyle.alignment,
                 bold = false,
-                locked = true
+                locked = false
             )
         }
 
         val enabledInfo = config.infoFields.filter { it.enabled }
+        val infoTop = titleTop + if (config.subtitle.isBlank()) 54.0 else 78.0
         if (enabledInfo.isNotEmpty()) {
-            val gap = 12.0
+            val gap = 9.0
             val width = (contentWidth - gap * (enabledInfo.size - 1)) / enabledInfo.size
             enabledInfo.forEachIndexed { index, field ->
                 val left = contentLeft + index * (width + gap)
                 visuals += DesignerTextElement(
                     id = "structured:info-label:${field.id}",
-                    bounds = TemplateRect(left, 190.0, width, 24.0),
+                    bounds = TemplateRect(left, infoTop, width, 22.0),
                     text = field.label,
                     fontSize = config.infoTextStyle.fontSize,
                     alignment = config.infoTextStyle.alignment,
                     bold = config.infoTextStyle.bold,
-                    locked = true
+                    locked = false
                 )
                 visuals += DesignerBoxElement(
                     id = "structured:info-box:${field.id}",
-                    bounds = TemplateRect(left, 218.0, width, 46.0),
-                    strokeWidth = 1.4,
-                    locked = true
+                    bounds = TemplateRect(left, infoTop + 26.0, width, 40.0),
+                    strokeWidth = 1.3,
+                    locked = false
                 )
             }
         }
 
-        val metaTop = 315.0
-        val metaMarkY = metaTop + 62.0
-        val bubbleRadius = if (config.orientation == StructuredOrientation.PORTRAIT) 10.5 else 9.5
+        val metaTop = if (enabledInfo.isEmpty()) infoTop + 10.0 else infoTop + 92.0
+        val metaMarkY = metaTop + 48.0
+        val bubbleRadius = if (config.orientation == StructuredOrientation.PORTRAIT) 10.0 else 9.2
         val bookletChoices = (0 until config.bookletTypeCount).map { ('A'.code + it).toChar().toString() }
         components += SingleChoiceComponent(
             id = "booklet",
             choices = bookletChoices,
-            start = TemplatePoint(contentLeft + 30.0, metaMarkY),
-            bubbleRadius = bubbleRadius + 1.0,
-            gap = 46.0,
+            start = TemplatePoint(contentLeft + 26.0, metaMarkY),
+            bubbleRadius = bubbleRadius + 0.8,
+            gap = 42.0,
             axis = ChoiceAxis.HORIZONTAL
         )
         visuals += DesignerTextElement(
             id = "structured:booklet-title",
-            bounds = TemplateRect(contentLeft, metaTop, min(260.0, contentWidth * 0.28), 24.0),
+            bounds = TemplateRect(contentLeft, metaTop, min(245.0, contentWidth * 0.28), 22.0),
             text = "Kitapçık Türü",
-            fontSize = 18.0,
+            fontSize = 17.0,
             alignment = DesignerTextAlignment.CENTER,
             bold = true,
-            locked = true
+            locked = false
         )
 
-        val numberStartX = contentLeft + min(320.0, contentWidth * 0.34)
-        val digitGap = if (config.orientation == StructuredOrientation.PORTRAIT) 30.0 else 28.0
-        val valueGap = if (config.orientation == StructuredOrientation.PORTRAIT) 30.0 else 28.0
+        val numberStartX = contentLeft + min(290.0, contentWidth * 0.32)
+        val digitGap = if (config.orientation == StructuredOrientation.PORTRAIT) 28.0 else 27.0
+        val valueGap = if (config.orientation == StructuredOrientation.PORTRAIT) 28.0 else 27.0
         components += NumericGridComponent(
             id = "studentNumber",
             digits = config.studentNumberDigits,
@@ -222,27 +238,28 @@ object StructuredFormDocumentFactory {
         )
         visuals += DesignerTextElement(
             id = "structured:number-title",
-            bounds = TemplateRect(numberStartX, metaTop, min(330.0, contentRight - numberStartX), 24.0),
+            bounds = TemplateRect(numberStartX, metaTop, min(330.0, contentRight - numberStartX), 22.0),
             text = "Numara",
-            fontSize = 18.0,
+            fontSize = 17.0,
             alignment = DesignerTextAlignment.CENTER,
             bold = true,
-            locked = true
+            locked = false
         )
 
         val numberBottom = metaMarkY + (config.studentNumberDigits - 1) * digitGap + bubbleRadius
         val lessonsTop = max(
-            if (config.orientation == StructuredOrientation.PORTRAIT) 560.0 else 500.0,
-            numberBottom + 74.0
+            if (config.orientation == StructuredOrientation.PORTRAIT) 470.0 else 420.0,
+            numberBottom + 52.0
         )
-        val lessonsBottom = space.height - 112.0
-        require(lessonsBottom - lessonsTop >= 260.0) {
+        val bottomReserved = max(config.pageMargin, config.markerInset + config.markerSize + 12.0)
+        val lessonsBottom = space.height - bottomReserved
+        require(lessonsBottom - lessonsTop >= 240.0) {
             "Seçilen öğrenci numarası hane sayısı bu kağıt yönünde ders alanına yer bırakmıyor."
         }
 
         val lessonGridColumns = lessonGridColumns(config.lessons.size, config.orientation)
         val lessonGridRows = ceil(config.lessons.size.toDouble() / lessonGridColumns.toDouble()).toInt()
-        val lessonGap = 24.0
+        val lessonGap = 14.0
         val blockWidth = (contentWidth - lessonGap * (lessonGridColumns - 1)) / lessonGridColumns
         val availableHeight = lessonsBottom - lessonsTop
         val blockHeight = (availableHeight - lessonGap * (lessonGridRows - 1)) / lessonGridRows
@@ -253,24 +270,41 @@ object StructuredFormDocumentFactory {
             val blockLeft = contentLeft + gridColumn * (blockWidth + lessonGap)
             val blockTop = lessonsTop + gridRow * (blockHeight + lessonGap)
 
-            val rowGap = when {
-                blockHeight < 310.0 -> 26.0
-                blockHeight < 390.0 -> 29.0
-                else -> 31.0
+            val preferredRowGap = when {
+                blockHeight < 300.0 -> 24.0
+                blockHeight < 390.0 -> 27.0
+                else -> 30.0
             }
-            val usableQuestionHeight = blockHeight - 52.0
-            val maxRows = max(1, floor(usableQuestionHeight / rowGap).toInt())
-            val internalColumns = ceil(lesson.questionCount.toDouble() / maxRows.toDouble())
+            val usableQuestionHeight = blockHeight - 42.0
+            val autoMaxRows = max(1, floor(usableQuestionHeight / preferredRowGap).toInt())
+            val autoColumns = ceil(lesson.questionCount.toDouble() / autoMaxRows.toDouble())
                 .toInt()
                 .coerceIn(1, lesson.questionCount)
+            val internalColumns = if (lesson.questionColumns == 0) {
+                autoColumns
+            } else {
+                lesson.questionColumns.coerceAtMost(lesson.questionCount)
+            }
             val internalColumnGap = blockWidth / internalColumns.toDouble()
 
-            // Compact LGS-style sheets can place many lessons side-by-side. Bubble size and choice
-            // spacing adapt to the actual per-question column width while remaining non-overlapping.
+            // Compact school sheets can use a manually selected 1..8-column question layout.
+            // Bubble size and row spacing adapt while the same readability gate remains authoritative.
             val lessonBubbleRadius = min(
                 9.5,
                 max(6.2, internalColumnGap / (lesson.choices.size * 3.0))
             )
+            val rowsPerColumn = ceil(lesson.questionCount.toDouble() / internalColumns.toDouble()).toInt()
+            val minRowGap = lessonBubbleRadius * 2.0 + 3.0
+            val maxRowGapByHeight = if (rowsPerColumn <= 1) {
+                preferredRowGap
+            } else {
+                (usableQuestionHeight - lessonBubbleRadius * 2.0) / (rowsPerColumn - 1).toDouble()
+            }
+            require(maxRowGapByHeight >= minRowGap) {
+                "${lesson.name} için ${lesson.questionCount} soru ${internalColumns} sütuna güvenli biçimde sığmıyor."
+            }
+            val rowGap = min(preferredRowGap, maxRowGapByHeight)
+
             val questionNumberRoom = max(14.0, lessonBubbleRadius * 2.0)
             val maxChoiceGap = if (lesson.choices.size == 1) {
                 0.0
@@ -287,12 +321,12 @@ object StructuredFormDocumentFactory {
 
             visuals += DesignerTextElement(
                 id = "structured:lesson-title:${lesson.id}",
-                bounds = TemplateRect(blockLeft, blockTop, blockWidth, 28.0),
+                bounds = TemplateRect(blockLeft, blockTop, blockWidth, 26.0),
                 text = lesson.name,
                 fontSize = min(17.0, max(11.0, blockWidth / 14.0)),
-                alignment = DesignerTextAlignment.CENTER,
+                alignment = lesson.titleAlignment,
                 bold = true,
-                locked = true
+                locked = false
             )
             components += QuestionGroupComponent(
                 id = "lesson:${lesson.id}",
@@ -301,7 +335,7 @@ object StructuredFormDocumentFactory {
                 choices = lesson.choices,
                 columns = internalColumns,
                 firstChoiceX = blockLeft + firstChoiceInset,
-                topY = blockTop + 52.0,
+                topY = blockTop + 40.0,
                 bubbleRadius = lessonBubbleRadius,
                 choiceGap = choiceGap,
                 rowGap = rowGap,
@@ -327,7 +361,7 @@ object StructuredFormDocumentFactory {
 
         return StructuredFormBuildResult(
             document = document,
-            protectedZones = buildProtectedZones(document)
+            protectedZones = buildProtectedZones(document, config.protectedPaddingRatio)
         )
     }
 
@@ -356,40 +390,43 @@ object StructuredFormDocumentFactory {
             }
         }.coerceAtLeast(1)
 
-    private fun fiducialsFor(space: TemplateSize): List<FiducialSpec> {
-        val markerSize = 58.0
-        val inset = 38.0
-        return listOf(
-            FiducialSpec(
-                FiducialCorner.TOP_LEFT,
-                11,
-                TemplateRect(inset, inset, markerSize, markerSize)
-            ),
-            FiducialSpec(
-                FiducialCorner.TOP_RIGHT,
-                22,
-                TemplateRect(space.width - inset - markerSize, inset, markerSize, markerSize)
-            ),
-            FiducialSpec(
-                FiducialCorner.BOTTOM_RIGHT,
-                33,
-                TemplateRect(
-                    space.width - inset - markerSize,
-                    space.height - inset - markerSize,
-                    markerSize,
-                    markerSize
-                )
-            ),
-            FiducialSpec(
-                FiducialCorner.BOTTOM_LEFT,
-                44,
-                TemplateRect(inset, space.height - inset - markerSize, markerSize, markerSize)
+    private fun fiducialsFor(
+        space: TemplateSize,
+        markerSize: Double,
+        inset: Double
+    ): List<FiducialSpec> = listOf(
+        FiducialSpec(
+            FiducialCorner.TOP_LEFT,
+            11,
+            TemplateRect(inset, inset, markerSize, markerSize)
+        ),
+        FiducialSpec(
+            FiducialCorner.TOP_RIGHT,
+            22,
+            TemplateRect(space.width - inset - markerSize, inset, markerSize, markerSize)
+        ),
+        FiducialSpec(
+            FiducialCorner.BOTTOM_RIGHT,
+            33,
+            TemplateRect(
+                space.width - inset - markerSize,
+                space.height - inset - markerSize,
+                markerSize,
+                markerSize
             )
+        ),
+        FiducialSpec(
+            FiducialCorner.BOTTOM_LEFT,
+            44,
+            TemplateRect(inset, space.height - inset - markerSize, markerSize, markerSize)
         )
-    }
+    )
 
-    private fun buildProtectedZones(document: DesignerDocument): List<TemplateRect> {
-        val basePadding = min(document.space.width, document.space.height) * 0.018
+    private fun buildProtectedZones(
+        document: DesignerDocument,
+        paddingRatio: Double
+    ): List<TemplateRect> {
+        val basePadding = min(document.space.width, document.space.height) * paddingRatio
         val componentZones = document.components.map { component ->
             expand(DesignerComponentGeometry.bounds(component), basePadding, document.space)
         }
