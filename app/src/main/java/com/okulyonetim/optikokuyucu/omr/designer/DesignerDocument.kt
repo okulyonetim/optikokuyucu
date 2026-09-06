@@ -172,7 +172,7 @@ data class DesignerTextElement(
     val alignment: DesignerTextAlignment = DesignerTextAlignment.START,
     val bold: Boolean = false,
     override val locked: Boolean = false,
-    val showPersonalizedLabel: Boolean = false
+    val showPersonalizedLabel: Boolean = DesignerPersonalizedTextBinding.isBound(id)
 ) : DesignerVisualElement {
     init {
         require(id.isNotBlank())
