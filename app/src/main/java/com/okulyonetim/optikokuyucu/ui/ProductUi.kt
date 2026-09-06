@@ -3,6 +3,7 @@ package com.okulyonetim.optikokuyucu.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -93,7 +94,8 @@ fun ProductTopBar(
     leadingText: String? = null,
     onLeadingClick: (() -> Unit)? = null,
     actionText: String = "⋮",
-    onActionClick: (() -> Unit)? = null
+    onActionClick: (() -> Unit)? = null,
+    actionMenu: (@Composable () -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -128,8 +130,11 @@ fun ProductTopBar(
             )
 
             if (onActionClick != null) {
-                TextButton(onClick = onActionClick) {
-                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 22.sp)
+                Box {
+                    TextButton(onClick = onActionClick) {
+                        Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 22.sp)
+                    }
+                    actionMenu?.invoke()
                 }
             } else {
                 Spacer(Modifier.size(42.dp))
