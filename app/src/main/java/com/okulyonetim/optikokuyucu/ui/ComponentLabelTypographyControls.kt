@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun ComponentLabelTypographyControls(
@@ -19,10 +20,10 @@ internal fun ComponentLabelTypographyControls(
     onFontSizeChange: (Double) -> Unit,
     onBoldChange: (Boolean) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(7f))) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(6f)),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Etiket Yazı Boyutu: ${fontSize.toInt()}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
