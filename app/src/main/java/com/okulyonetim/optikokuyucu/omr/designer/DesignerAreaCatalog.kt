@@ -9,6 +9,11 @@ enum class DesignerAreaKind(val displayName: String) {
     NUMBER("Numara"),
     ANSWERS("Cevaplar"),
     BOOKLET("Kitapçık Türü"),
+    STUDENT_NAME("Öğrenci Adı Soyadı"),
+    STUDENT_CLASS("Sınıfı"),
+    STUDENT_NUMBER_TEXT("Öğrenci Numarası"),
+    EXAM_NAME("Sınav Adı"),
+    SCHOOL_NAME("Okul Adı"),
     DESCRIPTION("Açıklama"),
     IMAGE("Resim")
 }
@@ -19,7 +24,20 @@ data class DesignerAreaSection(val title: String, val kinds: List<DesignerAreaKi
 
 object DesignerAreaCatalog {
     val sections: List<DesignerAreaSection> = listOf(
-        DesignerAreaSection("İşaretleme Alanı", listOf(DesignerAreaKind.NUMBER, DesignerAreaKind.ANSWERS, DesignerAreaKind.BOOKLET)),
+        DesignerAreaSection(
+            "İşaretleme Alanı",
+            listOf(DesignerAreaKind.NUMBER, DesignerAreaKind.ANSWERS, DesignerAreaKind.BOOKLET)
+        ),
+        DesignerAreaSection(
+            "Öğrenci / Sınav Bilgileri",
+            listOf(
+                DesignerAreaKind.STUDENT_NAME,
+                DesignerAreaKind.STUDENT_CLASS,
+                DesignerAreaKind.STUDENT_NUMBER_TEXT,
+                DesignerAreaKind.EXAM_NAME,
+                DesignerAreaKind.SCHOOL_NAME
+            )
+        ),
         DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE))
     )
     val allKinds: List<DesignerAreaKind> = sections.flatMap { it.kinds }
@@ -87,6 +105,21 @@ object DesignerAreaCatalog {
         )
     }
 
+    fun createStudentNameArea(document: DesignerDocument): DesignerTextElement =
+        createPresetTextArea(document, "student-name", "Öğrenci Adı Soyadı")
+
+    fun createStudentClassArea(document: DesignerDocument): DesignerTextElement =
+        createPresetTextArea(document, "student-class", "Sınıfı")
+
+    fun createStudentNumberTextArea(document: DesignerDocument): DesignerTextElement =
+        createPresetTextArea(document, "student-number-text", "Öğrenci Numarası")
+
+    fun createExamNameArea(document: DesignerDocument): DesignerTextElement =
+        createPresetTextArea(document, "exam-name", "Sınav Adı")
+
+    fun createSchoolNameArea(document: DesignerDocument): DesignerTextElement =
+        createPresetTextArea(document, "school-name", "Okul Adı")
+
     fun createDescriptionArea(document: DesignerDocument): DesignerTextElement {
         val safe = DesignerPageGeometry.safeArea(document.space)
         val id = nextVisualId(document, "description")
@@ -94,7 +127,12 @@ object DesignerAreaCatalog {
         val stagger = ((suffix - 1) % 4) * 18.0
         val width = min(520.0, safe.width - 60.0).coerceAtLeast(160.0)
         val height = min(150.0, safe.height - 60.0).coerceAtLeast(70.0)
-        return DesignerTextElement(id, TemplateRect(safe.left + 30.0 + stagger, safe.top + 70.0 + stagger, width, height), "Açıklama", 22.0)
+        return DesignerTextElement(
+            id,
+            TemplateRect(safe.left + 30.0 + stagger, safe.top + 70.0 + stagger, width, height),
+            "Açıklama",
+            22.0
+        )
     }
 
     fun createImageArea(document: DesignerDocument, image: DesignerImageData): DesignerImageElement {
@@ -105,7 +143,16 @@ object DesignerAreaCatalog {
         val maxWidth = min(320.0, safe.width - 60.0).coerceAtLeast(100.0)
         val maxHeight = min(240.0, safe.height - 60.0).coerceAtLeast(80.0)
         val scale = min(maxWidth / image.pixelWidth, maxHeight / image.pixelHeight)
-        return DesignerImageElement(id, TemplateRect(safe.left + 30.0 + stagger, safe.top + 250.0 + stagger, image.pixelWidth * scale, image.pixelHeight * scale), image)
+        return DesignerImageElement(
+            id,
+            TemplateRect(
+                safe.left + 30.0 + stagger,
+                safe.top + 250.0 + stagger,
+                image.pixelWidth * scale,
+                image.pixelHeight * scale
+            ),
+            image
+        )
     }
 
     fun parseNumberPattern(text: String): List<String>? = parsePattern(text, 24)
@@ -114,7 +161,8 @@ object DesignerAreaCatalog {
     fun numberPatternText(values: List<String>) = patternText(values)
     fun answerPatternText(values: List<String>) = patternText(values)
     fun bookletPatternText(values: List<String>) = patternText(values)
-    fun answerQuestionsPerBlock(component: QuestionGroupComponent): Int = ceil(component.questionCount.toDouble() / component.columns).toInt().coerceAtLeast(1)
+    fun answerQuestionsPerBlock(component: QuestionGroupComponent): Int =
+        ceil(component.questionCount.toDouble() / component.columns).toInt().coerceAtLeast(1)
 
     fun numberAreaIssue(document: DesignerDocument, component: NumericGridComponent): String? {
         if (component.digits !in 1..16) return "Hane sayısı 1–16 arasında olmalıdır."
@@ -150,7 +198,7 @@ object DesignerAreaCatalog {
         if (element.text.isBlank()) return "Açıklama metni boş olamaz."
         if (element.text.length > 2_000) return "Açıklama en fazla 2000 karakter olabilir."
         if (element.fontSize !in 8.0..72.0) return "Yazı boyutu 8–72 arasında olmalıdır."
-        return visualBoundsIssue(document, element.bounds, "Açıklama")
+        return visualBoundsIssue(document, element.bounds, "Metin")
     }
 
     fun imageAreaIssue(document: DesignerDocument, element: DesignerImageElement): String? {
@@ -158,26 +206,88 @@ object DesignerAreaCatalog {
         return visualBoundsIssue(document, element.bounds, "Resim")
     }
 
-    private fun parsePattern(text: String, maxValues: Int): List<String>? {
-        val normalized = text.trim(); if (normalized.isEmpty()) return null
-        val values = if (',' in normalized) normalized.split(',').map { it.trim() }.filter { it.isNotEmpty() }
-        else normalized.codePoints().toArray().map { String(Character.toChars(it)) }
-        return values.takeIf { it.size in 2..maxValues && it.all(String::isNotBlank) && it.distinct().size == it.size }
+    private fun createPresetTextArea(
+        document: DesignerDocument,
+        prefix: String,
+        placeholder: String
+    ): DesignerTextElement {
+        val safe = DesignerPageGeometry.safeArea(document.space)
+        val id = nextVisualId(document, prefix)
+        val ordinal = document.visualElements.count { it is DesignerTextElement }
+        val stagger = (ordinal % 7) * 62.0
+        val width = min(440.0, safe.width - 60.0).coerceAtLeast(180.0)
+        val height = min(58.0, safe.height - 40.0).coerceAtLeast(42.0)
+        val maxTop = (safe.bottom - height - 20.0).coerceAtLeast(safe.top + 20.0)
+        val top = (safe.top + 55.0 + stagger).coerceAtMost(maxTop)
+        return DesignerTextElement(
+            id = id,
+            bounds = TemplateRect(safe.left + 30.0, top, width, height),
+            text = placeholder,
+            fontSize = 18.0,
+            alignment = DesignerTextAlignment.START,
+            bold = false
+        )
     }
 
-    private fun patternText(values: List<String>): String = if (values.all { it.codePointCount(0, it.length) == 1 && ',' !in it }) values.joinToString("") else values.joinToString(",")
+    private fun parsePattern(text: String, maxValues: Int): List<String>? {
+        val normalized = text.trim()
+        if (normalized.isEmpty()) return null
+        val values = if (',' in normalized) {
+            normalized.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        } else {
+            normalized.codePoints().toArray().map { String(Character.toChars(it)) }
+        }
+        return values.takeIf {
+            it.size in 2..maxValues && it.all(String::isNotBlank) && it.distinct().size == it.size
+        }
+    }
+
+    private fun patternText(values: List<String>): String =
+        if (values.all { it.codePointCount(0, it.length) == 1 && ',' !in it }) {
+            values.joinToString("")
+        } else {
+            values.joinToString(",")
+        }
 
     private fun nextComponentId(document: DesignerDocument, prefix: String): String {
-        val used = document.components.map { it.id }.toSet(); var n = 1; var id = "$prefix-$n"
-        while (id in used) { n++; id = "$prefix-$n" }; return id
+        val used = document.components.map { it.id }.toSet()
+        var n = 1
+        var id = "$prefix-$n"
+        while (id in used) {
+            n++
+            id = "$prefix-$n"
+        }
+        return id
     }
+
     private fun nextVisualId(document: DesignerDocument, prefix: String): String {
-        val used = document.visualElements.map { it.id }.toSet(); var n = 1; var id = "$prefix-$n"
-        while (id in used) { n++; id = "$prefix-$n" }; return id
+        val used = document.visualElements.map { it.id }.toSet()
+        var n = 1
+        var id = "$prefix-$n"
+        while (id in used) {
+            n++
+            id = "$prefix-$n"
+        }
+        return id
     }
-    private fun componentBoundsIssue(document: DesignerDocument, component: DesignerOmrComponent, label: String): String? = visualBoundsIssue(document, DesignerComponentGeometry.bounds(component), label)
+
+    private fun componentBoundsIssue(
+        document: DesignerDocument,
+        component: DesignerOmrComponent,
+        label: String
+    ): String? = visualBoundsIssue(document, DesignerComponentGeometry.bounds(component), label)
+
     private fun visualBoundsIssue(document: DesignerDocument, bounds: TemplateRect, label: String): String? {
         val safe = DesignerPageGeometry.safeArea(document.space)
-        return if (bounds.left < safe.left || bounds.top < safe.top || bounds.right > safe.right || bounds.bottom > safe.bottom) "$label alanı güvenli yerleşim alanının içinde kalmalıdır." else null
+        return if (
+            bounds.left < safe.left ||
+            bounds.top < safe.top ||
+            bounds.right > safe.right ||
+            bounds.bottom > safe.bottom
+        ) {
+            "$label alanı güvenli yerleşim alanının içinde kalmalıdır."
+        } else {
+            null
+        }
     }
 }

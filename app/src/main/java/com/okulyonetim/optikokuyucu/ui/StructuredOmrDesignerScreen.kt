@@ -408,6 +408,16 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                         bookletDraft = it
                         bookletPatternText = DesignerAreaCatalog.bookletPatternText(it.choices)
                     }
+                    DesignerAreaKind.STUDENT_NAME ->
+                        descriptionDraft = DesignerAreaCatalog.createStudentNameArea(document)
+                    DesignerAreaKind.STUDENT_CLASS ->
+                        descriptionDraft = DesignerAreaCatalog.createStudentClassArea(document)
+                    DesignerAreaKind.STUDENT_NUMBER_TEXT ->
+                        descriptionDraft = DesignerAreaCatalog.createStudentNumberTextArea(document)
+                    DesignerAreaKind.EXAM_NAME ->
+                        descriptionDraft = DesignerAreaCatalog.createExamNameArea(document)
+                    DesignerAreaKind.SCHOOL_NAME ->
+                        descriptionDraft = DesignerAreaCatalog.createSchoolNameArea(document)
                     DesignerAreaKind.DESCRIPTION -> descriptionDraft = DesignerAreaCatalog.createDescriptionArea(document)
                     DesignerAreaKind.IMAGE -> {
                         imageDraft = null
@@ -651,6 +661,11 @@ private fun areaKindSymbol(kind: DesignerAreaKind): String = when (kind) {
     DesignerAreaKind.NUMBER -> "123"
     DesignerAreaKind.ANSWERS -> "AB"
     DesignerAreaKind.BOOKLET -> "A/B"
+    DesignerAreaKind.STUDENT_NAME -> "AD"
+    DesignerAreaKind.STUDENT_CLASS -> "SNF"
+    DesignerAreaKind.STUDENT_NUMBER_TEXT -> "NO"
+    DesignerAreaKind.EXAM_NAME -> "S"
+    DesignerAreaKind.SCHOOL_NAME -> "O"
     DesignerAreaKind.DESCRIPTION -> "T"
     DesignerAreaKind.IMAGE -> "▧"
 }
