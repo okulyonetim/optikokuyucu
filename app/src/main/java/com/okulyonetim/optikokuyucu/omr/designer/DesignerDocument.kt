@@ -6,6 +6,81 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import com.okulyonetim.optikokuyucu.omr.template.TemplateSize
 
+enum class DesignerPaperSize(val displayName: String) {
+    A3("A3"),
+    A4("A4"),
+    A5("A5"),
+    A6("A6"),
+    A7("A7"),
+    LETTER("Letter"),
+    CUSTOM("Özel")
+}
+
+enum class DesignerPageOrientation(val displayName: String) {
+    PORTRAIT("Dikey"),
+    LANDSCAPE("Yatay")
+}
+
+enum class DesignerExamMode(val displayName: String) {
+    UNSPECIFIED("Belirtilmedi"),
+    SINGLE_LESSON("Tek Ders Sınavı"),
+    MULTI_LESSON("Çoklu Ders Sınavı")
+}
+
+enum class DesignerExamPreset(val displayName: String) {
+    CUSTOM("Özel"),
+    LGS("LGS"),
+    TYT("TYT"),
+    AYT("AYT"),
+    YDT("YDT"),
+    ALES("ALES"),
+    DGS("DGS"),
+    KPSS("KPSS"),
+    TUS("TUS"),
+    SCHOLARSHIP("Bursluluk")
+}
+
+/**
+ * Printed answer-mark appearance shared by editor preview and PDF rendering.
+ * Choice letters are intentionally centered inside outlined bubbles and question numbers stay
+ * immediately before the first bubble, matching the compact reference layout used by the app.
+ */
+data class DesignerAnswerAppearance(
+    val bubbleOutlineWidth: Double = 1.2,
+    val choiceLabelScale: Double = 0.82,
+    val questionNumberScale: Double = 0.92,
+    val questionNumberDistanceInRadii: Double = 2.0
+) {
+    init {
+        require(bubbleOutlineWidth in 0.5..4.0)
+        require(choiceLabelScale in 0.45..1.4)
+        require(questionNumberScale in 0.45..1.6)
+        require(questionNumberDistanceInRadii in 1.2..4.0)
+    }
+}
+
+/**
+ * User-facing form identity stored with the same source document that compiles to the OMR reader.
+ * This prevents page/exam metadata from living in a parallel editor-only model.
+ */
+data class DesignerFormSpec(
+    val paperSize: DesignerPaperSize = DesignerPaperSize.A4,
+    val orientation: DesignerPageOrientation = DesignerPageOrientation.PORTRAIT,
+    val examMode: DesignerExamMode = DesignerExamMode.UNSPECIFIED,
+    val examPreset: DesignerExamPreset = DesignerExamPreset.CUSTOM,
+    val answerAppearance: DesignerAnswerAppearance = DesignerAnswerAppearance()
+) {
+    companion object {
+        fun forSpace(space: TemplateSize): DesignerFormSpec = DesignerFormSpec(
+            orientation = if (space.width <= space.height) {
+                DesignerPageOrientation.PORTRAIT
+            } else {
+                DesignerPageOrientation.LANDSCAPE
+            }
+        )
+    }
+}
+
 /**
  * Editable source document for the form designer.
  *
@@ -20,7 +95,8 @@ data class DesignerDocument(
     val space: TemplateSize = StandardOmrTemplate.DEFAULT_SPACE,
     val fiducials: List<FiducialSpec> = StandardOmrTemplate.DEFAULT.fiducials,
     val components: List<DesignerOmrComponent> = emptyList(),
-    val visualElements: List<DesignerVisualElement> = emptyList()
+    val visualElements: List<DesignerVisualElement> = emptyList(),
+    val formSpec: DesignerFormSpec = DesignerFormSpec.forSpace(space)
 ) {
     init {
         require(id.isNotBlank())

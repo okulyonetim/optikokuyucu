@@ -37,6 +37,8 @@ object DesignerDocumentCodec {
 
             out.writeInt(document.visualElements.size)
             document.visualElements.forEach { element -> writeVisual(out, element) }
+
+            writeFormSpec(out, document.formSpec)
         }
         return bytes.toByteArray()
     }
@@ -68,6 +70,11 @@ object DesignerDocumentCodec {
             val visuals = List(readSafeCount(input, MAX_VISUALS)) {
                 readVisual(input, schema)
             }
+            val formSpec = if (schema >= 3) {
+                readFormSpec(input)
+            } else {
+                DesignerFormSpec.forSpace(space)
+            }
 
             require(input.available() == 0) { "Tasarım dosyasında beklenmeyen ek veri var." }
             return DesignerDocument(
@@ -77,7 +84,8 @@ object DesignerDocumentCodec {
                 space = space,
                 fiducials = fiducials,
                 components = components,
-                visualElements = visuals
+                visualElements = visuals,
+                formSpec = formSpec
             )
         }
     }
@@ -231,6 +239,30 @@ object DesignerDocumentCodec {
             else -> error("Bilinmeyen görsel tasarım bileşeni.")
         }
 
+    private fun writeFormSpec(out: DataOutputStream, spec: DesignerFormSpec) {
+        out.writeUTF(spec.paperSize.name)
+        out.writeUTF(spec.orientation.name)
+        out.writeUTF(spec.examMode.name)
+        out.writeUTF(spec.examPreset.name)
+        out.writeDouble(spec.answerAppearance.bubbleOutlineWidth)
+        out.writeDouble(spec.answerAppearance.choiceLabelScale)
+        out.writeDouble(spec.answerAppearance.questionNumberScale)
+        out.writeDouble(spec.answerAppearance.questionNumberDistanceInRadii)
+    }
+
+    private fun readFormSpec(input: DataInputStream): DesignerFormSpec = DesignerFormSpec(
+        paperSize = DesignerPaperSize.valueOf(input.readUTF()),
+        orientation = DesignerPageOrientation.valueOf(input.readUTF()),
+        examMode = DesignerExamMode.valueOf(input.readUTF()),
+        examPreset = DesignerExamPreset.valueOf(input.readUTF()),
+        answerAppearance = DesignerAnswerAppearance(
+            bubbleOutlineWidth = input.readDouble(),
+            choiceLabelScale = input.readDouble(),
+            questionNumberScale = input.readDouble(),
+            questionNumberDistanceInRadii = input.readDouble()
+        )
+    )
+
     private fun writeStrings(out: DataOutputStream, values: List<String>) {
         out.writeInt(values.size)
         values.forEach(out::writeUTF)
@@ -277,7 +309,7 @@ object DesignerDocumentCodec {
 
     private const val MAGIC = 0x4F4D5244 // OMRD
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 2
+    private const val SCHEMA_VERSION = 3
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3
