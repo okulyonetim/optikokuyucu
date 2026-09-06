@@ -51,66 +51,43 @@ internal fun BookletAreaEditorScreen(
 ) {
     val parsed = DesignerAreaCatalog.parseBookletPattern(patternText)
     val effective = parsed?.let { draft.copy(choices = it) } ?: draft
-    val issue = if (parsed == null) "Kitapçık deseni en az 2 benzersiz değer içermelidir."
-    else DesignerAreaCatalog.bookletAreaIssue(document, effective)
+    val issue = if (parsed == null) "Kitapçık deseni en az 2 benzersiz değer içermelidir." else DesignerAreaCatalog.bookletAreaIssue(document, effective)
 
-    Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
-    ) {
-        Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
-            Row(modifier = Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))) {
+        Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
+            Row(Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("×") }
-                Text("Yeni Optik Form Alanı", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onPrimary)
+                Text("Yeni Optik Form Alanı", Modifier.weight(1f), color = MaterialTheme.colorScheme.onPrimary)
                 TextButton(enabled = issue == null, onClick = { onComplete(effective) }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("Tamam") }
             }
         }
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Tür · Kitapçık Türü", style = MaterialTheme.typography.labelLarge)
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Etiketi Gizle", modifier = Modifier.weight(1f))
-                        Switch(checked = !draft.showLabel, onCheckedChange = { onDraftChange(draft.copy(showLabel = !it)) })
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Etiketi Gizle", Modifier.weight(1f)); Switch(checked = !draft.showLabel, onCheckedChange = { onDraftChange(draft.copy(showLabel = !it)) })
                     }
-                    OutlinedTextField(
-                        value = draft.label,
-                        onValueChange = { if ('\n' !in it && '\r' !in it && it.length <= 60) onDraftChange(draft.copy(label = it)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = draft.showLabel,
-                        label = { Text("Etiket") },
-                        singleLine = true
-                    )
+                    OutlinedTextField(draft.label, { if ('\n' !in it && '\r' !in it && it.length <= 60) onDraftChange(draft.copy(label = it)) }, Modifier.fillMaxWidth(), enabled = draft.showLabel, label = { Text("Etiket") }, singleLine = true)
                     Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
                     AlignmentButtons(draft.labelAlignment) { onDraftChange(draft.copy(labelAlignment = it)) }
+                    ComponentLabelTypographyControls(
+                        draft.labelFontSize,
+                        draft.labelBold,
+                        { onDraftChange(draft.copy(labelFontSize = it)) },
+                        { onDraftChange(draft.copy(labelBold = it)) }
+                    )
                     Text("Yön", style = MaterialTheme.typography.labelMedium)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BookletChoice(Modifier.weight(1f), "Yatay", draft.axis == ChoiceAxis.HORIZONTAL) { onDraftChange(draft.copy(axis = ChoiceAxis.HORIZONTAL)) }
                         BookletChoice(Modifier.weight(1f), "Dikey", draft.axis == ChoiceAxis.VERTICAL) { onDraftChange(draft.copy(axis = ChoiceAxis.VERTICAL)) }
                     }
-                    OutlinedTextField(
-                        value = patternText,
-                        onValueChange = onPatternTextChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Desen") },
-                        supportingText = { Text("AB, ABC, ABCD veya A,B,C,D") },
-                        isError = parsed == null,
-                        singleLine = true
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        DesignerAreaCatalog.bookletPatternPresets.forEach { preset ->
-                            BookletChoice(Modifier.weight(1f), preset, patternText == preset) { onPatternTextChange(preset) }
-                        }
+                    OutlinedTextField(patternText, onPatternTextChange, Modifier.fillMaxWidth(), label = { Text("Desen") }, supportingText = { Text("AB, ABC, ABCD veya A,B,C,D") }, isError = parsed == null, singleLine = true)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DesignerAreaCatalog.bookletPatternPresets.forEach { preset -> BookletChoice(Modifier.weight(1f), preset, patternText == preset) { onPatternTextChange(preset) } }
                     }
-                    CoordinateButtons("Sol Boşluk", draft.start.x, 0.0, document.space.width) {
-                        onDraftChange(draft.copy(start = TemplatePoint(it, draft.start.y)))
-                    }
-                    CoordinateButtons("Üst Boşluk", draft.start.y, 0.0, document.space.height) {
-                        onDraftChange(draft.copy(start = TemplatePoint(draft.start.x, it)))
-                    }
+                    CoordinateButtons("Sol Boşluk", draft.start.x, 0.0, document.space.width) { onDraftChange(draft.copy(start = TemplatePoint(it, draft.start.y))) }
+                    CoordinateButtons("Üst Boşluk", draft.start.y, 0.0, document.space.height) { onDraftChange(draft.copy(start = TemplatePoint(draft.start.x, it))) }
                     Text("Baloncuk boyutu diğer tüm işaretleme alanlarıyla aynıdır.", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -123,7 +100,7 @@ internal fun BookletAreaEditorScreen(
 
 @Composable
 internal fun AlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerTextAlignment) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         BookletChoice(Modifier.weight(1f), "Sol", value == DesignerTextAlignment.START) { onChange(DesignerTextAlignment.START) }
         BookletChoice(Modifier.weight(1f), "Orta", value == DesignerTextAlignment.CENTER) { onChange(DesignerTextAlignment.CENTER) }
         BookletChoice(Modifier.weight(1f), "Sağ", value == DesignerTextAlignment.END) { onChange(DesignerTextAlignment.END) }
@@ -132,8 +109,8 @@ internal fun AlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerT
 
 @Composable
 private fun CoordinateButtons(label: String, value: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("$label: ${value.toInt()}", modifier = Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("$label: ${value.toInt()}", Modifier.weight(1f))
         OutlinedButton(enabled = value > min, onClick = { onChange((value - 5.0).coerceAtLeast(min)) }) { Text("−") }
         OutlinedButton(enabled = value < max, onClick = { onChange((value + 5.0).coerceAtMost(max)) }) { Text("+") }
     }
@@ -141,21 +118,19 @@ private fun CoordinateButtons(label: String, value: Double, min: Double, max: Do
 
 @Composable
 private fun BookletChoice(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") }
-    else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
+    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") } else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
 }
 
 @Composable
 private fun BookletPreview(document: DesignerDocument, component: SingleChoiceComponent) {
     val preview = document.copy(components = listOf(component), visualElements = emptyList())
     val compiled = DesignerTemplateCompiler.compile(preview)
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Canlı Önizleme", style = MaterialTheme.typography.labelLarge)
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(document.space.aspectRatio.toFloat()).background(Color.White)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(document.space.aspectRatio.toFloat()).background(Color.White)) {
                 Canvas(Modifier.fillMaxSize()) {
-                    val sx = size.width / document.space.width.toFloat()
-                    val sy = size.height / document.space.height.toFloat()
+                    val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
                     compiled.markGrids.singleOrNull()?.let { drawSingleChoice(component, it, sx, sy, Color(0xFFB54848)) }
                     drawComponentDecorations(preview, sx, sy)
                 }
