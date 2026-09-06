@@ -116,17 +116,13 @@ fun ScanSessionScreen(onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(2.dp)) }
 
             item {
-                Text("Sınav Seç", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(exams, key = { it.id }) { exam ->
                         ProductFilterPill(
                             label = exam.name,
@@ -144,65 +140,74 @@ fun ScanSessionScreen(onBack: () -> Unit) {
 
             if (selectedExam != null && report != null) {
                 item { ExamResultHeader(selectedExam, report) }
-                item { ResultMetricGrid(report) }
-                item { AnswerDistributionCard(report) }
-                item { ScoreDistributionCard(report) }
 
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Öğrenci Sonuçları", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("${report.rows.size} kağıt", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                item {
-                    OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        label = { Text("Öğrenci, numara veya sınıf ara") },
-                        leadingIcon = { Text("⌕", fontSize = 24.sp) },
-                        shape = RoundedCornerShape(28.dp)
-                    )
-                }
-
-                val normalized = query.trim().lowercase(Locale("tr", "TR"))
-                val rows = report.rows
-                    .filter { row ->
-                        normalized.isBlank() ||
-                            row.studentName.lowercase(Locale("tr", "TR")).contains(normalized) ||
-                            row.studentNumber.lowercase(Locale("tr", "TR")).contains(normalized) ||
-                            row.className.lowercase(Locale("tr", "TR")).contains(normalized)
-                    }
-                    .sortedWith(compareByDescending<ExamReportRow> { it.points ?: Double.NEGATIVE_INFINITY }.thenBy { it.ordinal })
-
-                if (rows.isEmpty()) {
+                if (report.rows.isEmpty()) {
                     item {
-                        ResultInfoCard("Sonuç bulunamadı", "Arama metnini değiştirin veya farklı bir sınav seçin.")
+                        ResultInfoCard(
+                            title = "Henüz okunmuş kağıt yok",
+                            description = "Bu sınava ilk kağıt eklendiğinde net, başarı, dağılım ve öğrenci sonuçları burada otomatik oluşacak."
+                        )
                     }
                 } else {
-                    items(rows, key = { it.scanRecordId }) { row ->
-                        StudentResultCard(row)
-                    }
-                }
+                    item { ResultMetricGrid(report) }
+                    item { AnswerDistributionCard(report) }
+                    item { ScoreDistributionCard(report) }
 
-                item {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = report.rows.isNotEmpty(),
-                        onClick = {
-                            pendingCsv = ExamReportCsvExporter.export(report)
-                            val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-                            csvLauncher.launch("${safeFileName(report.examName)}-$timestamp.csv")
-                        },
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
-                        Text("CSV Raporunu Dışa Aktar")
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Öğrenci Sonuçları", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("${report.rows.size} kağıt", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            label = { Text("Öğrenci, numara veya sınıf ara") },
+                            leadingIcon = { Text("⌕", fontSize = 20.sp) },
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                    }
+
+                    val normalized = query.trim().lowercase(Locale("tr", "TR"))
+                    val rows = report.rows
+                        .filter { row ->
+                            normalized.isBlank() ||
+                                row.studentName.lowercase(Locale("tr", "TR")).contains(normalized) ||
+                                row.studentNumber.lowercase(Locale("tr", "TR")).contains(normalized) ||
+                                row.className.lowercase(Locale("tr", "TR")).contains(normalized)
+                        }
+                        .sortedWith(compareByDescending<ExamReportRow> { it.points ?: Double.NEGATIVE_INFINITY }.thenBy { it.ordinal })
+
+                    if (rows.isEmpty()) {
+                        item {
+                            ResultInfoCard("Sonuç bulunamadı", "Arama metnini değiştirin veya farklı bir sınav seçin.")
+                        }
+                    } else {
+                        items(rows, key = { it.scanRecordId }) { row ->
+                            StudentResultCard(row)
+                        }
+                    }
+
+                    item {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                pendingCsv = ExamReportCsvExporter.export(report)
+                                val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                                csvLauncher.launch("${safeFileName(report.examName)}-$timestamp.csv")
+                            },
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("CSV Raporunu Dışa Aktar")
+                        }
                     }
                 }
 
@@ -217,7 +222,7 @@ fun ScanSessionScreen(onBack: () -> Unit) {
                 }
             }
 
-            item { Spacer(Modifier.height(18.dp)) }
+            item { Spacer(Modifier.height(12.dp)) }
         }
     }
 }
@@ -230,19 +235,19 @@ private fun ResultsEmptyState(onBack: () -> Unit) {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
-                modifier = Modifier.padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Henüz sınav sonucu yok", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Henüz sınav sonucu yok", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
                     "Bir sınav oluşturup optik kağıtları okuttuğunuzda analizler burada otomatik oluşacak.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedButton(onClick = onBack, shape = RoundedCornerShape(16.dp)) {
+                OutlinedButton(onClick = onBack, shape = RoundedCornerShape(14.dp)) {
                     Text("Anasayfaya Dön")
                 }
             }
@@ -254,14 +259,17 @@ private fun ResultsEmptyState(onBack: () -> Unit) {
 private fun ExamResultHeader(exam: Exam, report: ExamReport) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(exam.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(exam.schoolName, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f))
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(exam.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (exam.schoolName.isNotBlank()) {
+                Text(exam.schoolName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f))
+            }
             Text(
-                "${report.paperCount} kağıt · ${report.scoredCount} puanlandı · ${report.reviewRequiredCount} kontrol gerekli",
+                "${report.paperCount} kağıt · ${report.scoredCount} puanlandı · ${report.reviewRequiredCount} kontrol",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
@@ -275,12 +283,9 @@ private fun ResultMetricGrid(report: ExamReport) {
     val success = scored.map { row -> (row.points!! / row.maximumPoints!! * 100.0).coerceIn(0.0, 100.0) }.averageOrZero()
     val participation = report.rows.count { it.capturedAtEpochMs != null }
 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         ResultMetricCard(Modifier.weight(1f), "Ort. Net", formatOneDecimal(averagePoints))
         ResultMetricCard(Modifier.weight(1f), "Başarı", "%${formatOneDecimal(success)}")
-    }
-    Spacer(Modifier.height(10.dp))
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         ResultMetricCard(Modifier.weight(1f), "Katılım", participation.toString())
         ResultMetricCard(Modifier.weight(1f), "Kontrol", report.reviewRequiredCount.toString())
     }
@@ -290,13 +295,13 @@ private fun ResultMetricGrid(report: ExamReport) {
 private fun ResultMetricCard(modifier: Modifier, label: String, value: String) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(value, fontSize = 25.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(horizontal = 9.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
@@ -310,11 +315,11 @@ private fun AnswerDistributionCard(report: ExamReport) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Text("Doğru / Yanlış / Boş", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Doğru / Yanlış / Boş", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             DistributionLine("Doğru", correct, total)
             DistributionLine("Yanlış", wrong, total)
             DistributionLine("Boş", blank, total)
@@ -326,19 +331,19 @@ private fun AnswerDistributionCard(report: ExamReport) {
 private fun DistributionLine(label: String, value: Int, total: Int) {
     val ratio = (value.toFloat() / total.toFloat()).coerceIn(0f, 1f)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label)
-        Text(value.toString(), fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(value.toString(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(6.dp)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Surface(
-                modifier = Modifier.fillMaxWidth(ratio.coerceAtLeast(0.01f)).height(8.dp),
+                modifier = Modifier.fillMaxWidth(ratio.coerceAtLeast(0.01f)).height(6.dp),
                 color = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(6.dp)
             ) {}
         }
     }
@@ -362,28 +367,28 @@ private fun ScoreDistributionCard(report: ExamReport) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Puan Dağılımı", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Puan Dağılımı", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             buckets.forEach { (label, count) ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(label)
-                    Text("$count öğrenci", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, style = MaterialTheme.typography.bodySmall)
+                    Text("$count öğrenci", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(6.dp)
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth((count.toFloat() / maxCount.toFloat()).coerceAtLeast(0.01f))
-                                .height(8.dp),
+                                .height(6.dp),
                             color = MaterialTheme.colorScheme.secondary,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp)
                         ) {}
                     }
                 }
@@ -396,16 +401,16 @@ private fun ScoreDistributionCard(report: ExamReport) {
 private fun StudentResultCard(row: ExamReportRow) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     row.studentName.ifBlank { "Öğrenci ${row.ordinal}" },
                     fontWeight = FontWeight.SemiBold,
@@ -424,10 +429,10 @@ private fun StudentResultCard(row: ExamReportRow) {
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     row.points?.let(::formatOneDecimal) ?: "—",
-                    fontSize = 21.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -454,12 +459,12 @@ private fun StudentResultCard(row: ExamReportRow) {
 private fun ResultInfoCard(title: String, description: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
-            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
