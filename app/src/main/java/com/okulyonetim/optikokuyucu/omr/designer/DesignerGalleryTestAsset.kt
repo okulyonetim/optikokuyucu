@@ -115,7 +115,7 @@ object DesignerGalleryTestAsset {
             color = Color.BLACK
             style = Paint.Style.FILL
             textSize = element.fontSize.toFloat()
-            typeface = DesignerTypography.typeface(element.bold)
+            DesignerTypography.configurePaint(this, element.bold)
             textAlign = when (element.alignment) {
                 DesignerTextAlignment.START -> Paint.Align.LEFT
                 DesignerTextAlignment.CENTER -> Paint.Align.CENTER
@@ -177,7 +177,7 @@ object DesignerGalleryTestAsset {
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.BLACK
                         style = Paint.Style.FILL
-                        typeface = DesignerTypography.typeface(bold = true)
+                        DesignerTypography.configurePaint(this, bold = true)
                         textSize = max(6.5, DesignerEditorLayout.componentBubbleRadius(component) * 1.15).toFloat()
                         textAlign = when (DesignerEditorLayout.componentLabelAlignment(component)) {
                             DesignerTextAlignment.START -> Paint.Align.LEFT
@@ -204,7 +204,7 @@ object DesignerGalleryTestAsset {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.BLACK
                 style = Paint.Style.FILL
-                typeface = DesignerTypography.typeface()
+                DesignerTypography.configurePaint(this)
                 textSize = max(6.5, text.textSize).toFloat()
                 textAlign = when (text.alignment) {
                     DesignerTextAlignment.START -> Paint.Align.LEFT
