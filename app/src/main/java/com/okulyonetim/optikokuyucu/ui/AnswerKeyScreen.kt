@@ -36,6 +36,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeySource
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyXlsxExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.resolveActiveOmrTemplate
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,6 +54,10 @@ fun AnswerKeyScreen(
     }
     val activeTemplate = remember(context) { resolveActiveOmrTemplate(context) }
     val template = activeTemplate.template
+    val recognitionBindings = remember(template) {
+        OmrRecognitionBindingsResolver.fromTemplate(template)
+    }
+    val bookletGridId = recognitionBindings.bookletGridId
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
 
@@ -88,17 +93,19 @@ fun AnswerKeyScreen(
                         "Anahtar kabul edilmedi. Boş/çift/şüpheli sorular: $invalid"
                     }
 
-                    val bookletGrid = template.markGrids.firstOrNull { it.id == BOOKLET_GRID_ID }
-                    val booklet = result.markGridResult.grid(BOOKLET_GRID_ID)?.value
+                    val bookletGrid = bookletGridId?.let { id ->
+                        template.markGrids.firstOrNull { it.id == id }
+                    }
+                    val booklet = recognitionBindings.booklet(result.markGridResult)
                     if (bookletGrid != null) {
                         require(!booklet.isNullOrBlank()) {
-                            "Kitapçık alanı net okunamadı. Anahtar A/B kitapçığıyla kaydedilmedi."
+                            "Kitapçık alanı net okunamadı. Anahtar kitapçık türüyle kaydedilmedi."
                         }
                     }
 
                     val stored = StoredAnswerKey(
                         answerKey = requireNotNull(capture.answerKey),
-                        variantGridId = booklet?.let { BOOKLET_GRID_ID },
+                        variantGridId = if (!booklet.isNullOrBlank()) bookletGridId else null,
                         variantValue = booklet,
                         source = AnswerKeySource.GALLERY
                     )
@@ -198,7 +205,7 @@ fun AnswerKeyScreen(
                 )
                 Text(
                     "Galeriden aktif forma ait gerçek optik formu seçin. Tüm sorular tek ve net işaretli olmalı. " +
-                        "A/B kitapçık alanı bulunan formda kitapçık da net okunmadan anahtar kaydedilmez.",
+                        "Kitapçık alanı bulunan formda kitapçık da net okunmadan anahtar kaydedilmez.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
@@ -326,5 +333,4 @@ private fun answerKeyFileName(key: StoredAnswerKey): String {
     return "cevap-anahtari$variant-$timestamp.xlsx"
 }
 
-private const val BOOKLET_GRID_ID = "booklet"
 private const val XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

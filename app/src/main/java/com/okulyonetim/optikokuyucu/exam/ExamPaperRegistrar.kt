@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 
 /** Associates an immutable raw ScanRecord with one offline exam. */
 class ExamPaperRegistrar(
@@ -19,10 +20,11 @@ class ExamPaperRegistrar(
             "Tarama sınavın optik form sürümüyle eşleşmiyor."
         }
 
+        val bindings = OmrRecognitionBindingsResolver.fromRecord(record)
         val previous = exam.paperForScan(record.id)
-        val detectedNumber = record.grid("studentNumber")?.value.orEmpty()
-        val detectedClass = record.grid("class")?.value.orEmpty()
-        val detectedBooklet = record.grid("booklet")?.value.orEmpty()
+        val detectedNumber = bindings.studentNumber(record).orEmpty()
+        val detectedClass = bindings.classCode(record).orEmpty()
+        val detectedBooklet = bindings.booklet(record).orEmpty()
         val link = if (previous == null) {
             ExamPaperLink(
                 scanRecordId = record.id,

@@ -14,6 +14,7 @@ import com.okulyonetim.optikokuyucu.omr.live.LiveSessionDeduplicator
 import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
 import com.okulyonetim.optikokuyucu.omr.results.MAX_SCAN_IMAGE_PIXELS
+import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
@@ -47,6 +48,7 @@ class CameraFrameAnalyzer(
     private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
     private val bubbleReader = CanonicalBubbleReader(template)
     private val markGridReader = CanonicalMarkGridReader(template)
+    private val recognitionBindings = OmrRecognitionBindingsResolver.fromTemplate(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
     private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = 2)
@@ -121,9 +123,7 @@ class CameraFrameAnalyzer(
                             scanGate.onAcceptedRead()
                             readConsensus.reset()
 
-                            val studentNumber = liveResult.markGridResult
-                                .grid("studentNumber")
-                                ?.value
+                            val studentNumber = recognitionBindings.studentNumber(liveResult.markGridResult)
                             val fingerprint = LiveScanFingerprint.build(
                                 templateId = template.id,
                                 templateVersion = template.version,
