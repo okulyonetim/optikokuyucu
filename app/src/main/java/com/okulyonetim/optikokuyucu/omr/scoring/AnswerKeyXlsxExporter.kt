@@ -165,7 +165,10 @@ object AnswerKeyXlsxExporter {
 
     private fun sourceLabel(source: AnswerKeySource): String = when (source) {
         AnswerKeySource.GALLERY -> "Galeri"
-        AnswerKeySource.SCAN_RECORD -> "Kamera kaydı"
+        AnswerKeySource.SCAN_RECORD -> "Tarama kaydı"
+        AnswerKeySource.CAMERA -> "Kamera"
+        AnswerKeySource.MANUAL -> "Manuel"
+        AnswerKeySource.SPREADSHEET -> "Excel"
     }
 
     private fun escapeXml(value: String): String = buildString(value.length) {
