@@ -21,22 +21,16 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
             val digest = MessageDigest.getInstance("SHA-1")
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             digest.update(bytes)
-            return digest.digest().joinToString("") { byte: Byte ->
-                "%02x".format(byte.toInt() and 0xff)
-            }
+            return digest.digest().joinToString("") { byte: Byte -> "%02x".format(byte.toInt() and 0xff) }
         }
-
         val target = outputFile.get().asFile
         if (target.exists()) {
             val existing = target.readBytes()
             if (gitBlobSha(existing) == notoSansGitBlobSha) return@doLast
         }
-
         val bytes = URI(notoSansUrl).toURL().openStream().use { input -> input.readBytes() }
         val actualSha = gitBlobSha(bytes)
-        check(actualSha == notoSansGitBlobSha) {
-            "Noto Sans integrity check failed. Expected $notoSansGitBlobSha but received $actualSha."
-        }
+        check(actualSha == notoSansGitBlobSha) { "Noto Sans integrity check failed. Expected $notoSansGitBlobSha but received $actualSha." }
         target.parentFile.mkdirs()
         target.writeBytes(bytes)
     }
@@ -44,82 +38,47 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
 
 android {
     namespace = "com.okulyonetim.optikokuyucu"
-
-    compileSdk {
-        version = release(37) {
-            minorApiLevel = 0
-        }
-    }
-
+    compileSdk { version = release(37) { minorApiLevel = 0 } }
     defaultConfig {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.12.3"
-
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        versionCode = 17
+        versionName = "0.13.0"
+        vectorDrawables { useSupportLibrary = true }
     }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
-    sourceSets {
-        getByName("main") {
-            res.srcDir(generatedNotoFontResFile)
-        }
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
+    buildFeatures { compose = true; buildConfig = true }
+    sourceSets { getByName("main") { res.srcDir(generatedNotoFontResFile) } }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
-tasks.named("preBuild").configure {
-    dependsOn(prepareNotoSansFont)
-}
+tasks.named("preBuild").configure { dependsOn(prepareNotoSansFont) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-
     implementation(libs.opencv)
-
     testImplementation(libs.junit4)
-
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
