@@ -104,6 +104,46 @@ class ExamReportTest {
     }
 
     @Test
+    fun `report uses corrected booklet instead of raw booklet`() {
+        val exam = basicExam("scan-a").copy(
+            papers = listOf(
+                ExamPaperLink(
+                    scanRecordId = "scan-a",
+                    bookletCode = "B",
+                    linkedAtEpochMs = 2L
+                )
+            )
+        )
+        val scan = record(
+            id = "scan-a",
+            booklet = "A",
+            studentNumber = "16",
+            answers = listOf(answer("1", RecordedAnswerState.MARKED, "B"))
+        )
+        val keyA = StoredAnswerKey(
+            answerKey = AnswerKey(selection.templateId, selection.templateVersion, mapOf("1" to "A")),
+            variantGridId = "booklet",
+            variantValue = "A",
+            createdAtEpochMs = 5L,
+            source = AnswerKeySource.MANUAL
+        )
+        val keyB = StoredAnswerKey(
+            answerKey = AnswerKey(selection.templateId, selection.templateVersion, mapOf("1" to "B")),
+            variantGridId = "booklet",
+            variantValue = "B",
+            createdAtEpochMs = 6L,
+            source = AnswerKeySource.MANUAL
+        )
+
+        val row = ExamReportBuilder.build(exam, listOf(scan), listOf(keyA, keyB)).rows.single()
+
+        assertEquals("B", row.bookletCode)
+        assertEquals(1, row.correct)
+        assertEquals(0, row.wrong)
+        assertEquals(ExamReportRowStatus.SCORED, row.status)
+    }
+
+    @Test
     fun `review required is preserved instead of silently scoring uncertain read`() {
         val exam = basicExam("scan-a")
         val record = record(
