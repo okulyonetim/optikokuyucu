@@ -55,6 +55,65 @@ class ExamPersonalizedFormsTest {
     }
 
     @Test
+    fun assignsBookletsDeterministicallyFromFormChoicesAndPrefillsTheirMarks() {
+        var document = DesignerDocument(id = "booklet-personalized", version = 1, name = "Kitapçıklı Form")
+        val booklet = DesignerAreaCatalog.createBookletArea(document).copy(choices = listOf("K", "L", "M"))
+        document = document.copy(components = listOf(booklet))
+        val exam = ExamFactory.create(
+            name = "Deneme",
+            schoolName = "Örnek Okulu",
+            templateSelection = ActiveTemplateSelection(
+                ActiveTemplateSource.DESIGNER_DOCUMENT,
+                document.id,
+                document.version
+            ),
+            examDateEpochDay = 21000L,
+            participants = listOf(
+                ExamParticipant("101", "Birinci Öğrenci", "7-A"),
+                ExamParticipant("102", "İkinci Öğrenci", "7-A"),
+                ExamParticipant("103", "Üçüncü Öğrenci", "7-A")
+            ),
+            bookletCount = 2,
+            personalizedFormsEnabled = true,
+            createdAtEpochMs = 1L
+        )
+
+        val pages = ExamPersonalizedForms.pages(exam, document)
+        val bookletMarks = pages.map { page ->
+            page.filledMarks.single { it.gridId == booklet.id }
+        }
+
+        assertEquals(listOf("K", "L", "K"), bookletMarks.map { it.markId })
+        assertTrue(bookletMarks.all { it.columnId == "value" })
+    }
+
+    @Test
+    fun rejectsMoreExamBookletsThanTheSelectedFormCanRepresent() {
+        var document = DesignerDocument(id = "limited-booklet", version = 1, name = "İki Kitapçıklı Form")
+        val booklet = DesignerAreaCatalog.createBookletArea(document)
+        document = document.copy(components = listOf(booklet))
+        val exam = ExamFactory.create(
+            name = "Deneme",
+            schoolName = "Örnek Okulu",
+            templateSelection = ActiveTemplateSelection(
+                ActiveTemplateSource.DESIGNER_DOCUMENT,
+                document.id,
+                document.version
+            ),
+            examDateEpochDay = 21000L,
+            participants = listOf(ExamParticipant("42", "Örnek Öğrenci", "7-A")),
+            bookletCount = 3,
+            personalizedFormsEnabled = true,
+            createdAtEpochMs = 1L
+        )
+
+        val error = runCatching { ExamPersonalizedForms.pages(exam, document) }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(error?.message.orEmpty().contains("yalnız 2 kitapçık seçeneği"))
+    }
+
+    @Test
     fun optionalIdentityLabelCanBeHiddenWithoutChangingAutoFilledValue() {
         var document = DesignerDocument(id = "plain-personalized", version = 1, name = "Etiketsiz Form")
         val name = DesignerAreaCatalog.createStudentNameArea(document).copy(showPersonalizedLabel = false)
