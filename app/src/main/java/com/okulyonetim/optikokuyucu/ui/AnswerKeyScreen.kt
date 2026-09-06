@@ -30,14 +30,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.gallery.GalleryOmrReader
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyCapture
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeySource
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyXlsxExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.omr.template.AnswerKeyTemplateTargetResolver
+import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
-import com.okulyonetim.optikokuyucu.omr.template.resolveActiveOmrTemplate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,10 +51,36 @@ fun AnswerKeyScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val repository = remember(context) {
-        FileAnswerKeyRepository(context.applicationContext)
+    val appContext = context.applicationContext
+    val repository = remember(context) { FileAnswerKeyRepository(appContext) }
+    val activeSelection = remember(context) {
+        FileActiveTemplateSelectionRepository(appContext).load()
     }
-    val activeTemplate = remember(context) { resolveActiveOmrTemplate(context) }
+    val savedDocuments = remember(context) {
+        FileDesignerDocumentRepository(appContext).list()
+    }
+    val activeTemplate = remember(activeSelection, savedDocuments) {
+        AnswerKeyTemplateTargetResolver.resolve(
+            selection = activeSelection,
+            savedDocuments = savedDocuments
+        )
+    }
+
+    if (activeTemplate == null) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Seçili optik form sürümü bulunamadı. Cevap anahtarı oluşturulmadı.",
+                color = MaterialTheme.colorScheme.error
+            )
+            OutlinedButton(onClick = onBack) { Text("Geri dön") }
+        }
+        return
+    }
+
     val template = activeTemplate.template
     val recognitionBindings = remember(template) {
         OmrRecognitionBindingsResolver.fromTemplate(template)
@@ -200,11 +228,11 @@ fun AnswerKeyScreen(
             ) {
                 Text("Güvenli anahtar yakalama", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Aktif form: ${activeTemplate.name} · ${template.bubbleRows.size} soru · v${template.version}",
+                    "Seçili form: ${activeTemplate.name} · ${template.bubbleRows.size} soru · v${template.version}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "Galeriden aktif forma ait gerçek optik formu seçin. Tüm sorular tek ve net işaretli olmalı. " +
+                    "Galeriden seçili forma ait gerçek optik formu seçin. Tüm sorular tek ve net işaretli olmalı. " +
                         "Kitapçık alanı bulunan formda kitapçık da net okunmadan anahtar kaydedilmez.",
                     style = MaterialTheme.typography.bodyMedium
                 )

@@ -243,6 +243,10 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 SelectionActions(it, ::editSelected, ::duplicateSelected, ::deleteSelected)
             }
             if (status.isNotBlank()) Text(status, modifier = Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            DesignerPdfExportCard(
+                document = document.copy(name = formName.trim().ifBlank { document.name }),
+                openCvReady = openCvReady
+            )
             Spacer(Modifier.size(8.dp))
         }
     }

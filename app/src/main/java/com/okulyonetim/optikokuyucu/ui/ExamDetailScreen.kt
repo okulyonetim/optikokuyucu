@@ -47,6 +47,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.ScoringPolicy
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
 import java.util.Locale
 
 private enum class ExamDetailTab { PAPERS, KEYS, REPORTS }
@@ -312,6 +313,10 @@ private fun ExamPaperCard(
 
 @Composable
 private fun ExamKeysTab(exam: Exam, keys: List<StoredAnswerKey>, onOpenAnswerKeys: () -> Unit) {
+    val context = LocalContext.current
+    val selectionRepository = remember(context) {
+        FileActiveTemplateSelectionRepository(context.applicationContext)
+    }
     val matching = keys.filter { keyMatchesExam(it, exam) }
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
@@ -344,7 +349,13 @@ private fun ExamKeysTab(exam: Exam, keys: List<StoredAnswerKey>, onOpenAnswerKey
                 }
             }
         }
-        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenAnswerKeys) {
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                runCatching { selectionRepository.save(exam.templateSelection) }
+                    .onSuccess { onOpenAnswerKeys() }
+            }
+        ) {
             Text("Cevap Anahtarlarını Yönet")
         }
     }
