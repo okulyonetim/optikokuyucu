@@ -1,6 +1,10 @@
 package com.okulyonetim.optikokuyucu.omr.template
 
+import com.okulyonetim.optikokuyucu.omr.markgrid.MarkColumnState
+import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridRead
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
+import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkGrid
+import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkState
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 
 /**
@@ -21,11 +25,21 @@ data class OmrRecognitionBindings(
         require(bookletGridId?.isNotBlank() != false)
     }
 
-    fun studentNumber(result: MarkGridReadResult): String? = value(result, studentNumberGridId)
+    /**
+     * Student numbers may use fewer digits than the number area has columns. A blank run is allowed
+     * only at the left or right edge; blanks inside the marked span, double marks and suspicious
+     * columns still make the number unresolved. This keeps 16 readable in a 3-digit area while
+     * refusing genuinely ambiguous values.
+     */
+    fun studentNumber(result: MarkGridReadResult): String? =
+        studentNumberGridId?.let(result::grid)?.let(::studentNumberValue)
+
     fun classCode(result: MarkGridReadResult): String? = value(result, classGridId)
     fun booklet(result: MarkGridReadResult): String? = value(result, bookletGridId)
 
-    fun studentNumber(record: ScanRecord): String? = value(record, studentNumberGridId)
+    fun studentNumber(record: ScanRecord): String? =
+        studentNumberGridId?.let(record::grid)?.let(::studentNumberValue)
+
     fun classCode(record: ScanRecord): String? = value(record, classGridId)
     fun booklet(record: ScanRecord): String? = value(record, bookletGridId)
 
@@ -34,6 +48,38 @@ data class OmrRecognitionBindings(
 
     private fun value(record: ScanRecord, gridId: String?): String? =
         gridId?.let { record.grid(it)?.value }
+
+    private fun studentNumberValue(grid: MarkGridRead): String? {
+        if (grid.columns.isEmpty()) return null
+        if (grid.columns.any {
+                it.state == MarkColumnState.DOUBLE_MARK || it.state == MarkColumnState.SUSPICIOUS
+            }
+        ) return null
+        val marked = grid.columns.indices.filter { grid.columns[it].state == MarkColumnState.MARKED }
+        if (marked.isEmpty()) return null
+        val first = marked.first()
+        val last = marked.last()
+        if ((first..last).any { grid.columns[it].state != MarkColumnState.MARKED }) return null
+        return (first..last).joinToString(separator = "") {
+            grid.columns[it].selectedValue ?: return null
+        }
+    }
+
+    private fun studentNumberValue(grid: RecordedMarkGrid): String? {
+        if (grid.columns.isEmpty()) return null
+        if (grid.columns.any {
+                it.state == RecordedMarkState.DOUBLE_MARK || it.state == RecordedMarkState.SUSPICIOUS
+            }
+        ) return null
+        val marked = grid.columns.indices.filter { grid.columns[it].state == RecordedMarkState.MARKED }
+        if (marked.isEmpty()) return null
+        val first = marked.first()
+        val last = marked.last()
+        if ((first..last).any { grid.columns[it].state != RecordedMarkState.MARKED }) return null
+        return (first..last).joinToString(separator = "") {
+            grid.columns[it].selectedValue ?: return null
+        }
+    }
 }
 
 /** Resolves semantics from the exact compiled template/record without defining a second template. */
@@ -47,9 +93,11 @@ object OmrRecognitionBindingsResolver {
     fun fromGridIds(gridIds: List<String>): OmrRecognitionBindings {
         val ids = gridIds.distinct()
         return OmrRecognitionBindings(
-            studentNumberGridId = ids.firstOrNull { it == LEGACY_STUDENT_NUMBER } ?: ids.firstOrNull { it.startsWith(DESIGNER_NUMBER_PREFIX) },
+            studentNumberGridId = ids.firstOrNull { it == LEGACY_STUDENT_NUMBER }
+                ?: ids.firstOrNull { it.startsWith(DESIGNER_NUMBER_PREFIX) },
             classGridId = ids.firstOrNull { it == LEGACY_CLASS },
-            bookletGridId = ids.firstOrNull { it == LEGACY_BOOKLET } ?: ids.firstOrNull { it.startsWith(DESIGNER_BOOKLET_PREFIX) }
+            bookletGridId = ids.firstOrNull { it == LEGACY_BOOKLET }
+                ?: ids.firstOrNull { it.startsWith(DESIGNER_BOOKLET_PREFIX) }
         )
     }
 
