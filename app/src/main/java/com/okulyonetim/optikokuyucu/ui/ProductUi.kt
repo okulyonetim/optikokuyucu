@@ -235,15 +235,25 @@ fun ProductTopBar(
 
 @Composable
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
+    val actionWidth = 68.dp
     if (text != null && onClick != null) {
         Box(
-            modifier = Modifier.size(40.dp).clickable(onClick = onClick),
+            modifier = Modifier
+                .size(width = actionWidth, height = 40.dp)
+                .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(text, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = if (text.length > 2) 13.sp else 20.sp,
+                fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
         }
     } else {
-        Spacer(Modifier.size(40.dp))
+        Spacer(Modifier.size(width = actionWidth, height = 40.dp))
     }
 }
 
