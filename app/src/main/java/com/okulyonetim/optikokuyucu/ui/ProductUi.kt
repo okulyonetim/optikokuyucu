@@ -2,13 +2,16 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -23,13 +26,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
 private val ProductPrimary = Color(0xFF3159D9)
 private val ProductPrimaryLight = Color(0xFFE6ECFF)
@@ -65,6 +77,20 @@ private val DarkProductScheme = darkColorScheme(
     outline = Color(0xFF737B89)
 )
 
+class ProductThemeController internal constructor(
+    val mode: AppThemeMode,
+    val isDark: Boolean,
+    private val changeMode: (AppThemeMode) -> Unit
+) {
+    fun setMode(mode: AppThemeMode) = changeMode(mode)
+
+    fun toggleLightDark() {
+        setMode(if (isDark) AppThemeMode.LIGHT else AppThemeMode.DARK)
+    }
+}
+
+val LocalProductThemeController = staticCompositionLocalOf<ProductThemeController?> { null }
+
 enum class ProductTab {
     HOME,
     EXAMS,
@@ -75,16 +101,36 @@ enum class ProductTab {
 
 @Composable
 fun OptikProductTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkProductScheme else LightProductScheme
-    ) {
-        AppFeedbackProvider {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.onBackground
-            ) {
-                content()
+    val context = LocalContext.current
+    val repository = remember(context) { AppSettingsRepository(context.applicationContext) }
+    var themeMode by remember { mutableStateOf(repository.load().themeMode) }
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (themeMode) {
+        AppThemeMode.SYSTEM -> systemDark
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+    }
+    val controller = remember(themeMode, dark, repository) {
+        ProductThemeController(themeMode, dark) { next ->
+            if (next != themeMode) {
+                runCatching { repository.save(repository.load().copy(themeMode = next)) }
+                    .onSuccess { themeMode = next }
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalProductThemeController provides controller) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkProductScheme else LightProductScheme
+        ) {
+            AppFeedbackProvider {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ) {
+                    content()
+                }
             }
         }
     }
@@ -122,35 +168,48 @@ fun ProductTopBar(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .height(48.dp)
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (resolvedLeadingText != null && resolvedLeadingClick != null) {
-                TextButton(onClick = resolvedLeadingClick) {
-                    Text(resolvedLeadingText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
-                }
-            } else {
-                Spacer(Modifier.size(42.dp))
-            }
+            HeaderAction(
+                text = resolvedLeadingText,
+                onClick = resolvedLeadingClick
+            )
 
             Text(
+                modifier = Modifier.weight(1f),
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (onActionClick != null) {
-                TextButton(onClick = onActionClick) {
-                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
-                }
-            } else {
-                Spacer(Modifier.size(42.dp))
-            }
+            HeaderAction(
+                text = if (onActionClick != null) actionText else null,
+                onClick = onActionClick
+            )
         }
+    }
+}
+
+@Composable
+private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
+    if (text != null && onClick != null) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+        }
+    } else {
+        Spacer(Modifier.size(40.dp))
     }
 }
 
