@@ -77,7 +77,7 @@ class SchoolTemplateCloudSyncService(
                 skipped += 1
                 return@forEach
             }
-            runCatching { repository.save(document) }
+            runCatching { repository.saveFromCloud(document) }
                 .onSuccess { stored ->
                     ownershipStore.put(
                         stored,
