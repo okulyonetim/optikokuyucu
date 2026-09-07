@@ -118,6 +118,9 @@ class SchoolPortalManager private constructor(context: Context) {
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
+    fun syncExamsAndResults(): SchoolExamCloudSyncResult =
+        SchoolExamCloudSyncService(appContext, client).syncAll()
+
     fun signOut() = client.signOut()
 
     companion object {
