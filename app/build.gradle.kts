@@ -21,9 +21,7 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
             val digest = MessageDigest.getInstance("SHA-1")
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             digest.update(bytes)
-            return digest.digest().joinToString("") { byte ->
-                "%02x".format(byte.toInt() and 0xff)
-            }
+            return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
         }
 
         val target = outputFile.get().asFile
@@ -44,84 +42,58 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
 
 android {
     namespace = "com.okulyonetim.optikokuyucu"
-
     compileSdk {
-        version = release(37) {
-            minorApiLevel = 0
-        }
+        version = release(37) { minorApiLevel = 0 }
     }
-
     defaultConfig {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 40
-        versionName = "0.15.8"
-
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        versionCode = 41
+        versionName = "0.15.9"
+        vectorDrawables { useSupportLibrary = true }
     }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
     sourceSets {
-        getByName("main") {
-            res.srcDir(generatedNotoFontResFile)
-        }
+        getByName("main") { res.srcDir(generatedNotoFontResFile) }
     }
-
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
 }
 
-tasks.named("preBuild").configure {
-    dependsOn(prepareNotoSansFont)
-}
+tasks.named("preBuild").configure { dependsOn(prepareNotoSansFont) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-
     implementation(libs.opencv)
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("net.sourceforge.jexcelapi:jxl:2.6.12")
-
     testImplementation(libs.junit4)
-
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
