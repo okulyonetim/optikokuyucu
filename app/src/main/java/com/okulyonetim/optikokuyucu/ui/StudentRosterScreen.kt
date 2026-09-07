@@ -158,6 +158,7 @@ fun StudentRosterScreen(
     var importPreview by remember { mutableStateOf<EschoolPdfImportPreview?>(null) }
     var importSourceLabel by remember { mutableStateOf("e-Okul PDF") }
     var editing by remember { mutableStateOf<StudentRosterOverview?>(null) }
+    var pendingDeleteStudent by remember { mutableStateOf<StudentRosterEntry?>(null) }
     var guardianName by remember { mutableStateOf("") }
     var guardianPhone by remember { mutableStateOf("") }
     var optionsExpanded by remember { mutableStateOf(false) }
@@ -545,6 +546,20 @@ fun StudentRosterScreen(
                             }
                         ) { Text("Son Optik Kağıdı Aç") }
                     }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            pendingDeleteStudent = original
+                            editing = null
+                        }
+                    ) {
+                        Text("Bu Cihazdan Kaldır", color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(
+                        "Bu işlem yalnız Optik Okuyucu listesini etkiler; Okul Yönetim'deki öğrenci kaydı silinmez veya değiştirilmez.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
@@ -571,6 +586,47 @@ fun StudentRosterScreen(
                 ) { Text("Kaydet") }
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("Vazgeç") } }
+        )
+    }
+
+    pendingDeleteStudent?.let { student ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteStudent = null },
+            title = { Text("Öğrenciyi Bu Cihazdan Kaldır") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${student.fullName} · ${student.className} · No ${student.studentNumber}")
+                    Text(
+                        "Öğrenci yalnız Optik Okuyucu'nun bu cihazdaki listesinden kaldırılacak. Okul Yönetim'deki öğrenci kaydı silinmeyecek ve değiştirilmeyecek.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Sonraki Okul Yönetim senkronunda bu öğrenci otomatik olarak yeniden eklenmeyecek.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            check(rosterRepository.delete(student.studentNumber)) { "Öğrenci cihazdan kaldırılamadı." }
+                        }.onSuccess {
+                            pendingDeleteStudent = null
+                            refreshRoster()
+                            status = "${student.fullName} yalnız bu cihazdan kaldırıldı. Okul Yönetim kaydı korundu."
+                            feedback.success("Öğrenci bu cihazdan kaldırıldı.")
+                        }.onFailure { error ->
+                            status = error.message ?: "Öğrenci cihazdan kaldırılamadı."
+                            feedback.error(status)
+                        }
+                    }
+                ) { Text("Kaldır", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteStudent = null }) { Text("Vazgeç") }
+            }
         )
     }
 
