@@ -44,9 +44,11 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
+import com.okulyonetim.optikokuyucu.settings.ReadyTemplateVisibilityRepository
 import java.util.Locale
 
 private enum class FormLibraryFilter { ALL, READY, SAVED }
+private data class PendingReadyDelete(val name: String, val key: String)
 
 @Composable
 fun ActiveTemplateScreen(
@@ -59,15 +61,18 @@ fun ActiveTemplateScreen(
     val selectionRepository = remember(context) { FileActiveTemplateSelectionRepository(appContext) }
     val documentRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
     val examRepository = remember(context) { FileExamRepository(appContext) }
+    val visibilityRepository = remember(context) { ReadyTemplateVisibilityRepository(appContext) }
     val starters = remember { DesignerStarterTemplates.all() }
 
     var savedDocuments by remember { mutableStateOf(documentRepository.list()) }
     var selected by remember { mutableStateOf(selectionRepository.load()) }
+    var hiddenReadyKeys by remember { mutableStateOf(visibilityRepository.hiddenKeys()) }
     var status by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(FormLibraryFilter.ALL) }
     var pendingExport by remember { mutableStateOf<DesignerDocument?>(null) }
     var pendingDelete by remember { mutableStateOf<DesignerDocument?>(null) }
+    var pendingReadyDelete by remember { mutableStateOf<PendingReadyDelete?>(null) }
 
     fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
         DesignerLibraryOpenHandoff.offer(document, mode)
@@ -142,25 +147,47 @@ fun ActiveTemplateScreen(
         val selection = documentSelection(document)
         val linkedExamCount = examRepository.list().count { it.templateSelection == selection }
         if (linkedExamCount > 0) {
-            status = "${document.name} $linkedExamCount sınavda kullanılıyor. Sınavın optik formunu değiştirin veya sınavı silin; ardından form silinebilir."
+            status = "${document.name} $linkedExamCount sınavda kullanılıyor. Önce sınavın optik formunu değiştirin veya sınavı silin."
             feedback.warning(status)
         } else {
             pendingDelete = document
         }
     }
 
+    fun requestReadyDelete(name: String, key: String, selection: ActiveTemplateSelection) {
+        if (resolved.selection == selection) {
+            status = "$name aktif form. Silmeden önce başka bir formu aktif seçin."
+            feedback.warning(status)
+            return
+        }
+        val linkedExamCount = examRepository.list().count { it.templateSelection == selection }
+        if (linkedExamCount > 0) {
+            status = "$name $linkedExamCount sınavda kullanılıyor. Bu sınavların formunu değiştirdikten sonra silinebilir."
+            feedback.warning(status)
+            return
+        }
+        pendingReadyDelete = PendingReadyDelete(name, key)
+    }
+
+    val defaultKey = ReadyTemplateVisibilityRepository.defaultKey(
+        ActiveOmrTemplateDefaults.selection.templateId,
+        ActiveOmrTemplateDefaults.selection.templateVersion
+    )
+    val readyStarters = starters.filterNot {
+        ReadyTemplateVisibilityRepository.starterKey(it.id, it.version) in hiddenReadyKeys
+    }
+    val readyDefaultVisible = defaultKey !in hiddenReadyKeys
     val locale = Locale("tr", "TR")
     val normalizedQuery = query.trim().lowercase(locale)
-    val visibleStarters = starters.filter { document ->
+    val visibleStarters = readyStarters.filter { document ->
         filter != FormLibraryFilter.SAVED && (
             normalizedQuery.isBlank() ||
                 document.name.lowercase(locale).contains(normalizedQuery) ||
                 document.id.lowercase(locale).contains(normalizedQuery)
             )
     }
-    val defaultVisible = filter != FormLibraryFilter.SAVED && (
-        normalizedQuery.isBlank() ||
-            ActiveOmrTemplateDefaults.displayName.lowercase(locale).contains(normalizedQuery)
+    val defaultVisible = readyDefaultVisible && filter != FormLibraryFilter.SAVED && (
+        normalizedQuery.isBlank() || ActiveOmrTemplateDefaults.displayName.lowercase(locale).contains(normalizedQuery)
         )
     val visibleSaved = savedDocuments.filter { document ->
         filter != FormLibraryFilter.READY && (
@@ -169,6 +196,8 @@ fun ActiveTemplateScreen(
                 document.id.lowercase(locale).contains(normalizedQuery)
             )
     }
+    val readyCount = (if (readyDefaultVisible) 1 else 0) + readyStarters.size
+    val totalCount = readyCount + savedDocuments.size
 
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(
@@ -178,6 +207,7 @@ fun ActiveTemplateScreen(
             actionText = "↻",
             onActionClick = {
                 savedDocuments = documentRepository.list()
+                hiddenReadyKeys = visibilityRepository.hiddenKeys()
                 status = "Form listesi yenilendi."
                 feedback.info(status)
             }
@@ -188,7 +218,6 @@ fun ActiveTemplateScreen(
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             item { Spacer(Modifier.height(1.dp)) }
-
             item {
                 ActiveFormSummary(
                     name = resolved.name,
@@ -198,44 +227,32 @@ fun ActiveTemplateScreen(
                     fellBackToDefault = resolved.fellBackToDefault
                 )
             }
-
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    FormStatCard(Modifier.weight(1f), (1 + starters.size + savedDocuments.size).toString(), "Toplam")
-                    FormStatCard(Modifier.weight(1f), (1 + starters.size).toString(), "Hazır")
+                    FormStatCard(Modifier.weight(1f), totalCount.toString(), "Toplam")
+                    FormStatCard(Modifier.weight(1f), readyCount.toString(), "Hazır")
                     FormStatCard(Modifier.weight(1f), savedDocuments.size.toString(), "Kayıtlı")
                 }
             }
-
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = onCreateForm,
-                        shape = RoundedCornerShape(15.dp)
-                    ) {
+                    Button(modifier = Modifier.weight(1f), onClick = onCreateForm, shape = RoundedCornerShape(15.dp)) {
                         Text("＋ Yeni Form", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            importLauncher.launch(arrayOf(DesignerFormTransfer.MIME_TYPE, "application/*"))
-                        },
+                        onClick = { importLauncher.launch(arrayOf(DesignerFormTransfer.MIME_TYPE, "application/*")) },
                         shape = RoundedCornerShape(15.dp)
-                    ) {
-                        Text("⇩ İçe Aktar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    ) { Text("⇩ İçe Aktar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                 }
             }
-
             item {
                 Text(
-                    "Kurum formları .omrd biçiminde kayıpsız dışa aktarılır; başka cihazda içe aktarılıp yeniden düzenlenebilir.",
+                    "Hazır veya kurum formlarını seçebilir, önizleyebilir ve kullanmadıklarınızı silebilirsiniz.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
             item {
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
@@ -247,40 +264,23 @@ fun ActiveTemplateScreen(
                     shape = RoundedCornerShape(18.dp)
                 )
             }
-
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    item {
-                        ProductFilterPill(
-                            label = "Tümü",
-                            count = 1 + starters.size + savedDocuments.size,
-                            selected = filter == FormLibraryFilter.ALL,
-                            onClick = { filter = FormLibraryFilter.ALL }
-                        )
-                    }
-                    item {
-                        ProductFilterPill(
-                            label = "Hazır",
-                            count = 1 + starters.size,
-                            selected = filter == FormLibraryFilter.READY,
-                            onClick = { filter = FormLibraryFilter.READY }
-                        )
-                    }
-                    item {
-                        ProductFilterPill(
-                            label = "Kurum",
-                            count = savedDocuments.size,
-                            selected = filter == FormLibraryFilter.SAVED,
-                            onClick = { filter = FormLibraryFilter.SAVED }
-                        )
-                    }
+                    item { ProductFilterPill("Tümü", totalCount, filter == FormLibraryFilter.ALL) { filter = FormLibraryFilter.ALL } }
+                    item { ProductFilterPill("Hazır", readyCount, filter == FormLibraryFilter.READY) { filter = FormLibraryFilter.READY } }
+                    item { ProductFilterPill("Kurum", savedDocuments.size, filter == FormLibraryFilter.SAVED) { filter = FormLibraryFilter.SAVED } }
                 }
             }
-
-            if (defaultVisible || visibleStarters.isNotEmpty()) {
-                item { FormSectionTitle("Hazır Şablonlar") }
+            if (hiddenReadyKeys.isNotEmpty() && filter != FormLibraryFilter.SAVED) {
+                item {
+                    TextButton(onClick = {
+                        visibilityRepository.restoreAll()
+                        hiddenReadyKeys = emptySet()
+                        status = "Silinen hazır formlar geri getirildi."
+                    }) { Text("Silinen hazır formları geri getir") }
+                }
             }
-
+            if (defaultVisible || visibleStarters.isNotEmpty()) item { FormSectionTitle("Hazır Şablonlar") }
             if (defaultVisible) {
                 item {
                     TemplateLibraryCard(
@@ -289,15 +289,20 @@ fun ActiveTemplateScreen(
                         detail = "Güvenli varsayılan form",
                         selected = resolved.selection == ActiveOmrTemplateDefaults.selection,
                         badge = "HAZIR",
-                        onSelect = {
-                            choose(ActiveOmrTemplateDefaults.selection, ActiveOmrTemplateDefaults.displayName)
+                        onSelect = { choose(ActiveOmrTemplateDefaults.selection, ActiveOmrTemplateDefaults.displayName) },
+                        onDelete = {
+                            requestReadyDelete(
+                                ActiveOmrTemplateDefaults.displayName,
+                                defaultKey,
+                                ActiveOmrTemplateDefaults.selection
+                            )
                         }
                     )
                 }
             }
-
             items(visibleStarters, key = { "starter-${it.id}-${it.version}" }) { document ->
                 val selection = documentSelection(document)
+                val key = ReadyTemplateVisibilityRepository.starterKey(document.id, document.version)
                 TemplateLibraryCard(
                     name = document.name,
                     subtitle = "${document.id} · v${document.version}",
@@ -306,10 +311,10 @@ fun ActiveTemplateScreen(
                     badge = "HAZIR",
                     onSelect = { choose(selection, document.name) },
                     onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
-                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) }
+                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) },
+                    onDelete = { requestReadyDelete(document.name, key, selection) }
                 )
             }
-
             if (visibleSaved.isNotEmpty() || (filter != FormLibraryFilter.READY && savedDocuments.isEmpty())) {
                 item {
                     Row(
@@ -319,27 +324,18 @@ fun ActiveTemplateScreen(
                     ) {
                         FormSectionTitle("Kurum Formları")
                         if (savedDocuments.isNotEmpty()) {
-                            TextButton(
-                                onClick = {
-                                    savedDocuments = documentRepository.list()
-                                    status = "Kayıtlı formlar yenilendi."
-                                    feedback.info(status)
-                                }
-                            ) { Text("Yenile", fontSize = 12.sp) }
+                            TextButton(onClick = {
+                                savedDocuments = documentRepository.list()
+                                status = "Kayıtlı formlar yenilendi."
+                                feedback.info(status)
+                            }) { Text("Yenile", fontSize = 12.sp) }
                         }
                     }
                 }
             }
-
             if (filter != FormLibraryFilter.READY && savedDocuments.isEmpty() && normalizedQuery.isBlank()) {
-                item {
-                    CompactInfoCard(
-                        title = "Henüz kurum formu yok",
-                        description = "Yeni Form Oluştur ile okulunuza özel form hazırlayabilirsiniz."
-                    )
-                }
+                item { CompactInfoCard("Henüz kurum formu yok", "Yeni Form Oluştur ile okulunuza özel form hazırlayabilirsiniz.") }
             }
-
             items(visibleSaved, key = { "saved-${it.id}-${it.version}" }) { document ->
                 val selection = documentSelection(document)
                 TemplateLibraryCard(
@@ -355,27 +351,31 @@ fun ActiveTemplateScreen(
                     onDelete = { requestDelete(document) }
                 )
             }
-
             if (!defaultVisible && visibleStarters.isEmpty() && visibleSaved.isEmpty()) {
-                item {
-                    CompactInfoCard(
-                        title = "Form bulunamadı",
-                        description = "Arama metnini veya form filtresini değiştirin."
-                    )
-                }
+                item { CompactInfoCard("Form bulunamadı", "Arama metnini veya form filtresini değiştirin.") }
             }
-
             if (status.isNotBlank()) {
-                item {
-                    Text(
-                        status,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
             }
             item { Spacer(Modifier.height(12.dp)) }
         }
+    }
+
+    pendingReadyDelete?.let { pending ->
+        AppConfirmationDialog(
+            title = "Hazır Formu Sil",
+            message = "${pending.name} hazır form listesinden kaldırılacak. İsterseniz daha sonra ‘Silinen hazır formları geri getir’ ile geri alabilirsiniz.",
+            confirmText = "Sil",
+            destructive = true,
+            onConfirm = {
+                visibilityRepository.hide(pending.key)
+                hiddenReadyKeys = visibilityRepository.hiddenKeys()
+                status = "${pending.name} hazır form listesinden silindi."
+                pendingReadyDelete = null
+                feedback.success("Hazır form silindi.")
+            },
+            onDismiss = { pendingReadyDelete = null }
+        )
     }
 
     pendingDelete?.let { document ->
@@ -389,9 +389,7 @@ fun ActiveTemplateScreen(
                 val wasSelected = selected == selection
                 pendingDelete = null
                 runCatching {
-                    check(documentRepository.delete(document.id, document.version)) {
-                        "Form dosyası silinemedi."
-                    }
+                    check(documentRepository.delete(document.id, document.version)) { "Form dosyası silinemedi." }
                 }.onSuccess {
                     savedDocuments = documentRepository.list()
                     if (wasSelected) {
@@ -411,69 +409,26 @@ fun ActiveTemplateScreen(
 }
 
 @Composable
-private fun ActiveFormSummary(
-    name: String,
-    questionCount: Int,
-    markGridCount: Int,
-    version: Int,
-    fellBackToDefault: Boolean
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
+private fun ActiveFormSummary(name: String, questionCount: Int, markGridCount: Int, version: Int, fellBackToDefault: Boolean) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Aktif Form",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                    )
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text("Aktif Form", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f))
+                    Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                ProductStatusBadge(text = "AKTİF", tone = ProductBadgeTone.GREEN)
+                ProductStatusBadge("AKTİF", ProductBadgeTone.GREEN)
             }
-            Text(
-                "$questionCount soru · $markGridCount bilgi alanı · v$version",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
-            )
-            if (fellBackToDefault) {
-                Text(
-                    "Önceki seçim bulunamadı; güvenli varsayılan form kullanılıyor.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            Text("$questionCount soru · $markGridCount bilgi alanı · v$version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            if (fellBackToDefault) Text("Önceki seçim bulunamadı; güvenli varsayılan form kullanılıyor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
 
 @Composable
 private fun FormStatCard(modifier: Modifier, value: String, label: String) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(15.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Card(modifier = modifier, shape = RoundedCornerShape(15.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Text("  $label", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -481,9 +436,7 @@ private fun FormStatCard(modifier: Modifier, value: String, label: String) {
 }
 
 @Composable
-private fun FormSectionTitle(title: String) {
-    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-}
+private fun FormSectionTitle(title: String) { Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
 
 @Composable
 private fun TemplateLibraryCard(
@@ -498,99 +451,27 @@ private fun TemplateLibraryCard(
     onExport: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(13.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top
-            ) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        detail,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                ProductStatusBadge(
-                    text = if (selected) "AKTİF" else badge,
-                    tone = if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
-                )
+                ProductStatusBadge(if (selected) "AKTİF" else badge, if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL)
             }
-
             if (onPreview != null || onEdit != null || !selected) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (onPreview != null) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = onPreview,
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Önizle", fontSize = 11.sp) }
-                    }
-                    if (onEdit != null) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = onEdit,
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Düzenle", fontSize = 11.sp) }
-                    }
-                    if (!selected) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = onSelect,
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Seç", fontSize = 11.sp) }
-                    }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (onPreview != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onPreview, shape = RoundedCornerShape(12.dp)) { Text("Önizle", fontSize = 11.sp) }
+                    if (onEdit != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onEdit, shape = RoundedCornerShape(12.dp)) { Text("Düzenle", fontSize = 11.sp) }
+                    if (!selected) OutlinedButton(modifier = Modifier.weight(1f), onClick = onSelect, shape = RoundedCornerShape(12.dp)) { Text("Seç", fontSize = 11.sp) }
                 }
             }
             if (onExport != null || onDelete != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (onExport != null) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = onExport,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Dışa Aktar (.omrd)", fontSize = 11.sp)
-                        }
-                    }
-                    if (onDelete != null) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = onDelete,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
-                        }
-                    }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (onExport != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport, shape = RoundedCornerShape(12.dp)) { Text("Dışa Aktar (.omrd)", fontSize = 11.sp) }
+                    if (onDelete != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onDelete, shape = RoundedCornerShape(12.dp)) { Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
                 }
             }
         }
@@ -599,25 +480,16 @@ private fun TemplateLibraryCard(
 
 @Composable
 private fun CompactInfoCard(title: String, description: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-private fun documentSelection(document: DesignerDocument): ActiveTemplateSelection =
-    ActiveTemplateSelection(
-        source = ActiveTemplateSource.DESIGNER_DOCUMENT,
-        templateId = document.id,
-        templateVersion = document.version
-    )
+private fun documentSelection(document: DesignerDocument): ActiveTemplateSelection = ActiveTemplateSelection(
+    source = ActiveTemplateSource.DESIGNER_DOCUMENT,
+    templateId = document.id,
+    templateVersion = document.version
+)

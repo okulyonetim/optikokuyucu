@@ -46,8 +46,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAnswerAppearance
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentPlacement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerOmrComponent
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridOrientation
@@ -68,54 +70,41 @@ internal fun NumberAreaEditorScreen(
     onComplete: (NumericGridComponent) -> Unit
 ) {
     val normalized = draft.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+    fun update(candidate: NumericGridComponent) {
+        onDraftChange(DesignerComponentPlacement.fitInsideSafeArea(document, candidate) as NumericGridComponent)
+    }
     val parsed = DesignerAreaCatalog.parseNumberPattern(patternText)
-    val effective = parsed?.let { normalized.copy(values = it) } ?: normalized
+    val rawEffective = parsed?.let { normalized.copy(values = it) } ?: normalized
+    val effective = DesignerComponentPlacement.fitInsideSafeArea(document, rawEffective) as NumericGridComponent
     val patternIssue = if (parsed == null) "Desen en az 2 benzersiz değer içermelidir." else null
     val issue = patternIssue ?: DesignerAreaCatalog.numberAreaIssue(document, effective)
-    val horizontalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
-        normalized.columnGap
-    } else {
-        normalized.rowGap
-    }
-    val verticalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
-        normalized.rowGap
-    } else {
-        normalized.columnGap
-    }
+    val horizontalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.columnGap else normalized.rowGap
+    val verticalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.rowGap else normalized.columnGap
     MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
         MarkCard {
             ReadOnlyField("Tür", "Numara")
+            MoveControls(document) { dx, dy ->
+                update(DesignerComponentPlacement.translate(normalized, dx, dy) as NumericGridComponent)
+            }
             DirectionButtons(
                 horizontal = normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL,
-                onHorizontal = { onDraftChange(normalized.copy(orientation = NumericGridOrientation.DIGITS_HORIZONTAL)) },
-                onVertical = { onDraftChange(normalized.copy(orientation = NumericGridOrientation.DIGITS_VERTICAL)) }
+                onHorizontal = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_HORIZONTAL)) },
+                onVertical = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_VERTICAL)) }
             )
-            LabelControls(normalized.label, normalized.showLabel, "Etiket", { onDraftChange(normalized.copy(showLabel = it)) }) {
-                onDraftChange(normalized.copy(label = it))
+            LabelControls(normalized.label, normalized.showLabel, "Etiket", { update(normalized.copy(showLabel = it)) }) {
+                update(normalized.copy(label = it))
             }
             Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
-            AlignmentButtons(normalized.labelAlignment) { onDraftChange(normalized.copy(labelAlignment = it)) }
+            AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.numberPatternPresets, onPatternTextChange)
-            IntInput("Veri / Hane Sayısı", normalized.digits, 1, 16) { onDraftChange(normalized.copy(digits = it)) }
+            IntInput("Veri / Hane Sayısı", normalized.digits, 1, 16) { update(normalized.copy(digits = it)) }
             NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
-                onDraftChange(
-                    if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
-                        normalized.copy(columnGap = gap)
-                    } else {
-                        normalized.copy(rowGap = gap)
-                    }
-                )
+                update(if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.copy(columnGap = gap) else normalized.copy(rowGap = gap))
             }
             NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
-                onDraftChange(
-                    if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
-                        normalized.copy(rowGap = gap)
-                    } else {
-                        normalized.copy(columnGap = gap)
-                    }
-                )
+                update(if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.copy(rowGap = gap) else normalized.copy(columnGap = gap))
             }
-            Text("Baloncuk boyutu sabittir; yatay ve dikey aralıklar ayrı ayrı ayarlanabilir.", style = MaterialTheme.typography.bodySmall)
+            Text("Boyut değişince alan otomatik olarak güvenli sayfa sınırları içine alınır.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         issue?.let { IssueText(it) }
         NumberPreview(document, effective)
@@ -133,66 +122,53 @@ internal fun AnswerAreaEditorScreen(
     onComplete: (QuestionGroupComponent) -> Unit
 ) {
     val normalized = draft.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+    fun update(candidate: QuestionGroupComponent) {
+        onDraftChange(DesignerComponentPlacement.fitInsideSafeArea(document, candidate) as QuestionGroupComponent)
+    }
     val parsed = DesignerAreaCatalog.parseAnswerPattern(patternText)
-    val effective = parsed?.let { normalized.copy(choices = it) } ?: normalized
+    val rawEffective = parsed?.let { normalized.copy(choices = it) } ?: normalized
+    val effective = DesignerComponentPlacement.fitInsideSafeArea(document, rawEffective) as QuestionGroupComponent
     val patternIssue = if (parsed == null) "Desen 2–8 benzersiz şık içermelidir." else null
     val issue = patternIssue ?: DesignerAreaCatalog.answerAreaIssue(document, effective)
     val perBlock = DesignerAreaCatalog.answerQuestionsPerBlock(effective)
-    val horizontalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
-        normalized.choiceGap
-    } else {
-        normalized.rowGap
-    }
-    val verticalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
-        normalized.rowGap
-    } else {
-        normalized.choiceGap
-    }
+    val horizontalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.choiceGap else normalized.rowGap
+    val verticalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.rowGap else normalized.choiceGap
     MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
         MarkCard {
             ReadOnlyField("Tür", "Cevaplar")
-            LabelControls(normalized.label, normalized.showLabel, "Ders Adı", { onDraftChange(normalized.copy(showLabel = it)) }) {
-                onDraftChange(normalized.copy(label = it))
+            MoveControls(document) { dx, dy ->
+                update(DesignerComponentPlacement.translate(normalized, dx, dy) as QuestionGroupComponent)
+            }
+            LabelControls(normalized.label, normalized.showLabel, "Ders Adı", { update(normalized.copy(showLabel = it)) }) {
+                update(normalized.copy(label = it))
             }
             Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
-            AlignmentButtons(normalized.labelAlignment) { onDraftChange(normalized.copy(labelAlignment = it)) }
+            AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.answerPatternPresets, onPatternTextChange)
-            IntInput("İlk Soru Numarası", normalized.startQuestion, 1, 9999) { onDraftChange(normalized.copy(startQuestion = it)) }
+            IntInput("İlk Soru Numarası", normalized.startQuestion, 1, 9999) { update(normalized.copy(startQuestion = it)) }
             Text("Yön", style = MaterialTheme.typography.labelSmall)
             DirectionButtons(
                 horizontal = normalized.orientation == QuestionGroupOrientation.HORIZONTAL,
-                onHorizontal = { onDraftChange(normalized.copy(orientation = QuestionGroupOrientation.HORIZONTAL)) },
-                onVertical = { onDraftChange(normalized.copy(orientation = QuestionGroupOrientation.VERTICAL)) }
+                onHorizontal = { update(normalized.copy(orientation = QuestionGroupOrientation.HORIZONTAL)) },
+                onVertical = { update(normalized.copy(orientation = QuestionGroupOrientation.VERTICAL)) }
             )
             IntInput("Sütun Sayısı", normalized.columns, 1, minOf(8, normalized.questionCount)) { columns ->
                 val total = perBlock * columns
-                onDraftChange(normalized.copy(columns = columns, questionCount = total))
+                update(normalized.copy(columns = columns, questionCount = total))
             }
             IntInput("Sütundaki Soru Sayısı", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count ->
-                onDraftChange(normalized.copy(questionCount = count * normalized.columns))
+                update(normalized.copy(questionCount = count * normalized.columns))
             }
             NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
-                onDraftChange(
-                    if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
-                        normalized.copy(choiceGap = gap)
-                    } else {
-                        normalized.copy(rowGap = gap)
-                    }
-                )
+                update(if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.copy(choiceGap = gap) else normalized.copy(rowGap = gap))
             }
             NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
-                onDraftChange(
-                    if (normalized.orientation == QuestionGroupOrientation.VERTICAL) {
-                        normalized.copy(rowGap = gap)
-                    } else {
-                        normalized.copy(choiceGap = gap)
-                    }
-                )
+                update(if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.copy(rowGap = gap) else normalized.copy(choiceGap = gap))
             }
             NumberInput("Sütunlar Arası Boşluk", normalized.columnGap, 20.0, 600.0, 5.0) { gap ->
-                onDraftChange(normalized.copy(columnGap = gap))
+                update(normalized.copy(columnGap = gap))
             }
-            Text("Toplam: ${effective.questionCount} soru · Baloncuk boyutu sabit, aralıklar ayarlanabilir.", style = MaterialTheme.typography.bodySmall)
+            Text("Toplam: ${effective.questionCount} soru · Boyut değişince alan sayfa içinde otomatik yeniden konumlanır.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         issue?.let { IssueText(it) }
         AnswerPreview(document, effective)
@@ -200,13 +176,28 @@ internal fun AnswerAreaEditorScreen(
 }
 
 @Composable
+private fun MoveControls(document: DesignerDocument, onMove: (Double, Double) -> Unit) {
+    val step = DesignerEditorLayout.canonicalForMillimeters(document, 2.0)
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text("Konum", style = MaterialTheme.typography.labelMedium)
+        Text("Alanı düzenleme ekranından da hareket ettirebilirsiniz.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(-step, 0.0) }) { Text("←") }
+            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, -step) }) { Text("↑") }
+            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, step) }) { Text("↓") }
+            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(step, 0.0) }) { Text("→") }
+        }
+    }
+}
+
+@Composable
 private fun MarkScaffold(completeEnabled: Boolean, onCancel: () -> Unit, onComplete: () -> Unit, content: @Composable () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))) {
+    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.background)) {
         Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
             Row(modifier = Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("×") }
                 Text("Optik Form Alanı", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onPrimary)
-                TextButton(enabled = completeEnabled, onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("Tamam") }
+                TextButton(enabled = completeEnabled, onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary, disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.48f))) { Text("Tamam") }
             }
         }
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content(); Spacer(Modifier.size(8.dp)) }
@@ -258,7 +249,7 @@ private fun ChoiceButton(modifier: Modifier, label: String, selected: Boolean, o
 
 @Composable
 private fun ReadOnlyField(label: String, value: String) {
-    Column { Text(label, style = MaterialTheme.typography.labelSmall); Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(50.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) { Text(value, modifier = Modifier.padding(14.dp)) } }
+    Column { Text(label, style = MaterialTheme.typography.labelSmall); Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text(value, modifier = Modifier.padding(14.dp)) } }
 }
 
 @Composable
@@ -287,20 +278,23 @@ private fun IssueText(message: String) { Text(message, color = MaterialTheme.col
 @Composable
 private fun NumberPreview(document: DesignerDocument, component: NumericGridComponent) {
     val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
-    val template = remember(preview) { DesignerTemplateCompiler.compile(preview) }
+    val template = remember(preview) { runCatching { DesignerTemplateCompiler.compile(preview) }.getOrNull() }
     PreviewCard(document) {
         val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
-        drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy)
+        if (template != null) drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFF9E3E3E))
+        drawComponentDecorations(preview, sx, sy)
     }
 }
 
 @Composable
 private fun AnswerPreview(document: DesignerDocument, component: QuestionGroupComponent) {
     val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
-    val template = remember(preview) { DesignerTemplateCompiler.compile(preview) }; val rows = remember(template) { template.bubbleRows.associateBy { it.id } }
+    val template = remember(preview) { runCatching { DesignerTemplateCompiler.compile(preview) }.getOrNull() }
+    val rows = remember(template) { template?.bubbleRows?.associateBy { it.id }.orEmpty() }
     PreviewCard(document) {
         val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
-        drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFFB54848)); drawComponentDecorations(preview, sx, sy)
+        if (template != null) drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFF9E3E3E))
+        drawComponentDecorations(preview, sx, sy)
     }
 }
 

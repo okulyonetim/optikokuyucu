@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,7 +23,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,37 +47,51 @@ import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
 private val ProductPrimary = Color(0xFF3159D9)
-private val ProductPrimaryLight = Color(0xFFE6ECFF)
-private val ProductBackground = Color(0xFFF6F8FB)
-private val ProductGreen = Color(0xFF25865E)
-private val ProductGreenSoft = Color(0xFFE8F7F0)
-private val ProductOrange = Color(0xFFCF7A11)
-private val ProductOrangeSoft = Color(0xFFFFF2E2)
-private val ProductRed = Color(0xFFC94743)
-private val ProductRedSoft = Color(0xFFFFEBEA)
+private val ProductPrimaryLight = Color(0xFFE1E8FF)
+private val ProductBackground = Color(0xFFF7F8FC)
+private val ProductGreen = Color(0xFF1F7A52)
+private val ProductGreenSoft = Color(0xFFE6F5ED)
+private val ProductOrange = Color(0xFFB86100)
+private val ProductOrangeSoft = Color(0xFFFFEED8)
+private val ProductRed = Color(0xFFB92F34)
+private val ProductRedSoft = Color(0xFFFFE9EA)
 
 private val LightProductScheme = lightColorScheme(
     primary = ProductPrimary,
     onPrimary = Color.White,
     primaryContainer = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF142B66),
+    onPrimaryContainer = Color(0xFF13285D),
     secondary = Color(0xFF0F766E),
+    onSecondary = Color.White,
     background = ProductBackground,
+    onBackground = Color(0xFF171A20),
     surface = Color.White,
-    surfaceVariant = Color(0xFFEEF1F6),
-    outline = Color(0xFFC7CDD8)
+    onSurface = Color(0xFF171A20),
+    surfaceVariant = Color(0xFFE9EDF4),
+    onSurfaceVariant = Color(0xFF4A5260),
+    outline = Color(0xFF7A8494),
+    outlineVariant = Color(0xFFC8CFDA),
+    error = Color(0xFFB3261E),
+    onError = Color.White
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFF9CB4FF),
-    onPrimary = Color(0xFF102656),
-    primaryContainer = Color(0xFF23366D),
-    onPrimaryContainer = Color(0xFFE3E9FF),
-    secondary = Color(0xFF72D5C8),
+    primary = Color(0xFFA9BCFF),
+    onPrimary = Color(0xFF0E2453),
+    primaryContainer = Color(0xFF263B78),
+    onPrimaryContainer = Color(0xFFE6EBFF),
+    secondary = Color(0xFF79D9CC),
+    onSecondary = Color(0xFF063C37),
     background = Color(0xFF0E1116),
-    surface = Color(0xFF161A21),
-    surfaceVariant = Color(0xFF222833),
-    outline = Color(0xFF737B89)
+    onBackground = Color(0xFFF0F2F7),
+    surface = Color(0xFF171B22),
+    onSurface = Color(0xFFF0F2F7),
+    surfaceVariant = Color(0xFF252B35),
+    onSurfaceVariant = Color(0xFFC7CED9),
+    outline = Color(0xFF929BAA),
+    outlineVariant = Color(0xFF4B5360),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005)
 )
 
 class ProductThemeController internal constructor(
@@ -152,8 +163,10 @@ fun ProductTopBar(
     onActionClick: (() -> Unit)? = null,
     showAutomaticBack: Boolean = true
 ) {
+    val context = LocalContext.current
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
+    val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
     var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
@@ -193,11 +206,7 @@ fun ProductTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            HeaderAction(
-                text = resolvedLeadingText,
-                onClick = resolvedLeadingClick
-            )
-
+            HeaderAction(text = resolvedLeadingText, onClick = resolvedLeadingClick)
             Text(
                 modifier = Modifier.weight(1f),
                 text = title,
@@ -208,16 +217,16 @@ fun ProductTopBar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-
-            HeaderAction(
-                text = resolvedActionText,
-                onClick = resolvedActionClick
-            )
+            HeaderAction(text = resolvedActionText, onClick = resolvedActionClick)
         }
     }
 
+    if (title == "Ayarlar" && onActionClick == null) {
+        SettingsSubjectsCard(settingsRepository)
+    }
+
     if (settingsPanelOpen && themeController != null) {
-        SettingsAppearanceAndSubjectsSheet(
+        SettingsAppearanceSheet(
             themeController = themeController,
             onDismiss = { settingsPanelOpen = false }
         )
@@ -226,51 +235,44 @@ fun ProductTopBar(
 
 @Composable
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
+    val actionWidth = 68.dp
     if (text != null && onClick != null) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(width = actionWidth, height = 40.dp)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(text, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = if (text.length > 2) 13.sp else 20.sp,
+                fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
         }
     } else {
-        Spacer(Modifier.size(40.dp))
+        Spacer(Modifier.size(width = actionWidth, height = 40.dp))
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsAppearanceAndSubjectsSheet(
+private fun SettingsAppearanceSheet(
     themeController: ProductThemeController,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val feedback = LocalAppFeedback.current
-    val repository = remember(context) { AppSettingsRepository(context.applicationContext) }
-    var subjects by remember { mutableStateOf(repository.load().subjects) }
-    var newSubject by remember { mutableStateOf("") }
-
-    fun persistSubjects(updated: List<String>) {
-        runCatching { repository.saveSubjects(updated) }
-            .onSuccess {
-                subjects = repository.load().subjects
-                feedback.success("Dersler güncellendi.")
-            }
-            .onFailure { feedback.error("Dersler kaydedilemedi: ${it.message ?: it.javaClass.simpleName}") }
-    }
-
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Görünüm ve Dersler", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            Text("Görünüm", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text("Görünüm", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Uygulamanın açık/koyu görünümünü seçin.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -281,55 +283,9 @@ private fun SettingsAppearanceAndSubjectsSheet(
             }
             Text(
                 "Tema değişikliği anında uygulanır ve cihazda saklanır.",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Text("Dersler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            subjects.forEach { subject ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(subject, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        TextButton(
-                            enabled = subjects.size > 1,
-                            onClick = { persistSubjects(subjects.filterNot { it == subject }) }
-                        ) { Text("Sil", color = MaterialTheme.colorScheme.error) }
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = newSubject,
-                    onValueChange = { newSubject = it.take(60) },
-                    label = { Text("Yeni ders") },
-                    singleLine = true
-                )
-                FilledTonalButton(
-                    enabled = newSubject.isNotBlank(),
-                    onClick = {
-                        val value = newSubject.trim()
-                        if (subjects.any { it.equals(value, ignoreCase = true) }) {
-                            feedback.warning("Bu ders zaten listede.")
-                        } else {
-                            persistSubjects(subjects + value)
-                            newSubject = ""
-                        }
-                    }
-                ) { Text("Ekle") }
-            }
             Spacer(Modifier.height(22.dp))
         }
     }
@@ -416,9 +372,7 @@ fun ProductBottomBar(
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 5.dp, vertical = 5.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -445,7 +399,7 @@ private fun ProductBottomItem(
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.textButtonColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-            contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         ),
         contentPadding = ButtonDefaults.TextButtonContentPadding
     ) {

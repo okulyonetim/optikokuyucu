@@ -51,6 +51,7 @@ import com.okulyonetim.optikokuyucu.exam.questionLessonPrefix
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
+import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
@@ -62,14 +63,15 @@ import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.Locale
 
 private enum class StudentPaperTab { CONTENT, IMAGE }
 
-private val CorrectGreen = Color(0xFF42B653)
-private val WrongRed = Color(0xFFF0443E)
-private val WarningOrange = Color(0xFFF39B25)
+private val CorrectGreen = Color(0xFF2E9D57)
+private val WrongRed = Color(0xFFD93B3B)
+private val WarningOrange = Color(0xFFD77A00)
 
 @Composable
 fun StudentPaperDetailScreen(
@@ -634,13 +636,37 @@ private fun resolveLessonNames(
         it.id == selection.templateId && it.version == selection.templateVersion
     } ?: return emptyMap()
 
-    return document.visualElements
+    val configuredSubjects = AppSettingsRepository(context).load().subjects
+    val genericLesson = Regex("^Ders\\s+\\d+$", RegexOption.IGNORE_CASE)
+    val componentNames = document.components
+        .filterIsInstance<QuestionGroupComponent>()
+        .mapIndexedNotNull { index, component ->
+            val prefix = component.questionIdPrefix.ifBlank { component.id }
+            if (prefix.isBlank()) return@mapIndexedNotNull null
+            val label = component.label.trim()
+            val resolved = when {
+                label.isNotBlank() && !genericLesson.matches(label) -> label
+                configuredSubjects.getOrNull(index)?.isNotBlank() == true -> configuredSubjects[index]
+                label.isNotBlank() -> label
+                else -> null
+            }
+            resolved?.let { prefix to it }
+        }
+        .toMap()
+
+    val visualNames = document.visualElements
         .filterIsInstance<DesignerTextElement>()
         .mapNotNull { element ->
             val prefix = element.id.removePrefix("structured:lesson-title:")
-            if (prefix != element.id && prefix.isNotBlank()) prefix to element.text else null
+            if (prefix != element.id && prefix.isNotBlank() && element.text.isNotBlank()) {
+                prefix to element.text.trim()
+            } else {
+                null
+            }
         }
         .toMap()
+
+    return componentNames + visualNames
 }
 
 private fun humanizeLesson(prefix: String): String = prefix
