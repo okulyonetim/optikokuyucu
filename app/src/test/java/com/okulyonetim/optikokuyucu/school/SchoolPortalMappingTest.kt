@@ -1,8 +1,17 @@
 package com.okulyonetim.optikokuyucu.school
 
+import com.okulyonetim.optikokuyucu.exam.Exam
+import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
+import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
+import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
+import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.omr.results.ScanSource
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
+import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.student.StudentGender
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -161,4 +170,63 @@ class SchoolPortalMappingTest {
         assertTrue(profile.canView("denemeSonuclari"))
         assertTrue(profile.canEdit("sinavIslemleri"))
     }
+
+    @Test
+    fun cloudFingerprintChangesWhenRawOmrAnswerChanges() {
+        val selection = ActiveTemplateSelection(
+            source = ActiveTemplateSource.STANDARD,
+            templateId = "template-1",
+            templateVersion = 1
+        )
+        val exam = Exam(
+            id = "exam-1",
+            name = "Deneme",
+            schoolName = "Okul",
+            templateSelection = selection,
+            examDateEpochDay = 1L,
+            createdAtEpochMs = 1L,
+            papers = listOf(
+                ExamPaperLink(
+                    scanRecordId = "scan-1",
+                    studentName = "Ali Veli",
+                    className = "7-A",
+                    studentNumber = "123",
+                    bookletCode = "A",
+                    linkedAtEpochMs = 1L
+                )
+            )
+        )
+        val first = scanWithChoice("A")
+        val corrected = scanWithChoice("B")
+
+        val firstFingerprint = SchoolCloudFingerprint.digest(listOf(exam), emptyList(), listOf(first))
+        val repeatedFingerprint = SchoolCloudFingerprint.digest(listOf(exam), emptyList(), listOf(first))
+        val correctedFingerprint = SchoolCloudFingerprint.digest(listOf(exam), emptyList(), listOf(corrected))
+
+        assertEquals(firstFingerprint, repeatedFingerprint)
+        assertNotEquals(firstFingerprint, correctedFingerprint)
+    }
+
+    private fun scanWithChoice(choice: String): ScanRecord = ScanRecord(
+        id = "scan-1",
+        templateId = "template-1",
+        templateVersion = 1,
+        capturedAtEpochMs = 10L,
+        source = ScanSource.LIVE_CAMERA,
+        sourceWidth = 100,
+        sourceHeight = 200,
+        pageConfidence = 0.95,
+        decisionConfidence = 0.90,
+        elapsedMs = 12.0,
+        answers = listOf(
+            RecordedAnswer(
+                questionId = "q1",
+                state = RecordedAnswerState.MARKED,
+                selectedChoice = choice,
+                confidence = 0.9,
+                choiceScores = emptyMap()
+            )
+        ),
+        markGrids = emptyList()
+    )
 }
