@@ -4,6 +4,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
+import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
@@ -25,31 +26,17 @@ import org.opencv.core.CvType
 import org.opencv.core.Mat
 import kotlin.math.max
 
-/**
- * Live CameraX analyzer.
- *
- * Frames stay in single-channel luminance form. Marker search, canonical rectification, question
- * reading and generic mark-grid reading all use the Y plane; the live OMR path does not create
- * RGB Bitmaps.
- *
- * Acceptance requires both a stable page lock and temporal agreement between consecutive OMR
- * frames. One physical sheet is then latched until it visibly leaves the camera. When a stable
- * student number exists, a session fingerprint also prevents the same completed sheet from being
- * accepted again after it is removed and reinserted.
- *
- * The analyzer accepts any compiled [OmrTemplate]. The default keeps the existing diagnostic
- * scanner behavior while the form designer can pass its currently edited template to "Test Et".
- */
 class CameraFrameAnalyzer(
     openCvReady: Boolean,
     private val onStats: (CameraFrameStats) -> Unit,
     private val onLiveRead: (LiveOmrReadResult) -> Unit = {},
-    private val template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    private val template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB,
+    sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) : ImageAnalysis.Analyzer {
 
     private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
-    private val bubbleReader = CanonicalBubbleReader(template)
-    private val markGridReader = CanonicalMarkGridReader(template)
+    private val bubbleReader = CanonicalBubbleReader(template, sensitivity)
+    private val markGridReader = CanonicalMarkGridReader(template, sensitivity)
     private val recognitionBindings = OmrRecognitionBindingsResolver.fromTemplate(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
@@ -70,14 +57,11 @@ class CameraFrameAnalyzer(
     override fun analyze(image: ImageProxy) {
         try {
             frameCount += 1
-
             val detector = fiducialDetector
             if (detector != null) {
-                latestDetection = runCatching {
-                    detector.detect(image)
-                }.onFailure {
-                    detectorHealthy = false
-                }.getOrDefault(FiducialDetectionResult.Empty)
+                latestDetection = runCatching { detector.detect(image) }
+                    .onFailure { detectorHealthy = false }
+                    .getOrDefault(FiducialDetectionResult.Empty)
                 latestPageBoundary = estimatePageBoundary(latestDetection)
 
                 val tracking = pageTracker.onCandidate(
@@ -104,19 +88,14 @@ class CameraFrameAnalyzer(
                 )
 
                 if (!candidateReady &&
-                    (tracking.phase != PageTrackingPhase.LOCKED ||
-                        latestDetection.detectedMarkers.size != 4)
+                    (tracking.phase != PageTrackingPhase.LOCKED || latestDetection.detectedMarkers.size != 4)
                 ) {
                     readConsensus.reset()
                 }
 
                 if (candidateReady) {
                     val liveResult = runCatching {
-                        readLockedFrame(
-                            image = image,
-                            detection = latestDetection,
-                            pageConfidence = tracking.confidence
-                        )
+                        readLockedFrame(image, latestDetection, tracking.confidence)
                     }.getOrNull()
 
                     if (liveResult == null) {
@@ -134,10 +113,7 @@ class CameraFrameAnalyzer(
                                 studentNumber = studentNumber,
                                 answerSignature = readSignature(liveResult)
                             )
-                            val isNewResult = fingerprint?.let {
-                                sessionDeduplicator.registerIfNew(it)
-                            } ?: true
-
+                            val isNewResult = fingerprint?.let { sessionDeduplicator.registerIfNew(it) } ?: true
                             if (isNewResult) {
                                 liveReadCount += 1
                                 onLiveRead(liveResult.copy(sequence = liveReadCount))
@@ -151,17 +127,14 @@ class CameraFrameAnalyzer(
 
             val nowNs = System.nanoTime()
             val elapsedNs = nowNs - windowStartedAtNs
-
             if (elapsedNs >= STATS_WINDOW_NS) {
                 val elapsedSeconds = elapsedNs / 1_000_000_000.0
-                val fps = if (elapsedSeconds > 0.0) frameCount / elapsedSeconds else 0.0
-
                 onStats(
                     CameraFrameStats(
                         width = image.width,
                         height = image.height,
                         rotationDegrees = image.imageInfo.rotationDegrees,
-                        fps = fps,
+                        fps = if (elapsedSeconds > 0.0) frameCount / elapsedSeconds else 0.0,
                         averageLuma = sampleAverageLuma(image),
                         openCvReady = detector != null && detectorHealthy,
                         markerCount = latestDetection.detectedMarkers.size,
@@ -175,7 +148,6 @@ class CameraFrameAnalyzer(
                         duplicateReadCount = duplicateReadCount
                     )
                 )
-
                 frameCount = 0
                 windowStartedAtNs = nowNs
             }
@@ -184,11 +156,6 @@ class CameraFrameAnalyzer(
         }
     }
 
-    /**
-     * The four markers are inset from the physical page edge. Once their homography is known we
-     * project the four canonical page corners back to the camera image, producing the actual page
-     * outline instead of connecting marker centers.
-     */
     private fun estimatePageBoundary(detection: FiducialDetectionResult): ImageQuadrilateral? {
         val transform = detection.canonicalRegistration?.templateToImage ?: return null
         val width = template.space.width
@@ -239,11 +206,7 @@ class CameraFrameAnalyzer(
                 bubbleResult = bubbles,
                 markGridResult = markGrids,
                 pageConfidence = pageConfidence,
-                decisionConfidence = if (confidences.isEmpty()) {
-                    0.0
-                } else {
-                    confidences.average().coerceIn(0.0, 1.0)
-                },
+                decisionConfidence = if (confidences.isEmpty()) 0.0 else confidences.average().coerceIn(0.0, 1.0),
                 elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
                 sourceWidth = image.width,
                 sourceHeight = image.height,
@@ -257,7 +220,6 @@ class CameraFrameAnalyzer(
         }
     }
 
-    /** Copies only a bounded single-channel canonical frame; recognition remains valid if omitted. */
     private fun copyCanonicalLuma(canonical: Mat): ByteArray? {
         if (canonical.empty() || canonical.channels() != 1) return null
         val pixelCount = canonical.rows().toLong() * canonical.cols().toLong()
@@ -273,11 +235,9 @@ class CameraFrameAnalyzer(
             append("#")
             append(grid.gridId)
             append(":")
-            append(
-                grid.columns.joinToString(separator = "|") { column ->
-                    "${column.columnId}:${column.state}:${column.selectedValue ?: "-"}"
-                }
-            )
+            append(grid.columns.joinToString(separator = "|") { column ->
+                "${column.columnId}:${column.state}:${column.selectedValue ?: "-"}"
+            })
         }
     }
 
@@ -291,20 +251,16 @@ class CameraFrameAnalyzer(
         val buffer = yPlane.buffer
         val rowStride = yPlane.rowStride
         val pixelStride = yPlane.pixelStride
-
         if (image.width <= 0 || image.height <= 0 || buffer.limit() <= 0) return 0
 
         val stepX = max(1, image.width / SAMPLE_COLUMNS)
         val stepY = max(1, image.height / SAMPLE_ROWS)
-
         var sum = 0L
         var samples = 0
-
         var y = stepY / 2
         while (y < image.height) {
             val rowOffset = y * rowStride
             var x = stepX / 2
-
             while (x < image.width) {
                 val index = rowOffset + x * pixelStride
                 if (index in 0 until buffer.limit()) {
@@ -315,7 +271,6 @@ class CameraFrameAnalyzer(
             }
             y += stepY
         }
-
         return if (samples == 0) 0 else (sum / samples).toInt()
     }
 
@@ -348,7 +303,6 @@ data class CameraFrameStats(
     val averageLuma: Int,
     val openCvReady: Boolean,
     val markerCount: Int,
-    /** Estimated physical page boundary in analyzer pixel coordinates; null until all 4 markers exist. */
     val pageQuadrilateral: ImageQuadrilateral?,
     val pageConfidence: Double,
     val trackingPhase: PageTrackingPhase,
