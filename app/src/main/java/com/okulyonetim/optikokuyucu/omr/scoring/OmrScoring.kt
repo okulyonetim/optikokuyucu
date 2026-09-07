@@ -39,6 +39,7 @@ enum class QuestionEvaluationState {
 data class QuestionEvaluation(
     val questionId: String,
     val state: QuestionEvaluationState,
+    /** Encoded answer-key choice; single choice is "A", multi-answer is for example "A|C". */
     val expectedChoice: String?,
     val selectedChoice: String?,
     val recognitionConfidence: Double,
@@ -63,6 +64,9 @@ data class ExamScore(
  * Pure scoring layer. Recognition uncertainty is preserved instead of being silently converted to
  * a wrong answer. The caller explicitly supplies point values, including any wrong-answer penalty.
  * Persisted raw records can be re-scored later without re-reading the physical form.
+ *
+ * Answer keys may contain more than one accepted choice for a question. In that case a student
+ * selecting any one accepted choice is correct; a student DOUBLE_MARK remains a double mark.
  */
 object OmrScorer {
     fun score(
@@ -126,7 +130,8 @@ object OmrScorer {
         policy: ScoringPolicy
     ): QuestionEvaluation {
         val expected = answerKey.answers[questionId]
-        if (expected == null) {
+        val acceptedChoices = AnswerKeyChoiceCodec.decode(expected)
+        if (expected == null || acceptedChoices.isEmpty()) {
             return QuestionEvaluation(
                 questionId = questionId,
                 state = QuestionEvaluationState.NO_KEY,
@@ -139,7 +144,7 @@ object OmrScorer {
 
         return when (state) {
             ScorableState.MARKED -> {
-                val correct = selectedChoice == expected
+                val correct = selectedChoice != null && selectedChoice in acceptedChoices
                 QuestionEvaluation(
                     questionId = questionId,
                     state = if (correct) QuestionEvaluationState.CORRECT else QuestionEvaluationState.WRONG,
