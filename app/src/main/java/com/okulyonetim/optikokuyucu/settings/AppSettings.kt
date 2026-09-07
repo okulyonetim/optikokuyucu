@@ -55,7 +55,20 @@ class AppSettingsRepository(context: Context) {
     }
 
     fun save(settings: AppSettings) {
-        val normalized = settings.normalized()
+        val incoming = settings.normalized()
+        val current = load()
+        // Older settings UI constructs AppSettings(schoolName) and therefore supplies default
+        // appearance/subjects. Preserve explicit custom values when only the school field changed.
+        val legacySchoolOnlyUpdate =
+            incoming.schoolName != current.schoolName &&
+                incoming.themeMode == AppThemeMode.SYSTEM &&
+                incoming.subjects == AppSettings.DEFAULT_SUBJECTS &&
+                (current.themeMode != AppThemeMode.SYSTEM || current.subjects != AppSettings.DEFAULT_SUBJECTS)
+        val normalized = if (legacySchoolOnlyUpdate) {
+            incoming.copy(themeMode = current.themeMode, subjects = current.subjects)
+        } else {
+            incoming
+        }
         check(
             preferences.edit()
                 .putString(KEY_SCHOOL_NAME, normalized.schoolName)
