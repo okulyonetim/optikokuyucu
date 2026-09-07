@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,9 +21,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,7 +49,9 @@ import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.student.EschoolPdfImportPreview
 import com.okulyonetim.optikokuyucu.student.EschoolPdfImporter
+import com.okulyonetim.optikokuyucu.student.FileStudentClassRepository
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
+import com.okulyonetim.optikokuyucu.student.StudentClassEntry
 import com.okulyonetim.optikokuyucu.student.StudentGender
 import com.okulyonetim.optikokuyucu.student.StudentNumber
 import com.okulyonetim.optikokuyucu.student.StudentRosterEntry
@@ -137,21 +142,40 @@ fun StudentRosterScreen(
     val feedback = LocalAppFeedback.current
     val appContext = context.applicationContext
     val rosterRepository = remember(context) { FileStudentRosterRepository(appContext) }
+    val classRepository = remember(context) { FileStudentClassRepository(appContext) }
     val examRepository = remember(context) { FileExamRepository(appContext) }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
     val active = remember { AtomicBoolean(true) }
 
     var roster by remember { mutableStateOf(rosterRepository.list()) }
+    var storedClasses by remember { mutableStateOf(classRepository.list()) }
     var exams by remember { mutableStateOf(examRepository.list()) }
     var query by remember { mutableStateOf("") }
     var selectedClass by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     var importPreview by remember { mutableStateOf<EschoolPdfImportPreview?>(null) }
+    var importSourceLabel by remember { mutableStateOf("e-Okul PDF") }
     var editing by remember { mutableStateOf<StudentRosterOverview?>(null) }
     var guardianName by remember { mutableStateOf("") }
     var guardianPhone by remember { mutableStateOf("") }
+    var optionsExpanded by remember { mutableStateOf(false) }
+
+    var manualStudentOpen by remember { mutableStateOf(false) }
+    var studentNumberText by remember { mutableStateOf("") }
+    var studentNameText by remember { mutableStateOf("") }
+    var studentGradeText by remember { mutableStateOf("") }
+    var studentBranchText by remember { mutableStateOf("") }
+    var studentGuardianText by remember { mutableStateOf("") }
+    var studentPhoneText by remember { mutableStateOf("") }
+    var studentGender by remember { mutableStateOf(StudentGender.UNKNOWN) }
+
+    var classManagerOpen by remember { mutableStateOf(false) }
+    var classEditorOpen by remember { mutableStateOf(false) }
+    var editingClass by remember { mutableStateOf<StudentClassEntry?>(null) }
+    var classGradeText by remember { mutableStateOf("") }
+    var classBranchText by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -162,7 +186,17 @@ fun StudentRosterScreen(
 
     fun refreshRoster() {
         roster = rosterRepository.list()
+        storedClasses = classRepository.list()
         exams = examRepository.list()
+    }
+
+    fun launchPdf(label: String) {
+        if (!busy) {
+            importSourceLabel = label
+            pdfPicker@ run {
+                // launcher is invoked after declaration below through the menu callbacks.
+            }
+        }
     }
 
     val pdfPicker = rememberLauncherForActivityResult(
@@ -176,7 +210,7 @@ fun StudentRosterScreen(
                 )
             }
             busy = true
-            status = "e-Okul PDF okunuyor…"
+            status = "$importSourceLabel okunuyor…"
             feedback.info(status)
             worker.execute {
                 val outcome = runCatching { EschoolPdfImporter.read(appContext, uri) }
@@ -198,9 +232,12 @@ fun StudentRosterScreen(
     }
 
     val overviews = remember(roster, exams) { buildStudentRosterOverviews(roster, exams) }
-    val classes = remember(overviews) {
-        overviews.map { it.className }.filter { it.isNotBlank() }.distinct().sorted()
+    val classEntries = remember(roster, storedClasses) {
+        (storedClasses + roster.map { StudentClassEntry(it.gradeLevel, it.branch).normalized() })
+            .distinctBy { it.className }
+            .sortedWith(compareBy<StudentClassEntry> { it.gradeLevel }.thenBy { it.branch })
     }
+    val classes = remember(classEntries) { classEntries.map { it.className } }
     val normalizedQuery = query.trim().lowercase()
     val filtered = overviews.filter { student ->
         val matchesClass = selectedClass == null || student.className == selectedClass
@@ -216,7 +253,7 @@ fun StudentRosterScreen(
     importPreview?.let { preview ->
         AlertDialog(
             onDismissRequest = { importPreview = null },
-            title = { Text("e-Okul PDF Önizleme") },
+            title = { Text("$importSourceLabel Önizleme") },
             text = {
                 Column(
                     modifier = Modifier
@@ -240,7 +277,7 @@ fun StudentRosterScreen(
                         )
                     }
                     Text(
-                        "Bu PDF veli adı veya telefon içermiyorsa mevcut veli bilgileri korunur; yeni öğrencilerde boş bırakılır.",
+                        "PDF veli adı veya telefon içermiyorsa mevcut veli bilgileri korunur; yeni öğrencilerde boş bırakılır.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -249,22 +286,274 @@ fun StudentRosterScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        runCatching { rosterRepository.upsertImported(preview.students) }
-                            .onSuccess { summary ->
-                                refreshRoster()
-                                importPreview = null
-                                status = "İçe aktarma tamamlandı · ${summary.inserted} yeni · ${summary.updated} güncellendi · ${summary.unchanged} değişmedi"
-                                feedback.success("Öğrenciler içe aktarıldı · ${summary.inserted} yeni · ${summary.updated} güncellendi")
-                            }
-                            .onFailure { error ->
-                                status = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                                feedback.error(status)
-                            }
+                        runCatching {
+                            val summary = rosterRepository.upsertImported(preview.students)
+                            preview.students
+                                .map { StudentClassEntry(it.gradeLevel, it.branch).normalized() }
+                                .distinctBy { it.className }
+                                .forEach(classRepository::save)
+                            summary
+                        }.onSuccess { summary ->
+                            refreshRoster()
+                            importPreview = null
+                            status = "İçe aktarma tamamlandı · ${summary.inserted} yeni · ${summary.updated} güncellendi · ${summary.unchanged} değişmedi"
+                            feedback.success("Öğrenciler içe aktarıldı · ${summary.inserted} yeni · ${summary.updated} güncellendi")
+                        }.onFailure { error ->
+                            status = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                            feedback.error(status)
+                        }
                     }
                 ) { Text("İçe Aktar") }
             },
             dismissButton = {
                 TextButton(onClick = { importPreview = null }) { Text("Vazgeç") }
+            }
+        )
+    }
+
+    if (manualStudentOpen) {
+        AlertDialog(
+            onDismissRequest = { manualStudentOpen = false },
+            title = { Text("Manuel Öğrenci Ekle") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = studentNumberText,
+                        onValueChange = { studentNumberText = it.filter(Char::isDigit).take(12) },
+                        label = { Text("Öğrenci No") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = studentNameText,
+                        onValueChange = { studentNameText = it },
+                        label = { Text("Ad Soyad") },
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            modifier = Modifier.weight(1f),
+                            value = studentGradeText,
+                            onValueChange = { studentGradeText = it.filter(Char::isDigit).take(2) },
+                            label = { Text("Sınıf") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            modifier = Modifier.weight(1f),
+                            value = studentBranchText,
+                            onValueChange = { studentBranchText = it.take(20) },
+                            label = { Text("Şube") },
+                            singleLine = true
+                        )
+                    }
+                    Text("Cinsiyet", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (studentGender == StudentGender.GIRL) {
+                            FilledTonalButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
+                        } else {
+                            OutlinedButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
+                        }
+                        if (studentGender == StudentGender.BOY) {
+                            FilledTonalButton(onClick = { studentGender = StudentGender.BOY }) { Text("Erkek") }
+                        } else {
+                            OutlinedButton(onClick = { studentGender = StudentGender.BOY }) { Text("Erkek") }
+                        }
+                        if (studentGender == StudentGender.UNKNOWN) {
+                            FilledTonalButton(onClick = { studentGender = StudentGender.UNKNOWN }) { Text("—") }
+                        } else {
+                            OutlinedButton(onClick = { studentGender = StudentGender.UNKNOWN }) { Text("—") }
+                        }
+                    }
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = studentGuardianText,
+                        onValueChange = { studentGuardianText = it },
+                        label = { Text("Veli Ad Soyad") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = studentPhoneText,
+                        onValueChange = { studentPhoneText = it },
+                        label = { Text("Veli Telefon") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val normalizedNumber = StudentNumber.normalize(studentNumberText)
+                            require(normalizedNumber.isNotBlank()) { "Öğrenci numarası zorunludur." }
+                            require(rosterRepository.findByNumber(normalizedNumber) == null) { "Bu öğrenci numarası zaten kayıtlı." }
+                            val grade = studentGradeText.toIntOrNull()
+                                ?: error("Sınıf seviyesi girilmelidir.")
+                            val entry = StudentRosterEntry(
+                                studentNumber = normalizedNumber,
+                                fullName = studentNameText,
+                                gender = studentGender,
+                                gradeLevel = grade,
+                                branch = studentBranchText,
+                                guardianName = studentGuardianText,
+                                guardianPhone = studentPhoneText
+                            ).normalized()
+                            rosterRepository.save(entry)
+                            classRepository.save(StudentClassEntry(entry.gradeLevel, entry.branch))
+                        }.onSuccess {
+                            refreshRoster()
+                            manualStudentOpen = false
+                            studentNumberText = ""
+                            studentNameText = ""
+                            studentGradeText = ""
+                            studentBranchText = ""
+                            studentGuardianText = ""
+                            studentPhoneText = ""
+                            studentGender = StudentGender.UNKNOWN
+                            feedback.success("Öğrenci eklendi.")
+                        }.onFailure { error ->
+                            feedback.warning(error.message ?: "Öğrenci eklenemedi.")
+                        }
+                    }
+                ) { Text("Ekle") }
+            },
+            dismissButton = {
+                TextButton(onClick = { manualStudentOpen = false }) { Text("Vazgeç") }
+            }
+        )
+    }
+
+    if (classManagerOpen) {
+        AlertDialog(
+            onDismissRequest = { classManagerOpen = false },
+            title = { Text("Sınıflar") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    if (classEntries.isEmpty()) {
+                        Text("Henüz sınıf eklenmedi.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    classEntries.forEach { entry ->
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                editingClass = entry
+                                classGradeText = entry.gradeLevel.toString()
+                                classBranchText = entry.branch
+                                classManagerOpen = false
+                                classEditorOpen = true
+                            }
+                        ) {
+                            Text("${entry.className} · ${roster.count { it.className == entry.className }} öğrenci")
+                        }
+                    }
+                    FilledTonalButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            editingClass = null
+                            classGradeText = ""
+                            classBranchText = ""
+                            classManagerOpen = false
+                            classEditorOpen = true
+                        }
+                    ) {
+                        Text("+ Yeni Sınıf")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { classManagerOpen = false }) { Text("Kapat") }
+            }
+        )
+    }
+
+    if (classEditorOpen) {
+        AlertDialog(
+            onDismissRequest = {
+                classEditorOpen = false
+                classManagerOpen = true
+            },
+            title = { Text(if (editingClass == null) "Sınıf Ekle" else "Sınıfı Düzenle") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = classGradeText,
+                        onValueChange = { classGradeText = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Sınıf seviyesi") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = classBranchText,
+                        onValueChange = { classBranchText = it.take(20) },
+                        label = { Text("Şube") },
+                        singleLine = true
+                    )
+                    editingClass?.let { old ->
+                        val affected = roster.count { it.className == old.className }
+                        if (affected > 0) {
+                            Text(
+                                "$affected öğrencinin sınıf bilgisi de güncellenecek.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val grade = classGradeText.toIntOrNull()
+                                ?: error("Sınıf seviyesi girilmelidir.")
+                            val updatedClass = StudentClassEntry(grade, classBranchText).normalized()
+                            val old = editingClass
+                            if (old != null && old.className != updatedClass.className) {
+                                roster.filter { it.className == old.className }.forEach { student ->
+                                    rosterRepository.save(
+                                        student.copy(
+                                            gradeLevel = updatedClass.gradeLevel,
+                                            branch = updatedClass.branch,
+                                            updatedAtEpochMs = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+                                classRepository.delete(old)
+                            }
+                            classRepository.save(updatedClass)
+                        }.onSuccess {
+                            refreshRoster()
+                            selectedClass = editingClass?.className
+                                ?.takeIf { oldName -> oldName in classes }
+                                ?.let { null }
+                            classEditorOpen = false
+                            classManagerOpen = true
+                            feedback.success(if (editingClass == null) "Sınıf eklendi." else "Sınıf güncellendi.")
+                            editingClass = null
+                        }.onFailure { error ->
+                            feedback.warning(error.message ?: "Sınıf kaydedilemedi.")
+                        }
+                    }
+                ) { Text("Kaydet") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        classEditorOpen = false
+                        classManagerOpen = true
+                    }
+                ) { Text("Vazgeç") }
             }
         )
     }
@@ -343,13 +632,49 @@ fun StudentRosterScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ProductTopBar(
-            title = "Öğrenciler",
-            actionText = "PDF +",
-            onActionClick = {
-                if (!busy) pdfPicker.launch(arrayOf("application/pdf"))
+        Box(modifier = Modifier.fillMaxWidth()) {
+            ProductTopBar(
+                title = "Öğrenciler",
+                actionText = "⋮",
+                onActionClick = { optionsExpanded = true }
+            )
+            DropdownMenu(
+                modifier = Modifier.align(Alignment.TopEnd),
+                expanded = optionsExpanded,
+                onDismissRequest = { optionsExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("e-Okul PDF İçe Aktar") },
+                    onClick = {
+                        optionsExpanded = false
+                        importSourceLabel = "e-Okul PDF"
+                        if (!busy) pdfPicker.launch(arrayOf("application/pdf"))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("PDF Öğrenci Ekle") },
+                    onClick = {
+                        optionsExpanded = false
+                        importSourceLabel = "Öğrenci PDF"
+                        if (!busy) pdfPicker.launch(arrayOf("application/pdf"))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Manuel Öğrenci Ekle") },
+                    onClick = {
+                        optionsExpanded = false
+                        manualStudentOpen = true
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Sınıfları Yönet") },
+                    onClick = {
+                        optionsExpanded = false
+                        classManagerOpen = true
+                    }
+                )
             }
-        )
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -357,36 +682,6 @@ fun StudentRosterScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("e-Okul Öğrenci Listesi", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Sınıf listesi PDF'sini seçin. Sınıf/şube, öğrenci no, ad-soyad ve cinsiyet önizlemeden sonra cihazda saklanır.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy,
-                            onClick = { pdfPicker.launch(arrayOf("application/pdf")) }
-                        ) {
-                            Text(if (busy) "PDF okunuyor…" else "e-Okul PDF İçe Aktar")
-                        }
-                        if (status.isNotBlank()) {
-                            Text(
-                                status,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            }
             item {
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
@@ -397,6 +692,15 @@ fun StudentRosterScreen(
                     leadingIcon = { Text("⌕", fontSize = 22.sp) },
                     shape = RoundedCornerShape(18.dp)
                 )
+            }
+            if (busy) {
+                item {
+                    Text(
+                        "$importSourceLabel okunuyor…",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             item {
                 Row(
@@ -443,7 +747,7 @@ fun StudentRosterScreen(
                             )
                             Text(
                                 if (overviews.isEmpty())
-                                    "e-Okul sınıf listesi PDF'sini içe aktararak başlayın."
+                                    "Sağ üstteki seçeneklerden PDF içe aktarabilir veya manuel öğrenci ekleyebilirsiniz."
                                 else "Arama metnini veya sınıf filtresini değiştirin.",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
