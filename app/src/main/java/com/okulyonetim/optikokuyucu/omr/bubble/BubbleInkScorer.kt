@@ -15,12 +15,33 @@ import kotlin.math.roundToInt
  * bubbles, question numbers and row labels do not pollute the local paper reference.
  *
  * A single mean-darkness measurement used to miss lightly or unevenly filled pencil marks. The
- * production score now combines local mean contrast with the fraction of genuinely dark pixels in
- * the glyph-safe annulus. A robust background median keeps shadows and isolated print dirt from
- * moving the decision threshold too far.
+ * production score combines local mean contrast with the fraction of genuinely dark pixels in the
+ * glyph-safe annulus. A robust background median keeps shadows and isolated print dirt from moving
+ * the decision threshold too far.
+ *
+ * Canonical rectification is precise but residual marker-center, printer and paper-warp error can
+ * still move a tiny bubble by roughly a pixel. Rather than lowering thresholds, the reader samples
+ * a very small cross around the predicted center and requires support from several neighboring
+ * samples. This improves tolerance to geometry drift without promoting one-off dirt or ring edges.
  */
 object BubbleInkScorer {
     fun score(
+        gray: Mat,
+        center: ImagePoint,
+        radius: Double
+    ): Double {
+        if (gray.empty() || gray.channels() != 1) return 0.0
+        val samples = BubbleMicroAlignment.offsets(radius).map { offset ->
+            scoreExact(
+                gray = gray,
+                center = ImagePoint(center.x + offset.dx, center.y + offset.dy),
+                radius = radius
+            )
+        }
+        return BubbleMicroAlignment.combine(samples)
+    }
+
+    private fun scoreExact(
         gray: Mat,
         center: ImagePoint,
         radius: Double
