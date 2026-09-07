@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTypography
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OpenCvOmrSelfTest
+import com.okulyonetim.optikokuyucu.ui.AnimatedStartupSplash
 import com.okulyonetim.optikokuyucu.ui.OmrRootScreen
 import org.opencv.android.OpenCVLoader
 
@@ -45,10 +46,12 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            OmrRootScreen(
-                openCvReady = openCvReady,
-                selfTest = selfTest
-            )
+            AnimatedStartupSplash {
+                OmrRootScreen(
+                    openCvReady = openCvReady,
+                    selfTest = selfTest
+                )
+            }
         }
     }
 
