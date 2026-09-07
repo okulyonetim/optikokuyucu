@@ -50,6 +50,48 @@ class ExamPaperRegistrarTest {
     }
 
     @Test
+    fun replacesExistingPaperWithNewScanWhenExplicitlyRequested() {
+        val existing = ExamPaperLink(
+            scanRecordId = "old-scan",
+            studentName = "Ayşe",
+            studentNumber = "9",
+            className = "7-A",
+            bookletCode = "A",
+            linkedAtEpochMs = 10L
+        )
+        val repository = MemoryExamRepository(
+            Exam(
+                id = "exam",
+                name = "LGS",
+                schoolName = "Okul",
+                templateSelection = selection,
+                examDateEpochDay = 1L,
+                createdAtEpochMs = 1L,
+                papers = listOf(existing)
+            )
+        )
+        val newRecord = scan(
+            id = "new-scan",
+            templateId = "lgs",
+            templateVersion = 2,
+            grids = listOf(grid("studentNumber", "9"), grid("booklet", "B"))
+        )
+
+        val updated = ExamPaperRegistrar(repository).register(
+            examId = "exam",
+            record = newRecord,
+            linkedAtEpochMs = 20L,
+            replaceScanRecordId = "old-scan"
+        )
+
+        assertEquals(1, updated.papers.size)
+        assertEquals("new-scan", updated.papers.single().scanRecordId)
+        assertEquals("9", updated.papers.single().studentNumber)
+        assertEquals("B", updated.papers.single().bookletCode)
+        assertEquals(20L, updated.papers.single().linkedAtEpochMs)
+    }
+
+    @Test
     fun rejectsDifferentTemplateVersion() {
         val repository = MemoryExamRepository(
             Exam(
@@ -71,11 +113,12 @@ class ExamPaperRegistrarTest {
     }
 
     private fun scan(
+        id: String = "scan-1",
         templateId: String,
         templateVersion: Int,
         grids: List<RecordedMarkGrid> = emptyList()
     ) = ScanRecord(
-        id = "scan-1",
+        id = id,
         templateId = templateId,
         templateVersion = templateVersion,
         capturedAtEpochMs = 1L,
