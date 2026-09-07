@@ -12,37 +12,33 @@ import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
 
 /**
  * Robust temporal score fusion for the live-camera path.
- *
- * The previous live gate compared already-classified signatures only. A faint pencil mark near a
- * threshold can legitimately wobble between BLANK and MARKED even while the page itself is locked.
- * This class keeps a tiny rolling window of raw per-choice ink scores, takes the median score for
- * every bubble and only then runs the shared production decision engine. A one-frame glare, blur or
- * shadow therefore cannot dominate the final classification, while persistent light marks gain a
- * stable signal without lowering any OMR threshold.
+ * Neighboring locked frames are ranked by relative canonical sharpness and only the sharpest
+ * subset is fused, avoiding device-specific focus thresholds.
  */
 class LiveOmrTemporalFusion(
-    private val windowSize: Int = 3
+    private val windowSize: Int = 5,
+    private val fusedFrameCount: Int = minOf(3, windowSize)
 ) {
     init {
         require(windowSize >= 3)
+        require(fusedFrameCount in 3..windowSize)
     }
 
     private val frames = ArrayDeque<ScoreFrame>()
 
     fun offer(
         bubbles: BubbleReadResult,
-        markGrids: MarkGridReadResult
+        markGrids: MarkGridReadResult,
+        frameQuality: Double = 1.0
     ): FusedOmrRead? {
-        val incoming = ScoreFrame.from(bubbles, markGrids)
-        if (frames.isNotEmpty() && !frames.last().isCompatibleWith(incoming)) {
-            reset()
-        }
+        val incoming = ScoreFrame.from(bubbles, markGrids, frameQuality)
+        if (frames.isNotEmpty() && !frames.last().isCompatibleWith(incoming)) reset()
 
         frames.addLast(incoming)
         while (frames.size > windowSize) frames.removeFirst()
         if (frames.size < windowSize) return null
 
-        val snapshot = frames.toList()
+        val snapshot = frames.sortedByDescending { it.quality }.take(fusedFrameCount)
         val fusedQuestions = incoming.questions.mapIndexed { questionIndex, question ->
             val scores = question.scores.keys.associateWith { choiceId ->
                 median(snapshot.map { it.questions[questionIndex].scores.getValue(choiceId) })
@@ -67,11 +63,7 @@ class LiveOmrTemporalFusion(
                 gridId = grid.id,
                 columns = grid.columns.mapIndexed { columnIndex, column ->
                     val scores = column.scores.keys.associateWith { markId ->
-                        median(
-                            snapshot.map {
-                                it.grids[gridIndex].columns[columnIndex].scores.getValue(markId)
-                            }
-                        )
+                        median(snapshot.map { it.grids[gridIndex].columns[columnIndex].scores.getValue(markId) })
                     }
                     val decision = MarkScoreDecisionEngine.classify(scores)
                     MarkColumnRead(
@@ -97,88 +89,59 @@ class LiveOmrTemporalFusion(
         return FusedOmrRead(
             bubbleResult = BubbleReadResult(fusedQuestions),
             markGridResult = MarkGridReadResult(fusedGrids),
-            decisionConfidence = if (confidences.isEmpty()) {
-                0.0
-            } else {
-                confidences.average().coerceIn(0.0, 1.0)
-            }
+            decisionConfidence = if (confidences.isEmpty()) 0.0 else confidences.average().coerceIn(0.0, 1.0),
+            selectedFrameQualities = snapshot.map { it.quality }
         )
     }
 
-    fun reset() {
-        frames.clear()
-    }
-
+    fun reset() = frames.clear()
     fun currentFrames(): Int = frames.size
 
     private fun median(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0
         val sorted = values.map { it.coerceIn(0.0, 1.0) }.sorted()
         val middle = sorted.size / 2
-        return if (sorted.size % 2 == 1) {
-            sorted[middle]
-        } else {
-            (sorted[middle - 1] + sorted[middle]) / 2.0
-        }
+        return if (sorted.size % 2 == 1) sorted[middle] else (sorted[middle - 1] + sorted[middle]) / 2.0
     }
 
     private data class ScoreFrame(
         val questions: List<QuestionScores>,
-        val grids: List<GridScores>
+        val grids: List<GridScores>,
+        val quality: Double
     ) {
         fun isCompatibleWith(other: ScoreFrame): Boolean =
-            questions.size == other.questions.size &&
-                grids.size == other.grids.size &&
-                questions.indices.all { index -> questions[index].isCompatibleWith(other.questions[index]) } &&
-                grids.indices.all { index -> grids[index].isCompatibleWith(other.grids[index]) }
+            questions.size == other.questions.size && grids.size == other.grids.size &&
+                questions.indices.all { questions[it].isCompatibleWith(other.questions[it]) } &&
+                grids.indices.all { grids[it].isCompatibleWith(other.grids[it]) }
 
         companion object {
-            fun from(bubbles: BubbleReadResult, markGrids: MarkGridReadResult): ScoreFrame =
-                ScoreFrame(
-                    questions = bubbles.questions.map {
-                        QuestionScores(it.questionId, it.choiceScores)
-                    },
-                    grids = markGrids.grids.map { grid ->
-                        GridScores(
-                            id = grid.gridId,
-                            columns = grid.columns.map { column ->
-                                ColumnScores(column.columnId, column.scores)
-                            }
-                        )
-                    }
-                )
+            fun from(bubbles: BubbleReadResult, markGrids: MarkGridReadResult, quality: Double) = ScoreFrame(
+                questions = bubbles.questions.map { QuestionScores(it.questionId, it.choiceScores) },
+                grids = markGrids.grids.map { grid ->
+                    GridScores(grid.gridId, grid.columns.map { ColumnScores(it.columnId, it.scores) })
+                },
+                quality = quality.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
+            )
         }
     }
 
-    private data class QuestionScores(
-        val id: String,
-        val scores: Map<String, Double>
-    ) {
-        fun isCompatibleWith(other: QuestionScores): Boolean =
-            id == other.id && scores.keys == other.scores.keys
+    private data class QuestionScores(val id: String, val scores: Map<String, Double>) {
+        fun isCompatibleWith(other: QuestionScores) = id == other.id && scores.keys == other.scores.keys
     }
 
-    private data class GridScores(
-        val id: String,
-        val columns: List<ColumnScores>
-    ) {
-        fun isCompatibleWith(other: GridScores): Boolean =
-            id == other.id &&
-                columns.size == other.columns.size &&
-                columns.indices.all { index -> columns[index].isCompatibleWith(other.columns[index]) }
+    private data class GridScores(val id: String, val columns: List<ColumnScores>) {
+        fun isCompatibleWith(other: GridScores) = id == other.id && columns.size == other.columns.size &&
+            columns.indices.all { columns[it].isCompatibleWith(other.columns[it]) }
     }
 
-    private data class ColumnScores(
-        val id: String,
-        val scores: Map<String, Double>
-    ) {
-        fun isCompatibleWith(other: ColumnScores): Boolean =
-            id == other.id && scores.keys == other.scores.keys
+    private data class ColumnScores(val id: String, val scores: Map<String, Double>) {
+        fun isCompatibleWith(other: ColumnScores) = id == other.id && scores.keys == other.scores.keys
     }
 }
 
 data class FusedOmrRead(
     val bubbleResult: BubbleReadResult,
     val markGridResult: MarkGridReadResult,
-    val decisionConfidence: Double
+    val decisionConfidence: Double,
+    val selectedFrameQualities: List<Double> = emptyList()
 )
