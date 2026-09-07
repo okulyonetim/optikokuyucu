@@ -22,6 +22,9 @@ object SchoolCloudFingerprint {
                 append(exam.name).append('|')
                 append(exam.examDateEpochDay).append('|')
                 append(exam.wrongAnswerPolicy.name).append('|')
+                append(exam.ownerUid).append('|')
+                append(exam.ownerDisplayName).append('|')
+                append(if (exam.isPublic) '1' else '0').append('|')
                 append(exam.templateSelection.templateId).append(':')
                 append(exam.templateSelection.templateVersion).append('|')
                 exam.participants.sortedBy { it.studentNumber }.forEach { participant ->
@@ -73,7 +76,7 @@ object SchoolCloudFingerprint {
 
 /**
  * Cheap local change detector. The UI can ask for synchronization periodically without repeatedly
- * writing Firestore when no exam, paper identity, raw scan result or answer key has changed.
+ * writing Firestore when no exam, paper identity, raw scan result, answer key or ownership flag has changed.
  */
 class SchoolCloudSyncCoordinator(
     context: Context,
