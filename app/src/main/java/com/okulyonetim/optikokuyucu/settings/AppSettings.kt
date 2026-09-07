@@ -65,6 +65,19 @@ class AppSettingsRepository(context: Context) {
         ) { "Ayarlar kaydedilemedi." }
     }
 
+    /** Updates only the school field without resetting appearance or the configured subject list. */
+    fun saveSchoolName(schoolName: String) {
+        save(load().copy(schoolName = schoolName))
+    }
+
+    fun saveThemeMode(themeMode: AppThemeMode) {
+        save(load().copy(themeMode = themeMode))
+    }
+
+    fun saveSubjects(subjects: List<String>) {
+        save(load().copy(subjects = subjects))
+    }
+
     private companion object {
         const val PREFERENCES_NAME = "omr-app-settings"
         const val KEY_SCHOOL_NAME = "school-name"
