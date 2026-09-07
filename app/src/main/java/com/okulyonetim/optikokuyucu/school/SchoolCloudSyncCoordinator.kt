@@ -2,12 +2,13 @@ package com.okulyonetim.optikokuyucu.school
 
 import android.content.Context
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import java.security.MessageDigest
 
 /**
  * Cheap local change detector. The UI can ask for synchronization periodically without repeatedly
- * writing Firestore when no exam, paper identity or answer key has changed.
+ * writing Firestore when no exam, paper identity, raw scan result or answer key has changed.
  */
 class SchoolCloudSyncCoordinator(
     context: Context,
@@ -33,6 +34,7 @@ class SchoolCloudSyncCoordinator(
     private fun localFingerprint(): String {
         val exams = FileExamRepository(appContext).list()
         val keys = FileAnswerKeyRepository(appContext).list()
+        val records = FileScanRecordRepository(appContext).list()
         val identity = buildString {
             exams.sortedBy { it.id }.forEach { exam ->
                 append(exam.id).append('|')
@@ -60,6 +62,27 @@ class SchoolCloudSyncCoordinator(
                     }
                     append('|')
                 }
+            records.sortedBy { it.id }.forEach { record ->
+                append('S').append(record.id).append(':')
+                append(record.templateId).append(':').append(record.templateVersion).append(':')
+                append(record.capturedAtEpochMs).append(':')
+                record.answers.sortedBy { it.questionId }.forEach { answer ->
+                    append(answer.questionId).append('=')
+                    append(answer.state.name).append(':')
+                    append(answer.selectedChoice.orEmpty()).append(',')
+                }
+                append(':')
+                record.markGrids.sortedBy { it.gridId }.forEach { grid ->
+                    append(grid.gridId).append('[')
+                    grid.columns.sortedBy { it.columnId }.forEach { column ->
+                        append(column.columnId).append('=')
+                        append(column.state.name).append(':')
+                        append(column.selectedValue.orEmpty()).append(',')
+                    }
+                    append(']')
+                }
+                append('|')
+            }
         }
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray(Charsets.UTF_8))
