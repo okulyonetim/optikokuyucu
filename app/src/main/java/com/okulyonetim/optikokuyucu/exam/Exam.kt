@@ -50,6 +50,9 @@ data class ExamParticipant(
 /**
  * Offline exam container. Raw OMR answers remain in ScanRecord; this class only associates a scan
  * with an exam and stores user-editable identity metadata.
+ *
+ * ownerUid is the immutable Okul Yönetim account identity for account-scoped visibility. isPublic
+ * only changes who may see the exam; edit/delete ownership remains with the owner or an admin.
  */
 data class Exam(
     val id: String,
@@ -63,7 +66,10 @@ data class Exam(
     val papers: List<ExamPaperLink> = emptyList(),
     val participants: List<ExamParticipant> = emptyList(),
     val bookletCount: Int = 1,
-    val personalizedFormsEnabled: Boolean = false
+    val personalizedFormsEnabled: Boolean = false,
+    val ownerUid: String = "",
+    val ownerDisplayName: String = "",
+    val isPublic: Boolean = false
 ) {
     init {
         require(id.isNotBlank())
@@ -108,6 +114,9 @@ object ExamFactory {
         participants: List<ExamParticipant> = emptyList(),
         bookletCount: Int = 1,
         personalizedFormsEnabled: Boolean = false,
+        ownerUid: String = "",
+        ownerDisplayName: String = "",
+        isPublic: Boolean = false,
         id: String = UUID.randomUUID().toString(),
         createdAtEpochMs: Long = System.currentTimeMillis()
     ): Exam = Exam(
@@ -121,6 +130,9 @@ object ExamFactory {
         createdAtEpochMs = createdAtEpochMs,
         participants = participants.map(ExamParticipant::normalized).distinctBy { it.studentNumber },
         bookletCount = bookletCount,
-        personalizedFormsEnabled = personalizedFormsEnabled
+        personalizedFormsEnabled = personalizedFormsEnabled,
+        ownerUid = ownerUid.trim(),
+        ownerDisplayName = ownerDisplayName.trim(),
+        isPublic = isPublic
     )
 }
