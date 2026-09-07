@@ -23,10 +23,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -51,6 +54,7 @@ import androidx.core.content.ContextCompat
 import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
+import com.okulyonetim.optikokuyucu.exam.ExamParticipant
 import com.okulyonetim.optikokuyucu.exam.ExamPersonalizedForms
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
@@ -68,7 +72,8 @@ import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
-import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
+import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
+import com.okulyonetim.optikokuyucu.student.StudentNumber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -81,6 +86,7 @@ private data class EditExamTemplateOption(
     val selection: ActiveTemplateSelection
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamDetailScreen(
     examId: String,
@@ -205,65 +211,23 @@ fun ExamDetailScreen(
             (classFilter == null || clazz == classFilter)
     }
 
-    fun refresh() {
+    fun refresh(message: String = "Sınav yenilendi") {
         exam = examRepository.load(examId)
         scans = scanRepository.list().associateBy { it.id }
         keys = keyRepository.list()
-        status = "Sınav yenilendi"
+        status = message
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                ProductTopBar(
-                    title = current.name,
-                    leadingText = "‹",
-                    onLeadingClick = onBack,
-                    actionText = "⋮",
-                    onActionClick = { menuExpanded = true }
-                )
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Yenile") },
-                        onClick = {
-                            menuExpanded = false
-                            refresh()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (personalizedBusy) "Öğrenci formları hazırlanıyor…"
-                                else "Öğrenciye Özel Formları Oluştur (${current.participants.size})"
-                            )
-                        },
-                        enabled = personalizedReady && !personalizedBusy,
-                        onClick = {
-                            menuExpanded = false
-                            personalizedPdfLauncher.launch(personalizedFormFileName(current.name))
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Sınavı Düzenle") },
-                        onClick = {
-                            menuExpanded = false
-                            showEditDialog = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Sınavı Sil", color = MaterialTheme.colorScheme.error) },
-                        onClick = {
-                            menuExpanded = false
-                            showDeleteDialog = true
-                        }
-                    )
-                }
-            }
+            ProductTopBar(
+                title = current.name,
+                leadingText = "‹",
+                onLeadingClick = onBack,
+                actionText = "⋮",
+                onActionClick = { menuExpanded = true }
+            )
         },
         floatingActionButton = {
             if (tab == ExamDetailTab.PAPERS) {
@@ -275,10 +239,10 @@ fun ExamDetailScreen(
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -304,7 +268,7 @@ fun ExamDetailScreen(
             if (status.isNotBlank()) {
                 Text(
                     status,
-                    modifier = Modifier.padding(horizontal = 18.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp),
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -313,17 +277,17 @@ fun ExamDetailScreen(
             when (tab) {
                 ExamDetailTab.PAPERS -> {
                     OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                         value = query,
                         onValueChange = { query = it },
                         singleLine = true,
                         leadingIcon = { Text("⌕", fontSize = 24.sp) },
                         label = { Text("Öğrenci, numara veya sınıf ara") },
-                        shape = RoundedCornerShape(30.dp)
+                        shape = RoundedCornerShape(24.dp)
                     )
                     if (classes.isNotEmpty()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ProductFilterPill(
@@ -345,12 +309,12 @@ fun ExamDetailScreen(
 
                     if (visiblePapers.isEmpty()) {
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                            shape = RoundedCornerShape(24.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
                                     if (current.papers.isEmpty()) "Henüz kağıt okunmadı" else "Eşleşen öğrenci bulunamadı",
@@ -366,7 +330,7 @@ fun ExamDetailScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(visiblePapers, key = { it.scanRecordId }) { link ->
                                 ExamPaperCard(
@@ -382,16 +346,54 @@ fun ExamDetailScreen(
                     }
                 }
 
-                ExamDetailTab.KEYS -> ExamKeysTab(
+                ExamDetailTab.KEYS -> ExamAnswerKeyEditor(
                     exam = current,
-                    keys = keys,
-                    onOpenAnswerKeys = onOpenAnswerKeys
+                    openCvReady = true,
+                    onChanged = { keys = keyRepository.list() }
                 )
 
                 ExamDetailTab.REPORTS -> ExamReportsTab(
                     exam = current,
                     onOpenReports = onOpenReports
                 )
+            }
+        }
+    }
+
+    if (menuExpanded) {
+        ModalBottomSheet(onDismissRequest = { menuExpanded = false }) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text("Sınav Seçenekleri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { menuExpanded = false; refresh() }
+                ) { Text("Yenile", modifier = Modifier.fillMaxWidth()) }
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = personalizedReady && !personalizedBusy,
+                    onClick = {
+                        menuExpanded = false
+                        personalizedPdfLauncher.launch(personalizedFormFileName(current.name))
+                    }
+                ) {
+                    Text(
+                        if (personalizedBusy) "Öğrenci formları hazırlanıyor…"
+                        else "Öğrenciye Özel Formları Oluştur (${current.participants.size})",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { menuExpanded = false; showEditDialog = true }
+                ) { Text("Sınavı Düzenle", modifier = Modifier.fillMaxWidth()) }
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { menuExpanded = false; showDeleteDialog = true }
+                ) { Text("Sınavı Sil", modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.error) }
+                Spacer(Modifier.height(18.dp))
             }
         }
     }
@@ -455,6 +457,24 @@ private fun EditExamDialog(
     val initialTemplate = remember(templateOptions, exam.templateSelection) {
         templateOptions.first { it.selection == exam.templateSelection }
     }
+    val rosterParticipants = remember(context, exam.id) {
+        FileStudentRosterRepository(context.applicationContext).list().map { student ->
+            ExamParticipant(
+                studentNumber = student.studentNumber,
+                studentName = student.fullName,
+                className = student.className
+            ).normalized()
+        }
+    }
+    val participantOptions = remember(rosterParticipants, exam.participants) {
+        (rosterParticipants + exam.participants.map(ExamParticipant::normalized))
+            .distinctBy { StudentNumber.normalize(it.studentNumber) }
+            .sortedWith(compareBy<ExamParticipant> { it.className }.thenBy { it.studentName })
+    }
+    val participantClasses = remember(participantOptions) {
+        participantOptions.map { it.className }.distinct().sorted()
+    }
+
     var examName by remember(exam.id) { mutableStateOf(exam.name) }
     var schoolName by remember(exam.id) { mutableStateOf(exam.schoolName) }
     var folderName by remember(exam.id) { mutableStateOf(exam.folderName) }
@@ -465,14 +485,26 @@ private fun EditExamDialog(
     var wrongPolicy by remember(exam.id) { mutableStateOf(exam.wrongAnswerPolicy) }
     var wrongPolicyMenu by remember { mutableStateOf(false) }
     var personalizedEnabled by remember(exam.id) { mutableStateOf(exam.personalizedFormsEnabled) }
+    var selectedParticipantNumbers by remember(exam.id) {
+        mutableStateOf(exam.participants.map { StudentNumber.normalize(it.studentNumber) }.toSet())
+    }
+    var participantClass by remember(exam.id, participantClasses) {
+        mutableStateOf(participantClasses.firstOrNull())
+    }
+    var participantClassMenu by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf("") }
+
+    val visibleParticipants = participantOptions.filter { participantClass == null || it.className == participantClass }
+    val selectedParticipants = participantOptions.filter {
+        StudentNumber.normalize(it.studentNumber) in selectedParticipantNumbers
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Sınavı Düzenle") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
@@ -500,22 +532,13 @@ private fun EditExamDialog(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text("Optik Form", style = MaterialTheme.typography.labelSmall)
-                            Text(
-                                selectedTemplate.name,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text(selectedTemplate.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    DropdownMenu(
-                        expanded = templateMenu,
-                        onDismissRequest = { templateMenu = false }
-                    ) {
+                    DropdownMenu(expanded = templateMenu, onDismissRequest = { templateMenu = false }) {
                         templateOptions.forEach { option ->
                             DropdownMenuItem(
-                                text = {
-                                    Text(option.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                },
+                                text = { Text(option.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                                 onClick = {
                                     selectedTemplate = option
                                     if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
@@ -534,11 +557,7 @@ private fun EditExamDialog(
                         "Bu sınavda ${exam.papers.size} okunmuş kağıt var. Okuma geometrisini bozmamak için optik form değişikliği kilitlidir."
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (exam.papers.isEmpty()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    }
+                    color = if (exam.papers.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
@@ -568,21 +587,91 @@ private fun EditExamDialog(
                     ) {
                         Text("Yanlış Cevap: ${wrongPolicyLabel(wrongPolicy)}")
                     }
-                    DropdownMenu(
-                        expanded = wrongPolicyMenu,
-                        onDismissRequest = { wrongPolicyMenu = false }
-                    ) {
+                    DropdownMenu(expanded = wrongPolicyMenu, onDismissRequest = { wrongPolicyMenu = false }) {
                         WrongAnswerPolicy.entries.forEach { policy ->
                             DropdownMenuItem(
                                 text = { Text(wrongPolicyLabel(policy)) },
-                                onClick = {
-                                    wrongPolicy = policy
-                                    wrongPolicyMenu = false
-                                }
+                                onClick = { wrongPolicy = policy; wrongPolicyMenu = false }
                             )
                         }
                     }
                 }
+
+                Text("Sınıf ve Öğrenciler", fontWeight = FontWeight.SemiBold)
+                if (participantOptions.isEmpty()) {
+                    Text(
+                        "Öğrenci listesi boş. Önce Öğrenciler sayfasından öğrenci ekleyin.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { participantClassMenu = true }
+                        ) {
+                            Text("Sınıf: ${participantClass ?: "Tümü"} · Seçili ${selectedParticipants.size}")
+                        }
+                        DropdownMenu(
+                            expanded = participantClassMenu,
+                            onDismissRequest = { participantClassMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Tüm Sınıflar") },
+                                onClick = { participantClass = null; participantClassMenu = false }
+                            )
+                            participantClasses.forEach { clazz ->
+                                DropdownMenuItem(
+                                    text = { Text(clazz) },
+                                    onClick = { participantClass = clazz; participantClassMenu = false }
+                                )
+                            }
+                        }
+                    }
+                    if (visibleParticipants.isNotEmpty()) {
+                        val visibleNumbers = visibleParticipants.map { StudentNumber.normalize(it.studentNumber) }.toSet()
+                        val allVisibleSelected = visibleNumbers.all { it in selectedParticipantNumbers }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                selectedParticipantNumbers = if (allVisibleSelected) {
+                                    selectedParticipantNumbers - visibleNumbers
+                                } else {
+                                    selectedParticipantNumbers + visibleNumbers
+                                }
+                            }
+                        ) {
+                            Text(if (allVisibleSelected) "Bu Sınıfı Seçimden Çıkar" else "Bu Sınıfın Tümünü Seç")
+                        }
+                        visibleParticipants.forEach { participant ->
+                            val number = StudentNumber.normalize(participant.studentNumber)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = number in selectedParticipantNumbers,
+                                    onCheckedChange = { checked ->
+                                        selectedParticipantNumbers = if (checked) {
+                                            selectedParticipantNumbers + number
+                                        } else {
+                                            selectedParticipantNumbers - number
+                                        }
+                                    }
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(participant.studentName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        "${participant.className} · No: ${participant.studentNumber}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -590,23 +679,17 @@ private fun EditExamDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Öğrenciye Özel Form")
                         Text(
-                            if (exam.participants.isEmpty()) "Bu sınavda seçili öğrenci yok."
-                            else "${exam.participants.size} öğrencilik mevcut liste korunur.",
+                            "Seçili öğrenci: ${selectedParticipants.size}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
                         checked = personalizedEnabled,
-                        enabled = exam.participants.isNotEmpty() && selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT,
+                        enabled = selectedParticipants.isNotEmpty() && selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT,
                         onCheckedChange = { personalizedEnabled = it }
                     )
                 }
-                Text(
-                    "Sınav adı, okul, tarih, klasör, optik form, kitapçık sayısı, yanlış cevap kuralı ve kişiselleştirme ayarı bu ekrandan güncellenir.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 if (validationError.isNotBlank()) {
                     Text(validationError, color = MaterialTheme.colorScheme.error)
                 }
@@ -624,7 +707,7 @@ private fun EditExamDialog(
                         bookletCount !in 1..8 -> "Kitapçık sayısı 1-8 arasında olmalıdır."
                         selectedTemplate.selection != exam.templateSelection && exam.papers.isNotEmpty() ->
                             "Okunmuş kağıdı bulunan sınavın optik formu değiştirilemez."
-                        personalizedEnabled && exam.participants.isEmpty() -> "Öğrenciye özel form için seçili öğrenci gerekir."
+                        personalizedEnabled && selectedParticipants.isEmpty() -> "Öğrenciye özel form için seçili öğrenci gerekir."
                         personalizedEnabled && selectedTemplate.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT ->
                             "Öğrenciye özel form için Form Editörü ile hazırlanmış bir form seçin."
                         else -> ""
@@ -638,6 +721,7 @@ private fun EditExamDialog(
                                 folderName = folderName.trim(),
                                 examDateEpochDay = parsedDate.toEpochDay(),
                                 wrongAnswerPolicy = wrongPolicy,
+                                participants = selectedParticipants,
                                 bookletCount = bookletCount,
                                 personalizedFormsEnabled = personalizedEnabled
                             )
@@ -671,29 +755,29 @@ private fun ExamPaperCard(
     } else null
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            modifier = Modifier.fillMaxWidth().padding(15.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.size(54.dp),
+                    modifier = Modifier.size(50.dp),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(initials(name), color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+                        Text(initials(name), color = MaterialTheme.colorScheme.primary, fontSize = 18.sp)
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         name,
                         style = MaterialTheme.typography.titleMedium,
@@ -707,8 +791,7 @@ private fun ExamPaperCard(
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("⋮", color = MaterialTheme.colorScheme.outline, fontSize = 22.sp)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 when {
                     record == null -> ProductStatusBadge("KAYIT YOK", ProductBadgeTone.RED)
                     score == null -> ProductStatusBadge("ANAHTAR YOK", ProductBadgeTone.ORANGE)
@@ -723,63 +806,13 @@ private fun ExamPaperCard(
 }
 
 @Composable
-private fun ExamKeysTab(exam: Exam, keys: List<StoredAnswerKey>, onOpenAnswerKeys: () -> Unit) {
-    val context = LocalContext.current
-    val selectionRepository = remember(context) {
-        FileActiveTemplateSelectionRepository(context.applicationContext)
-    }
-    val matching = keys.filter { keyMatchesExam(it, exam) }
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (matching.isEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Bu sınav için cevap anahtarı yok", style = MaterialTheme.typography.titleMedium)
-                    Text("Şablon ve sürüm eşleşen anahtar eklenince kağıtlar otomatik puanlanır.")
-                }
-            }
-        } else {
-            matching.forEach { key ->
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Cevap Anahtarı", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                key.variantValue?.let { "Kitapçık $it" } ?: "Genel anahtar",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        ProductStatusBadge("${key.answerKey.answers.size} soru", ProductBadgeTone.GREEN)
-                    }
-                }
-            }
-        }
-        OutlinedButton(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = {
-                runCatching { selectionRepository.save(exam.templateSelection) }
-                    .onSuccess { onOpenAnswerKeys() }
-            }
-        ) {
-            Text("Cevap Anahtarlarını Yönet")
-        }
-    }
-}
-
-@Composable
 private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("Sınav Raporları", style = MaterialTheme.typography.titleMedium)
                 Text("${exam.papers.size} kağıt bu sınava bağlı.")
                 Text("Öğrenci sonuçlarını inceleyebilir; CSV, Excel (.xlsx) veya PDF olarak dışa aktarabilirsiniz.")
