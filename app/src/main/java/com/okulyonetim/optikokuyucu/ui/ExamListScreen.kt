@@ -218,7 +218,12 @@ private fun ExamListCard(exam: Exam, onClick: () -> Unit) {
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("⋮", color = MaterialTheme.colorScheme.outline, fontSize = 24.sp)
+                Text(
+                    "›",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 ProductStatusBadge(
                     text = if (read) "OKUNDU (${exam.papers.size})" else "BEKLİYOR",
                     tone = if (read) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
