@@ -44,7 +44,7 @@ class SchoolTemplateCloudSyncService(
                     SchoolSharedDocumentId.forForm(profile.uid, document.id, document.version)
                 }
                 client.upsertDocument(
-                    SchoolPortalConfig.OPTIK_TEMPLATES,
+                    OPTIK_TEMPLATES,
                     cloudId,
                     templatePayload(document, ownership.copy(cloudDocumentId = cloudId))
                 )
@@ -56,15 +56,16 @@ class SchoolTemplateCloudSyncService(
             }
         }
 
-        val remote = runCatching { client.listDocuments(SchoolPortalConfig.OPTIK_TEMPLATES) }
+        val remote = runCatching { client.listDocuments(OPTIK_TEMPLATES) }
             .onFailure { failures += "Paylaşılan şablonlar: ${it.message ?: "alınamadı"}" }
             .getOrDefault(emptyList())
 
         remote.forEach { cloud ->
-            val ownerUid = cloud.string("sahipUid")
+            if (cloud.fields["silindi"] as? Boolean == true) return@forEach
+            val ownerUid = cloud.text("sahipUid")
             val isPublic = cloud.fields["herkeseAcik"] as? Boolean ?: false
             if (!profile.admin && ownerUid != profile.uid && !isPublic) return@forEach
-            val encoded = cloud.string("icerikBase64")
+            val encoded = cloud.text("icerikBase64")
             val document = runCatching {
                 DesignerDocumentCodec.decode(Base64.getDecoder().decode(encoded))
             }.getOrElse {
@@ -82,7 +83,7 @@ class SchoolTemplateCloudSyncService(
                         stored,
                         SchoolFormOwnership(
                             ownerUid = ownerUid,
-                            ownerName = cloud.string("sahipAdi"),
+                            ownerName = cloud.text("sahipAdi"),
                             isPublic = isPublic,
                             cloudDocumentId = cloud.id
                         )
@@ -105,7 +106,7 @@ class SchoolTemplateCloudSyncService(
         }
         val next = ownership.copy(isPublic = isPublic, cloudDocumentId = cloudId)
         client.upsertDocument(
-            SchoolPortalConfig.OPTIK_TEMPLATES,
+            OPTIK_TEMPLATES,
             cloudId,
             templatePayload(document, next)
         )
@@ -119,7 +120,17 @@ class SchoolTemplateCloudSyncService(
             "Bu şablonu silme yetkiniz yok."
         }
         val cloudId = ownership.cloudDocumentId
-        if (cloudId.isNotBlank()) client.deleteDocument(SchoolPortalConfig.OPTIK_TEMPLATES, cloudId)
+        if (cloudId.isBlank()) return
+        val current = client.getDocument(OPTIK_TEMPLATES, cloudId) ?: return
+        client.upsertDocument(
+            OPTIK_TEMPLATES,
+            cloudId,
+            current.fields + mapOf(
+                "silindi" to true,
+                "herkeseAcik" to false,
+                "guncellenmeTarihi" to Instant.now().toString()
+            )
+        )
     }
 
     private fun templatePayload(
@@ -139,11 +150,13 @@ class SchoolTemplateCloudSyncService(
             "herkeseAcik" to ownership.isPublic,
             "icerikBase64" to Base64.getEncoder().encodeToString(bytes),
             "kaynak" to "optik-okuyucu",
+            "silindi" to false,
             "guncellenmeTarihi" to Instant.now().toString()
         )
     }
 
     private companion object {
+        const val OPTIK_TEMPLATES = "oy_optikSablonlar"
         const val MAX_TEMPLATE_BYTES = 700_000
     }
 }
@@ -152,23 +165,22 @@ class SchoolExamCatalogSyncService(
     context: Context,
     private val client: SchoolPortalClient
 ) {
-    private val appContext = context.applicationContext
-    private val store = SchoolExamCatalogStore(appContext)
+    private val store = SchoolExamCatalogStore(context.applicationContext)
 
     fun refresh(): List<SchoolExamSummary> {
         val profile = requireNotNull(client.cachedSession()).profile
         val summaries = client.listDocuments(SchoolPortalConfig.TRIAL_EXAMS)
             .asSequence()
-            .filter { it.string("kaynak") == "optik-okuyucu" }
+            .filter { it.text("kaynak") == "optik-okuyucu" }
             .mapNotNull { doc ->
-                val date = runCatching { LocalDate.parse(doc.string("tarih")) }.getOrNull() ?: return@mapNotNull null
+                val date = runCatching { LocalDate.parse(doc.text("tarih")) }.getOrNull() ?: return@mapNotNull null
                 SchoolExamSummary(
-                    id = doc.string("optikSinavId").ifBlank { doc.id },
-                    name = doc.string("ad").ifBlank { "Adsız sınav" },
-                    schoolName = doc.string("okulAdi"),
+                    id = doc.text("optikSinavId").ifBlank { doc.id },
+                    name = doc.text("ad").ifBlank { "Adsız sınav" },
+                    schoolName = doc.text("okulAdi"),
                     examDateEpochDay = date.toEpochDay(),
-                    ownerUid = doc.string("sahipUid"),
-                    ownerName = doc.string("sahipAdi"),
+                    ownerUid = doc.text("sahipUid"),
+                    ownerName = doc.text("sahipAdi"),
                     isPublic = doc.fields["herkeseAcik"] as? Boolean ?: false
                 )
             }
@@ -204,3 +216,5 @@ object SchoolSharedDocumentId {
         return "${ownerUid.take(24)}-$digest"
     }
 }
+
+private fun FirestoreDocument.text(key: String): String = fields[key]?.toString().orEmpty()
