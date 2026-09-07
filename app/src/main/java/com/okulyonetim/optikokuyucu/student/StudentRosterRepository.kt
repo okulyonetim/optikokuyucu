@@ -52,6 +52,26 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
         }
     }
 
+    /** Rewrites an entry whose grade change may also move it between İlkokul and Ortaokul. */
+    fun replace(oldEntry: StudentRosterEntry, newEntry: StudentRosterEntry) {
+        val oldNormalized = oldEntry.normalized()
+        val newNormalized = newEntry.normalized()
+        save(newNormalized)
+        if (oldNormalized.identityKey == newNormalized.identityKey) return
+
+        val oldFile = fileForIdentity(oldNormalized.identityKey)
+        if (oldFile.isFile && !oldFile.delete()) {
+            error("Eski kurum öğrenci kaydı temizlenemedi.")
+        }
+        val legacy = legacyFileFor(oldNormalized.studentNumber)
+        if (legacy.isFile) {
+            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
+            if (legacyEntry?.identityKey == oldNormalized.identityKey && !legacy.delete()) {
+                error("Eski öğrenci kaydı temizlenemedi.")
+            }
+        }
+    }
+
     /**
      * Numara iki kurumda birden varsa bilinçli olarak null döner. Çağıran taraf sınıf/kurum bilgisi
      * ile [findByNumberAndGrade] kullanmalıdır; böylece yanlış öğrencinin seçilmesi engellenir.
