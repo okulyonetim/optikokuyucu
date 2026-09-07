@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,12 +43,42 @@ fun DesignerPdfExportCard(
     openCvReady: Boolean
 ) {
     val context = LocalContext.current
-    val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
-    val readability = remember(document, compiled) {
-        TemplateReadabilityAnalyzer.analyze(document, compiled)
-    }
+    val feedback = LocalAppFeedback.current
+    val compileResult = remember(document) { runCatching { DesignerTemplateCompiler.compile(document) } }
+    val compiled = compileResult.getOrNull()
+    val compileIssue = compileResult.exceptionOrNull()
     val selectedProfile = remember(document.formSpec.paperSize, document.formSpec.orientation) {
         document.formSpec.pdfProfile()
+    }
+
+    if (compiled == null) {
+        LaunchedEffect(document.id, document.version, compileIssue?.message) {
+            feedback.warning(
+                "Formdaki bir öğe sayfa sınırını aşıyor. PDF ve test araçları geçici olarak kapatıldı; öğeyi küçültün veya sayfanın içine taşıyın."
+            )
+        }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Form geometrisi düzeltilmeli", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Bir veya daha fazla OMR işareti kullanılabilir sayfa alanının dışında. Uygulama çalışmaya devam ediyor; " +
+                        "taşan öğeyi küçültün veya sayfanın içine taşıyın. Düzeltilene kadar PDF dışa aktarma, self-test ve galeri testi kapalıdır.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                compileIssue?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                    Text(message, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        return
+    }
+
+    val readability = remember(document, compiled) {
+        TemplateReadabilityAnalyzer.analyze(document, compiled)
     }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
