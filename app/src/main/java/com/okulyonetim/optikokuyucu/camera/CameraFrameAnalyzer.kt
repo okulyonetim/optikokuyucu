@@ -4,6 +4,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
+import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
@@ -44,12 +45,13 @@ class CameraFrameAnalyzer(
     openCvReady: Boolean,
     private val onStats: (CameraFrameStats) -> Unit,
     private val onLiveRead: (LiveOmrReadResult) -> Unit = {},
-    private val template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB
+    private val template: OmrTemplate = StandardOmrTemplate.SAMPLE_20_ABCD_STUDENT_6_BOOKLET_AB,
+    sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) : ImageAnalysis.Analyzer {
 
     private val fiducialDetector = if (openCvReady) OpenCvFiducialDetector(template) else null
-    private val bubbleReader = CanonicalBubbleReader(template)
-    private val markGridReader = CanonicalMarkGridReader(template)
+    private val bubbleReader = CanonicalBubbleReader(template, sensitivity)
+    private val markGridReader = CanonicalMarkGridReader(template, sensitivity)
     private val recognitionBindings = OmrRecognitionBindingsResolver.fromTemplate(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()

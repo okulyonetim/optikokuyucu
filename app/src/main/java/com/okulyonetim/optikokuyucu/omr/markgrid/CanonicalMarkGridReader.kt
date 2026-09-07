@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.omr.markgrid
 
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleInkScorer
+import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
+import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivityPolicy
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
@@ -22,7 +24,11 @@ data class MarkDecision(
 
 /** Pure score decision layer so thresholds are unit-testable without camera/OpenCV input. */
 object MarkGridDecisionEngine {
-    fun classify(scores: Map<String, Double>): MarkDecision {
+    fun classify(
+        scores: Map<String, Double>,
+        sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
+    ): MarkDecision {
+        val thresholds = OmrSensitivityPolicy.thresholds(sensitivity)
         val sorted = scores.entries.sortedByDescending { it.value }
         val best = sorted.getOrNull(0)
         val second = sorted.getOrNull(1)
@@ -33,10 +39,10 @@ object MarkGridDecisionEngine {
         val bestScore = best.value
         val secondScore = second?.value ?: 0.0
         val gap = bestScore - secondScore
-        val strongMarkCount = sorted.count { it.value >= STRONG_MARK_SCORE }
+        val strongMarkCount = sorted.count { it.value >= thresholds.strongMarkScore }
 
         return when {
-            bestScore < MIN_MARK_SCORE ->
+            bestScore < thresholds.minMarkScore ->
                 MarkDecision(
                     state = MarkColumnState.BLANK,
                     selectedValue = null,
@@ -48,19 +54,19 @@ object MarkGridDecisionEngine {
                 MarkDecision(
                     state = MarkColumnState.DOUBLE_MARK,
                     selectedValue = null,
-                    confidence = (secondScore / STRONG_MARK_SCORE).coerceIn(0.0, 1.0),
+                    confidence = (secondScore / thresholds.strongMarkScore).coerceIn(0.0, 1.0),
                     scores = scores
                 )
 
-            secondScore >= DOUBLE_MARK_SCORE && gap < DOUBLE_GAP ->
+            secondScore >= thresholds.doubleMarkScore && gap < thresholds.doubleGap ->
                 MarkDecision(
                     state = MarkColumnState.DOUBLE_MARK,
                     selectedValue = null,
-                    confidence = (1.0 - gap / DOUBLE_GAP).coerceIn(0.0, 1.0),
+                    confidence = (1.0 - gap / thresholds.doubleGap).coerceIn(0.0, 1.0),
                     scores = scores
                 )
 
-            gap >= CONFIDENT_GAP ->
+            gap >= thresholds.confidentGap ->
                 MarkDecision(
                     state = MarkColumnState.MARKED,
                     selectedValue = best.key,
@@ -77,12 +83,6 @@ object MarkGridDecisionEngine {
                 )
         }
     }
-
-    private const val MIN_MARK_SCORE = 0.12
-    private const val STRONG_MARK_SCORE = 0.20
-    private const val DOUBLE_MARK_SCORE = 0.11
-    private const val DOUBLE_GAP = 0.055
-    private const val CONFIDENT_GAP = 0.045
 }
 
 data class MarkColumnRead(
@@ -128,7 +128,8 @@ data class MarkGridReadResult(
  * already been rectified into canonical template coordinates.
  */
 class CanonicalMarkGridReader(
-    private val template: OmrTemplate
+    private val template: OmrTemplate,
+    private val sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) {
     fun readCanonical(gray: Mat): MarkGridReadResult {
         if (gray.empty() || gray.channels() != 1) return MarkGridReadResult.Empty
@@ -147,7 +148,7 @@ class CanonicalMarkGridReader(
                     radius = mark.radius
                 )
             }
-            val decision = MarkGridDecisionEngine.classify(scores)
+            val decision = MarkGridDecisionEngine.classify(scores, sensitivity)
             MarkColumnRead(
                 columnId = column.id,
                 state = decision.state,

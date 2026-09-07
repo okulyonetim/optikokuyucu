@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.exam
 
+import com.okulyonetim.optikokuyucu.student.StudentNumber
+
 /** Immutable progress state for a user-started multi-image exam import. */
 data class ExamGalleryBatchProgress(
     val total: Int = 0,
@@ -35,13 +37,21 @@ data class ExamGalleryBatchProgress(
     }
 }
 
+/** Returns every existing exam paper for one readable normalized student number. */
+fun Exam.papersForStudentNumber(studentNumber: String): List<ExamPaperLink> {
+    val normalized = StudentNumber.normalize(studentNumber)
+    if (normalized.isBlank()) return emptyList()
+    return papers.filter {
+        StudentNumber.normalize(it.studentNumber) == normalized
+    }
+}
+
+fun Exam.paperForStudentNumber(studentNumber: String): ExamPaperLink? =
+    papersForStudentNumber(studentNumber).firstOrNull()
+
 /**
- * Batch imports should not silently create two student papers for the same readable student number.
  * Blank/unreadable numbers are intentionally not treated as duplicates so they can still be reviewed
  * and corrected manually from the student-paper detail screen.
  */
-fun Exam.containsStudentNumber(studentNumber: String): Boolean {
-    val normalized = studentNumber.trim()
-    if (normalized.isBlank()) return false
-    return papers.any { it.studentNumber.trim() == normalized }
-}
+fun Exam.containsStudentNumber(studentNumber: String): Boolean =
+    paperForStudentNumber(studentNumber) != null
