@@ -32,7 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,14 +67,18 @@ import androidx.lifecycle.LifecycleOwner
 import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
 import com.okulyonetim.optikokuyucu.camera.LiveOmrReadResult
+import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
+import com.okulyonetim.optikokuyucu.settings.CameraScanSettings
+import com.okulyonetim.optikokuyucu.settings.CameraScanSettingsRepository
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlinx.coroutines.delay
 import kotlin.math.max
 
 @Composable
@@ -83,7 +90,9 @@ fun OmrCameraScreen(
     title: String = "Optik Tarama",
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
-    onOpenGallery: (() -> Unit)? = null
+    onOpenGallery: (() -> Unit)? = null,
+    showRawReadCard: Boolean = true,
+    onCameraSettingsChanged: (CameraScanSettings) -> Unit = {}
 ) {
     val context = LocalContext.current
     var cameraGranted by remember {
@@ -110,7 +119,9 @@ fun OmrCameraScreen(
             title = title,
             subtitle = subtitle,
             onBack = onBack,
-            onOpenGallery = onOpenGallery
+            onOpenGallery = onOpenGallery,
+            showRawReadCard = showRawReadCard,
+            onCameraSettingsChanged = onCameraSettingsChanged
         )
     } else {
         CameraPermissionContent(
@@ -162,6 +173,7 @@ private fun CameraPermissionContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CameraPreviewContent(
     openCvReady: Boolean,
@@ -171,7 +183,9 @@ private fun CameraPreviewContent(
     title: String,
     subtitle: String?,
     onBack: (() -> Unit)?,
-    onOpenGallery: (() -> Unit)?
+    onOpenGallery: (() -> Unit)?,
+    showRawReadCard: Boolean,
+    onCameraSettingsChanged: (CameraScanSettings) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = remember(context) {
@@ -188,15 +202,37 @@ private fun CameraPreviewContent(
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
+    val settingsRepository = remember(context) {
+        CameraScanSettingsRepository(context.applicationContext)
+    }
     val currentOnAcceptedRead by rememberUpdatedState(onAcceptedRead)
+    val currentOnCameraSettingsChanged by rememberUpdatedState(onCameraSettingsChanged)
 
+    var cameraSettings by remember { mutableStateOf(settingsRepository.load()) }
+    var showOptions by remember { mutableStateOf(false) }
     var stats by remember { mutableStateOf(CameraFrameStats.Empty) }
     var liveRead by remember { mutableStateOf<LiveOmrReadResult?>(null) }
     var cameraMessage by remember { mutableStateOf("Kamera hazırlanıyor…") }
     var boundCamera by remember { mutableStateOf<Camera?>(null) }
     var torchEnabled by remember { mutableStateOf(false) }
 
-    val analyzer = remember(openCvReady, template) {
+    fun saveCameraSettings(next: CameraScanSettings) {
+        settingsRepository.save(next)
+        cameraSettings = next
+        currentOnCameraSettingsChanged(next)
+    }
+
+    LaunchedEffect(Unit) {
+        currentOnCameraSettingsChanged(cameraSettings)
+    }
+
+    LaunchedEffect(liveRead?.sequence) {
+        val sequence = liveRead?.sequence ?: return@LaunchedEffect
+        delay(3_000)
+        if (liveRead?.sequence == sequence) liveRead = null
+    }
+
+    val analyzer = remember(openCvReady, template, cameraSettings.sensitivity) {
         CameraFrameAnalyzer(
             openCvReady = openCvReady,
             onStats = { newStats ->
@@ -218,7 +254,8 @@ private fun CameraPreviewContent(
                     toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
                 }
             },
-            template = template
+            template = template,
+            sensitivity = cameraSettings.sensitivity
         )
     }
 
@@ -309,6 +346,7 @@ private fun CameraPreviewContent(
             torchAvailable = boundCamera?.cameraInfo?.hasFlashUnit() == true,
             onBack = onBack,
             onOpenGallery = onOpenGallery,
+            onOpenOptions = { showOptions = true },
             onToggleTorch = {
                 val camera = boundCamera ?: return@CameraProductHeader
                 if (!camera.cameraInfo.hasFlashUnit()) return@CameraProductHeader
@@ -340,12 +378,106 @@ private fun CameraPreviewContent(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            liveRead?.let { result -> LiveReadResultCard(result = result) }
+            if (showRawReadCard) {
+                liveRead?.let { result -> LiveReadResultCard(result = result) }
+            }
             CameraStatusPanel(
                 stateText = scanStateText,
                 stats = stats,
                 openCvReady = openCvReady
             )
+        }
+    }
+
+    if (showOptions) {
+        ModalBottomSheet(onDismissRequest = { showOptions = false }) {
+            CameraOptionsSheet(
+                settings = cameraSettings,
+                onSensitivityChanged = { sensitivity ->
+                    saveCameraSettings(cameraSettings.copy(sensitivity = sensitivity))
+                },
+                onShowStudentSummaryChanged = { enabled ->
+                    saveCameraSettings(cameraSettings.copy(showStudentSummary = enabled))
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraOptionsSheet(
+    settings: CameraScanSettings,
+    onSensitivityChanged: (OmrSensitivity) -> Unit,
+    onShowStudentSummaryChanged: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Kamera Seçenekleri", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Hassasiyet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Normal, hatasız çalışan standart okuma değerleridir. Yüksek yalnız soluk işaretlerde; Düşük ise çok koyu/baskılı formlarda tercih edilmelidir.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SensitivityButton(
+                modifier = Modifier.weight(1f),
+                text = "Düşük",
+                selected = settings.sensitivity == OmrSensitivity.LOW,
+                onClick = { onSensitivityChanged(OmrSensitivity.LOW) }
+            )
+            SensitivityButton(
+                modifier = Modifier.weight(1f),
+                text = "Normal",
+                selected = settings.sensitivity == OmrSensitivity.NORMAL,
+                onClick = { onSensitivityChanged(OmrSensitivity.NORMAL) }
+            )
+            SensitivityButton(
+                modifier = Modifier.weight(1f),
+                text = "Yüksek",
+                selected = settings.sensitivity == OmrSensitivity.HIGH,
+                onClick = { onSensitivityChanged(OmrSensitivity.HIGH) }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = settings.showStudentSummary,
+                onCheckedChange = onShowStudentSummaryChanged
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Öğrenci bilgisini göster", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Okuma sonrası ad, sınıf, doğru, yanlış, boş ve net bilgisini 3 saniye gösterir.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SensitivityButton(
+    modifier: Modifier,
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    if (selected) {
+        Button(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(14.dp)) {
+            Text(text)
+        }
+    } else {
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(14.dp)) {
+            Text(text)
         }
     }
 }
@@ -362,6 +494,7 @@ private fun CameraProductHeader(
     torchAvailable: Boolean,
     onBack: (() -> Unit)?,
     onOpenGallery: (() -> Unit)?,
+    onOpenOptions: () -> Unit,
     onToggleTorch: () -> Unit
 ) {
     val stateText = when {
@@ -410,8 +543,11 @@ private fun CameraProductHeader(
                 }
                 if (onOpenGallery != null) {
                     TextButton(onClick = onOpenGallery) {
-                        Text("Galeri", color = MaterialTheme.colorScheme.primary)
+                        Text("Galeri", color = Color.White)
                     }
+                }
+                TextButton(onClick = onOpenOptions) {
+                    Text("⋮", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -570,8 +706,6 @@ private fun OmrGuideOverlay(
                 drawCircle(color = accent, radius = 6f, center = point)
             }
         } else {
-            // Before all four markers are found, show only a subtle ratio-correct guide. The guide
-            // automatically follows portrait, landscape and custom template aspect ratios.
             val maxWidth = size.width * 0.84f
             val maxHeight = size.height * 0.66f
             val width: Float
