@@ -15,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,14 +41,42 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
     var subjects by remember(repository) { mutableStateOf(repository.load().subjects) }
     var editorOpen by remember { mutableStateOf(false) }
     var newSubject by remember { mutableStateOf("") }
+    var editingSubject by remember { mutableStateOf<String?>(null) }
+    var editingValue by remember { mutableStateOf("") }
 
-    fun persist(updated: List<String>) {
+    fun persist(updated: List<String>, successMessage: String = "Dersler güncellendi.") {
         runCatching { repository.saveSubjects(updated) }
             .onSuccess {
                 subjects = repository.load().subjects
-                feedback.success("Dersler güncellendi.")
+                feedback.success(successMessage)
             }
             .onFailure { feedback.error("Dersler kaydedilemedi: ${it.message ?: it.javaClass.simpleName}") }
+    }
+
+    fun beginRename(subject: String) {
+        editingSubject = subject
+        editingValue = subject
+    }
+
+    fun cancelRename() {
+        editingSubject = null
+        editingValue = ""
+    }
+
+    fun saveRename(original: String) {
+        val value = editingValue.trim().replace(Regex("\\s+"), " ")
+        when {
+            value.isBlank() -> feedback.warning("Ders adı boş olamaz.")
+            subjects.any { it != original && it.equals(value, ignoreCase = true) } ->
+                feedback.warning("Bu ders zaten listede.")
+            else -> {
+                persist(
+                    subjects.map { if (it == original) value else it },
+                    "Ders adı güncellendi."
+                )
+                cancelRename()
+            }
+        }
     }
 
     Card(
@@ -66,7 +95,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Dersler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${subjects.size} ders · cevap anahtarı ve sonuçlarda kullanılır",
+                    "${subjects.size} ders · adları ekleyin, düzenleyin veya kaldırın",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -78,32 +107,78 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
     }
 
     if (editorOpen) {
-        ModalBottomSheet(onDismissRequest = { editorOpen = false }) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                editorOpen = false
+                cancelRename()
+            }
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Dersler", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("Dersleri Düzenle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Sınav, cevap anahtarı ve öğrenci sonuçlarında kullanılacak ders adlarını yönetin.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 subjects.forEach { subject ->
+                    val editing = editingSubject == subject
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (editing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                        else MaterialTheme.colorScheme.surfaceVariant
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(subject, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            TextButton(
-                                enabled = subjects.size > 1,
-                                onClick = { persist(subjects.filterNot { it == subject }) }
-                            ) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+                        if (editing) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    value = editingValue,
+                                    onValueChange = { editingValue = it.take(60) },
+                                    singleLine = true,
+                                    label = { Text("Ders adı") },
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        modifier = Modifier.weight(1f),
+                                        onClick = ::cancelRename
+                                    ) { Text("Vazgeç") }
+                                    FilledTonalButton(
+                                        modifier = Modifier.weight(1f),
+                                        enabled = editingValue.isNotBlank(),
+                                        onClick = { saveRename(subject) }
+                                    ) { Text("Kaydet") }
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    subject,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                TextButton(onClick = { beginRename(subject) }) { Text("Düzenle") }
+                                TextButton(
+                                    enabled = subjects.size > 1,
+                                    onClick = {
+                                        if (editingSubject == subject) cancelRename()
+                                        persist(subjects.filterNot { it == subject }, "Ders silindi.")
+                                    }
+                                ) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+                            }
                         }
                     }
                 }
@@ -123,11 +198,11 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                     FilledTonalButton(
                         enabled = newSubject.isNotBlank(),
                         onClick = {
-                            val value = newSubject.trim()
+                            val value = newSubject.trim().replace(Regex("\\s+"), " ")
                             if (subjects.any { it.equals(value, ignoreCase = true) }) {
                                 feedback.warning("Bu ders zaten listede.")
                             } else {
-                                persist(subjects + value)
+                                persist(subjects + value, "Ders eklendi.")
                                 newSubject = ""
                             }
                         }
