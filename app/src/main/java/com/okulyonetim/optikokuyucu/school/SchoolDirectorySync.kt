@@ -4,7 +4,6 @@ import android.content.Context
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import com.okulyonetim.optikokuyucu.student.StudentGender
 import com.okulyonetim.optikokuyucu.student.StudentImportSummary
-import com.okulyonetim.optikokuyucu.student.StudentNumber
 import com.okulyonetim.optikokuyucu.student.StudentRosterEntry
 
 data class SchoolClassIdentity(
@@ -20,6 +19,17 @@ data class SchoolDirectorySyncResult(
     val skippedWithoutNumber: Int,
     val skippedWithoutClass: Int,
     val localSummary: StudentImportSummary
+)
+
+enum class SchoolStudentSkipReason {
+    WITHOUT_NUMBER,
+    WITHOUT_NAME,
+    WITHOUT_CLASS
+}
+
+data class SchoolStudentMapping(
+    val entry: StudentRosterEntry?,
+    val skipReason: SchoolStudentSkipReason? = null
 )
 
 object SchoolClassParser {
@@ -41,6 +51,53 @@ object SchoolClassParser {
     }
 }
 
+/** Pure field mapping from Okul Yönetim documents to the existing offline roster model. */
+object SchoolDirectoryMapper {
+    fun schoolClass(doc: FirestoreDocument): SchoolClassIdentity {
+        val name = doc.fields["ad"]?.toString().orEmpty().trim()
+        val (grade, branch) = SchoolClassParser.parse(name, doc.fields["seviye"])
+        return SchoolClassIdentity(doc.id, name, grade, branch)
+    }
+
+    fun student(
+        doc: FirestoreDocument,
+        classes: Map<String, SchoolClassIdentity>,
+        updatedAtEpochMs: Long = System.currentTimeMillis()
+    ): SchoolStudentMapping {
+        val number = SchoolStudentMatch.normalizeStudentNumber(doc.fields["ogrenciNo"]?.toString().orEmpty())
+        if (number.isBlank()) return SchoolStudentMapping(null, SchoolStudentSkipReason.WITHOUT_NUMBER)
+
+        val fullName = doc.fields["ogrenciAdi"]?.toString().orEmpty().trim()
+        if (fullName.isBlank()) return SchoolStudentMapping(null, SchoolStudentSkipReason.WITHOUT_NAME)
+
+        val classId = doc.fields["sinifId"]?.toString().orEmpty()
+        val schoolClass = classes[classId]
+        val gradeLevel = schoolClass?.gradeLevel
+        if (schoolClass == null || gradeLevel !in 1..12) {
+            return SchoolStudentMapping(null, SchoolStudentSkipReason.WITHOUT_CLASS)
+        }
+
+        val guardianPhone = listOf("telefon1", "telefon", "telefon2", "telefon3")
+            .asSequence()
+            .map { key -> doc.fields[key]?.toString().orEmpty().trim() }
+            .firstOrNull(String::isNotBlank)
+            .orEmpty()
+
+        return SchoolStudentMapping(
+            entry = StudentRosterEntry(
+                studentNumber = number,
+                fullName = fullName,
+                gender = StudentGender.fromEschool(doc.fields["cinsiyet"]?.toString().orEmpty()),
+                gradeLevel = requireNotNull(gradeLevel),
+                branch = schoolClass.branch,
+                guardianName = doc.fields["veliAdi"]?.toString().orEmpty().trim(),
+                guardianPhone = guardianPhone,
+                updatedAtEpochMs = updatedAtEpochMs
+            )
+        )
+    }
+}
+
 /** Maps Okul Yönetim oy_veliler records into the existing offline OMR roster. */
 class SchoolDirectorySyncService(
     private val context: Context,
@@ -49,52 +106,21 @@ class SchoolDirectorySyncService(
     fun sync(): SchoolDirectorySyncResult {
         val classDocs = client.listDocuments(SchoolPortalConfig.CLASSES)
         val classes = classDocs.associate { doc ->
-            val name = doc.fields["ad"]?.toString().orEmpty().trim()
-            val (grade, branch) = SchoolClassParser.parse(name, doc.fields["seviye"])
-            doc.id to SchoolClassIdentity(doc.id, name, grade, branch)
+            val schoolClass = SchoolDirectoryMapper.schoolClass(doc)
+            doc.id to schoolClass
         }
         val studentDocs = client.listDocuments(SchoolPortalConfig.STUDENTS)
 
         val numberToDocumentId = studentDocs.mapNotNull { doc ->
-            val number = StudentNumber.normalize(doc.fields["ogrenciNo"]?.toString().orEmpty())
+            val number = SchoolStudentMatch.normalizeStudentNumber(doc.fields["ogrenciNo"]?.toString().orEmpty())
             number.takeIf(String::isNotBlank)?.let { it to doc.id }
         }.toMap()
         SchoolStudentIdentityStore(context.applicationContext).replace(numberToDocumentId)
 
-        var withoutNumber = 0
-        var withoutClass = 0
-        val entries = studentDocs.mapNotNull { doc ->
-            val number = StudentNumber.normalize(doc.fields["ogrenciNo"]?.toString().orEmpty())
-            if (number.isBlank()) {
-                withoutNumber += 1
-                return@mapNotNull null
-            }
-            val fullName = doc.fields["ogrenciAdi"]?.toString().orEmpty().trim()
-            if (fullName.isBlank()) return@mapNotNull null
-            val classId = doc.fields["sinifId"]?.toString().orEmpty()
-            val schoolClass = classes[classId]
-            val gradeLevel = schoolClass?.gradeLevel
-            if (schoolClass == null || gradeLevel !in 1..12) {
-                withoutClass += 1
-                return@mapNotNull null
-            }
-            val genderText = doc.fields["cinsiyet"]?.toString().orEmpty()
-            val guardianPhone = listOf("telefon1", "telefon", "telefon2", "telefon3")
-                .asSequence()
-                .map { key -> doc.fields[key]?.toString().orEmpty().trim() }
-                .firstOrNull(String::isNotBlank)
-                .orEmpty()
-            StudentRosterEntry(
-                studentNumber = number,
-                fullName = fullName,
-                gender = StudentGender.fromEschool(genderText),
-                gradeLevel = requireNotNull(gradeLevel),
-                branch = schoolClass.branch,
-                guardianName = doc.fields["veliAdi"]?.toString().orEmpty().trim(),
-                guardianPhone = guardianPhone,
-                updatedAtEpochMs = System.currentTimeMillis()
-            )
-        }
+        val mapped = studentDocs.map { doc -> SchoolDirectoryMapper.student(doc, classes) }
+        val withoutNumber = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_NUMBER }
+        val withoutClass = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_CLASS }
+        val entries = mapped.mapNotNull { it.entry }
 
         val repository = FileStudentRosterRepository(context.applicationContext)
         val summary = repository.upsertImported(entries)
