@@ -8,6 +8,7 @@ import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
 import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
+import com.okulyonetim.optikokuyucu.omr.live.LiveOmrTemporalFusion
 import com.okulyonetim.optikokuyucu.omr.live.LiveReadConsensus
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanFingerprint
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
@@ -32,10 +33,11 @@ import kotlin.math.max
  * reading and generic mark-grid reading all use the Y plane; the live OMR path does not create
  * RGB Bitmaps.
  *
- * Acceptance requires both a stable page lock and temporal agreement between consecutive OMR
- * frames. One physical sheet is then latched until it visibly leaves the camera. When a stable
- * student number exists, a session fingerprint also prevents the same completed sheet from being
- * accepted again after it is removed and reinserted.
+ * Acceptance requires a stable page lock, robust score fusion across a tiny rolling frame window
+ * and then temporal agreement between consecutive fused OMR decisions. One physical sheet is
+ * latched until it visibly leaves the camera. When a stable student number exists, a session
+ * fingerprint also prevents the same completed sheet from being accepted again after it is removed
+ * and reinserted.
  *
  * The analyzer accepts any compiled [OmrTemplate]. The default keeps the existing diagnostic
  * scanner behavior while the form designer can pass its currently edited template to "Test Et".
@@ -53,6 +55,7 @@ class CameraFrameAnalyzer(
     private val recognitionBindings = OmrRecognitionBindingsResolver.fromTemplate(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
+    private val temporalFusion = LiveOmrTemporalFusion(windowSize = 3)
     private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = 2)
     private val sessionDeduplicator = LiveSessionDeduplicator()
 
@@ -94,7 +97,7 @@ class CameraFrameAnalyzer(
                     phase = tracking.phase,
                     markerCount = latestDetection.detectedMarkers.size
                 )
-                if (rearmed) readConsensus.reset()
+                if (rearmed) resetTemporalReadState()
 
                 val candidateReady = scanGate.canRead(
                     phase = tracking.phase,
@@ -107,7 +110,7 @@ class CameraFrameAnalyzer(
                     (tracking.phase != PageTrackingPhase.LOCKED ||
                         latestDetection.detectedMarkers.size != 4)
                 ) {
-                    readConsensus.reset()
+                    resetTemporalReadState()
                 }
 
                 if (candidateReady) {
@@ -120,29 +123,42 @@ class CameraFrameAnalyzer(
                     }.getOrNull()
 
                     if (liveResult == null) {
-                        readConsensus.reset()
+                        resetTemporalReadState()
                     } else {
-                        val confirmed = readConsensus.offer(readSignature(liveResult))
-                        if (confirmed) {
-                            scanGate.onAcceptedRead()
-                            readConsensus.reset()
-
-                            val studentNumber = recognitionBindings.studentNumber(liveResult.markGridResult)
-                            val fingerprint = LiveScanFingerprint.build(
-                                templateId = template.id,
-                                templateVersion = template.version,
-                                studentNumber = studentNumber,
-                                answerSignature = readSignature(liveResult)
+                        val fused = temporalFusion.offer(
+                            bubbles = liveResult.bubbleResult,
+                            markGrids = liveResult.markGridResult
+                        )
+                        if (fused != null) {
+                            val fusedResult = liveResult.copy(
+                                bubbleResult = fused.bubbleResult,
+                                markGridResult = fused.markGridResult,
+                                decisionConfidence = fused.decisionConfidence
                             )
-                            val isNewResult = fingerprint?.let {
-                                sessionDeduplicator.registerIfNew(it)
-                            } ?: true
+                            val confirmed = readConsensus.offer(readSignature(fusedResult))
+                            if (confirmed) {
+                                scanGate.onAcceptedRead()
+                                resetTemporalReadState()
 
-                            if (isNewResult) {
-                                liveReadCount += 1
-                                onLiveRead(liveResult.copy(sequence = liveReadCount))
-                            } else {
-                                duplicateReadCount += 1
+                                val studentNumber = recognitionBindings.studentNumber(
+                                    fusedResult.markGridResult
+                                )
+                                val fingerprint = LiveScanFingerprint.build(
+                                    templateId = template.id,
+                                    templateVersion = template.version,
+                                    studentNumber = studentNumber,
+                                    answerSignature = readSignature(fusedResult)
+                                )
+                                val isNewResult = fingerprint?.let {
+                                    sessionDeduplicator.registerIfNew(it)
+                                } ?: true
+
+                                if (isNewResult) {
+                                    liveReadCount += 1
+                                    onLiveRead(fusedResult.copy(sequence = liveReadCount))
+                                } else {
+                                    duplicateReadCount += 1
+                                }
                             }
                         }
                     }
@@ -182,6 +198,11 @@ class CameraFrameAnalyzer(
         } finally {
             image.close()
         }
+    }
+
+    private fun resetTemporalReadState() {
+        temporalFusion.reset()
+        readConsensus.reset()
     }
 
     /**
