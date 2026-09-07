@@ -75,16 +75,25 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
         }.onSuccess { refreshed ->
             profile = refreshed.profile
         }
+        runCatching {
+            withContext(Dispatchers.IO) { manager.migrateLegacyAdminContent() }
+        }
         runCatching { syncDirectory() }
             .onSuccess { directoryStatus = it }
             .onFailure { directoryStatus = "Çevrimdışı · cihazdaki öğrenci listesi kullanılıyor" }
+        runCatching {
+            withContext(Dispatchers.IO) { manager.syncTemplates() }
+        }
+        runCatching {
+            withContext(Dispatchers.IO) { manager.refreshExamCatalog() }
+        }
         runCatching { syncCloud(force = true) }
             .onSuccess { cloudStatus = it }
             .onFailure { cloudStatus = "Bulut senkronu bekliyor · internet geldiğinde tekrar denenecek" }
     }
 
     // Local OMR work remains offline-first. This loop computes a local fingerprint every 10 seconds;
-    // Firestore is contacted only when an exam, paper, scan result or answer key actually changed.
+    // Firestore is contacted only when an owned exam, paper, scan result, answer key or sharing flag changed.
     LaunchedEffect(profile?.uid, Unit) {
         if (profile == null) return@LaunchedEffect
         while (true) {
@@ -108,7 +117,13 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
                     .getOrThrow()
             },
             syncCloudNow = {
-                runCatching { syncCloud(force = true) }
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        manager.syncTemplates()
+                        manager.refreshExamCatalog()
+                    }
+                    syncCloud(force = true)
+                }
                     .onSuccess { cloudStatus = it }
                     .onFailure { cloudStatus = it.message ?: "Bulut senkronu başarısız" }
                     .getOrThrow()

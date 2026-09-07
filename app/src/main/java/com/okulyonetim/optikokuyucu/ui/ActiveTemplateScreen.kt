@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +45,13 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
+import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
+import com.okulyonetim.optikokuyucu.school.SchoolFormOwnershipStore
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.settings.ReadyTemplateVisibilityRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 private enum class FormLibraryFilter { ALL, READY, SAVED }
@@ -62,6 +69,10 @@ fun ActiveTemplateScreen(
     val documentRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
     val examRepository = remember(context) { FileExamRepository(appContext) }
     val visibilityRepository = remember(context) { ReadyTemplateVisibilityRepository(appContext) }
+    val ownershipStore = remember(context) { SchoolFormOwnershipStore(appContext) }
+    val manager = remember(context) { SchoolPortalManager.get(appContext) }
+    val profile = LocalSchoolAccount.current?.profile
+    val scope = rememberCoroutineScope()
     val starters = remember { DesignerStarterTemplates.all() }
 
     var savedDocuments by remember { mutableStateOf(documentRepository.list()) }
@@ -73,6 +84,12 @@ fun ActiveTemplateScreen(
     var pendingExport by remember { mutableStateOf<DesignerDocument?>(null) }
     var pendingDelete by remember { mutableStateOf<DesignerDocument?>(null) }
     var pendingReadyDelete by remember { mutableStateOf<PendingReadyDelete?>(null) }
+
+    fun refreshForms(message: String = "Form listesi yenilendi.") {
+        savedDocuments = documentRepository.list()
+        hiddenReadyKeys = visibilityRepository.hiddenKeys()
+        status = message
+    }
 
     fun openDocument(document: DesignerDocument, mode: DesignerLibraryOpenMode) {
         DesignerLibraryOpenHandoff.offer(document, mode)
@@ -144,6 +161,12 @@ fun ActiveTemplateScreen(
     }
 
     fun requestDelete(document: DesignerDocument) {
+        val currentProfile = profile
+        if (currentProfile != null && !SchoolContentAccess.canDeleteForm(ownershipStore.ownership(document), currentProfile)) {
+            status = "Bu form başka bir kullanıcıya ait. Silme yetkiniz yok."
+            feedback.warning(status)
+            return
+        }
         val selection = documentSelection(document)
         val linkedExamCount = examRepository.list().count { it.templateSelection == selection }
         if (linkedExamCount > 0) {
@@ -167,6 +190,25 @@ fun ActiveTemplateScreen(
             return
         }
         pendingReadyDelete = PendingReadyDelete(name, key)
+    }
+
+    fun togglePublic(document: DesignerDocument) {
+        val currentProfile = profile
+        if (currentProfile?.admin != true) return
+        val ownership = ownershipStore.ownership(document)
+        val next = !(ownership?.isPublic ?: false)
+        scope.launch {
+            val outcome = runCatching {
+                withContext(Dispatchers.IO) { manager.setTemplatePublic(document, next) }
+            }
+            outcome.onSuccess {
+                refreshForms(if (next) "${document.name} herkese açıldı." else "${document.name} özel yapıldı.")
+                feedback.success(status)
+            }.onFailure { error ->
+                status = "Form paylaşımı değiştirilemedi: ${error.message ?: error.javaClass.simpleName}"
+                feedback.error(status)
+            }
+        }
     }
 
     val defaultKey = ReadyTemplateVisibilityRepository.defaultKey(
@@ -193,7 +235,8 @@ fun ActiveTemplateScreen(
         filter != FormLibraryFilter.READY && (
             normalizedQuery.isBlank() ||
                 document.name.lowercase(locale).contains(normalizedQuery) ||
-                document.id.lowercase(locale).contains(normalizedQuery)
+                document.id.lowercase(locale).contains(normalizedQuery) ||
+                ownershipStore.ownership(document)?.ownerName?.lowercase(locale)?.contains(normalizedQuery) == true
             )
     }
     val readyCount = (if (readyDefaultVisible) 1 else 0) + readyStarters.size
@@ -206,10 +249,11 @@ fun ActiveTemplateScreen(
             onLeadingClick = onBack,
             actionText = "↻",
             onActionClick = {
-                savedDocuments = documentRepository.list()
-                hiddenReadyKeys = visibilityRepository.hiddenKeys()
-                status = "Form listesi yenilendi."
-                feedback.info(status)
+                scope.launch {
+                    runCatching { withContext(Dispatchers.IO) { manager.syncTemplates() } }
+                    refreshForms()
+                    feedback.info(status)
+                }
             }
         )
 
@@ -218,6 +262,16 @@ fun ActiveTemplateScreen(
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             item { Spacer(Modifier.height(1.dp)) }
+            if (profile != null) {
+                item {
+                    Text(
+                        if (profile.admin) "Admin · tüm kurum formları" else "${profile.displayName} · kendi formlarınız ve herkese açık formlar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
             item {
                 ActiveFormSummary(
                     name = resolved.name,
@@ -248,7 +302,7 @@ fun ActiveTemplateScreen(
             }
             item {
                 Text(
-                    "Hazır veya kurum formlarını seçebilir, önizleyebilir ve kullanmadıklarınızı silebilirsiniz.",
+                    "Kendi formlarınızı düzenleyip silebilirsiniz. Herkese açık başka kullanıcı formları salt okunur ve silinemez.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -259,7 +313,7 @@ fun ActiveTemplateScreen(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    label = { Text("Form ara") },
+                    label = { Text("Form veya sahibi ara") },
                     leadingIcon = { Text("⌕", fontSize = 20.sp) },
                     shape = RoundedCornerShape(18.dp)
                 )
@@ -291,11 +345,7 @@ fun ActiveTemplateScreen(
                         badge = "HAZIR",
                         onSelect = { choose(ActiveOmrTemplateDefaults.selection, ActiveOmrTemplateDefaults.displayName) },
                         onDelete = {
-                            requestReadyDelete(
-                                ActiveOmrTemplateDefaults.displayName,
-                                defaultKey,
-                                ActiveOmrTemplateDefaults.selection
-                            )
+                            requestReadyDelete(ActiveOmrTemplateDefaults.displayName, defaultKey, ActiveOmrTemplateDefaults.selection)
                         }
                     )
                 }
@@ -306,7 +356,7 @@ fun ActiveTemplateScreen(
                 TemplateLibraryCard(
                     name = document.name,
                     subtitle = "${document.id} · v${document.version}",
-                    detail = "Hazır optik form",
+                    detail = "Hazır optik form · düzenleme kopya oluşturur",
                     selected = resolved.selection == selection,
                     badge = "HAZIR",
                     onSelect = { choose(selection, document.name) },
@@ -324,31 +374,41 @@ fun ActiveTemplateScreen(
                     ) {
                         FormSectionTitle("Kurum Formları")
                         if (savedDocuments.isNotEmpty()) {
-                            TextButton(onClick = {
-                                savedDocuments = documentRepository.list()
-                                status = "Kayıtlı formlar yenilendi."
-                                feedback.info(status)
-                            }) { Text("Yenile", fontSize = 12.sp) }
+                            TextButton(onClick = { refreshForms("Kayıtlı formlar yenilendi.") }) { Text("Yenile", fontSize = 12.sp) }
                         }
                     }
                 }
             }
             if (filter != FormLibraryFilter.READY && savedDocuments.isEmpty() && normalizedQuery.isBlank()) {
-                item { CompactInfoCard("Henüz kurum formu yok", "Yeni Form Oluştur ile okulunuza özel form hazırlayabilirsiniz.") }
+                item { CompactInfoCard("Henüz kurum formu yok", "Yeni Form Oluştur ile kendi optik formunuzu hazırlayabilirsiniz.") }
             }
             items(visibleSaved, key = { "saved-${it.id}-${it.version}" }) { document ->
                 val selection = documentSelection(document)
+                val ownership = ownershipStore.ownership(document)
+                val canModify = profile?.let { SchoolContentAccess.canModifyForm(ownership, it) } ?: true
+                val isPublic = ownership?.isPublic == true
+                val ownerLabel = when {
+                    ownership?.ownerName?.isNotBlank() == true -> ownership.ownerName
+                    ownership?.ownerUid?.isNotBlank() == true -> "Başka kullanıcı"
+                    else -> "Eski yerel form"
+                }
                 TemplateLibraryCard(
                     name = document.name,
                     subtitle = "${document.id} · v${document.version}",
-                    detail = "Cihazda kayıtlı kurum formu",
+                    detail = "$ownerLabel · ${if (isPublic) "Herkese açık" else if (canModify) "Size ait" else "Özel"}",
                     selected = resolved.selection == selection,
-                    badge = "KURUM",
+                    badge = when {
+                        isPublic -> "HERKESE AÇIK"
+                        canModify -> "SİZİN"
+                        else -> "KORUMALI"
+                    },
                     onSelect = { choose(selection, document.name) },
                     onPreview = { openDocument(document, DesignerLibraryOpenMode.PREVIEW) },
-                    onEdit = { openDocument(document, DesignerLibraryOpenMode.EDIT) },
-                    onExport = { exportDocument(document) },
-                    onDelete = { requestDelete(document) }
+                    onEdit = if (canModify) ({ openDocument(document, DesignerLibraryOpenMode.EDIT) }) else null,
+                    onExport = if (canModify) ({ exportDocument(document) }) else null,
+                    onDelete = if (canModify) ({ requestDelete(document) }) else null,
+                    onTogglePublic = if (profile?.admin == true) ({ togglePublic(document) }) else null,
+                    public = isPublic
                 )
             }
             if (!defaultVisible && visibleStarters.isEmpty() && visibleSaved.isEmpty()) {
@@ -381,26 +441,32 @@ fun ActiveTemplateScreen(
     pendingDelete?.let { document ->
         AppConfirmationDialog(
             title = "Optik Formu Sil",
-            message = "${document.name} cihazdan silinecek. Bu işlem geri alınamaz.",
+            message = "${document.name} yalnız size ait form kütüphanesinden silinecek. Paylaşılmışsa bulut kopyası da kullanımdan kaldırılacak.",
             confirmText = "Sil",
             destructive = true,
             onConfirm = {
                 val selection = documentSelection(document)
                 val wasSelected = selected == selection
                 pendingDelete = null
-                runCatching {
-                    check(documentRepository.delete(document.id, document.version)) { "Form dosyası silinemedi." }
-                }.onSuccess {
-                    savedDocuments = documentRepository.list()
-                    if (wasSelected) {
-                        runCatching { selectionRepository.save(ActiveOmrTemplateDefaults.selection) }
-                        selected = ActiveOmrTemplateDefaults.selection
+                scope.launch {
+                    val outcome = runCatching {
+                        withContext(Dispatchers.IO) {
+                            manager.deleteTemplateCloudCopy(document)
+                            check(documentRepository.delete(document.id, document.version)) { "Form dosyası silinemedi." }
+                        }
                     }
-                    status = "${document.name} silindi."
-                    feedback.success("Form silindi.")
-                }.onFailure { error ->
-                    status = "Form silinemedi: ${error.message ?: error.javaClass.simpleName}"
-                    feedback.error(status)
+                    outcome.onSuccess {
+                        savedDocuments = documentRepository.list()
+                        if (wasSelected) {
+                            runCatching { selectionRepository.save(ActiveOmrTemplateDefaults.selection) }
+                            selected = ActiveOmrTemplateDefaults.selection
+                        }
+                        status = "${document.name} silindi."
+                        feedback.success("Form silindi.")
+                    }.onFailure { error ->
+                        status = "Form silinemedi: ${error.message ?: error.javaClass.simpleName}"
+                        feedback.error(status)
+                    }
                 }
             },
             onDismiss = { pendingDelete = null }
@@ -449,7 +515,9 @@ private fun TemplateLibraryCard(
     onPreview: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    onTogglePublic: (() -> Unit)? = null,
+    public: Boolean = false
 ) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(modifier = Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -472,6 +540,11 @@ private fun TemplateLibraryCard(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (onExport != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport, shape = RoundedCornerShape(12.dp)) { Text("Dışa Aktar (.omrd)", fontSize = 11.sp) }
                     if (onDelete != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onDelete, shape = RoundedCornerShape(12.dp)) { Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+                }
+            }
+            if (onTogglePublic != null) {
+                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onTogglePublic, shape = RoundedCornerShape(12.dp)) {
+                    Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = 11.sp)
                 }
             }
         }

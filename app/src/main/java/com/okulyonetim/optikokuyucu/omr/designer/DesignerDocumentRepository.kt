@@ -1,15 +1,13 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
+import com.okulyonetim.optikokuyucu.school.SchoolFormOwnershipStore
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import java.io.File
 import java.util.Base64
 
 interface DesignerDocumentRepository {
-    /**
-     * Saves a form and returns its persisted identity. Once an id/version exists in device storage,
-     * later saves update that same form in place instead of creating another visible version.
-     * Immutable built-in starter baselines can still receive a one-time safe derived version.
-     */
     fun save(document: DesignerDocument): DesignerDocument
     fun load(id: String, version: Int): DesignerDocument?
     fun list(): List<DesignerDocument>
@@ -37,20 +35,41 @@ internal object DesignerDocumentSavePolicy {
     }
 }
 
-/**
- * Fully offline repository backed by app-private files. A Room implementation can replace this
- * later without changing designer UI or compiler contracts.
- */
+/** Fully offline repository with account ownership enforced for user-initiated mutations. */
 class FileDesignerDocumentRepository(context: Context) : DesignerDocumentRepository {
-    private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+    private val ownershipStore = SchoolFormOwnershipStore(appContext)
 
-    override fun save(document: DesignerDocument): DesignerDocument {
-        val existing = list()
+    override fun save(document: DesignerDocument): DesignerDocument = persist(document, trustedCloudSync = false)
+
+    /** Cloud sync may materialize another user's public form locally without granting edit ownership. */
+    fun saveFromCloud(document: DesignerDocument): DesignerDocument = persist(document, trustedCloudSync = true)
+
+    private fun persist(document: DesignerDocument, trustedCloudSync: Boolean): DesignerDocument {
+        val existing = listUnscoped()
         val resolved = DesignerDocumentSavePolicy.resolveForSave(
             document = document,
             existing = existing,
             immutableBaselines = DesignerStarterTemplates.all()
         )
+        val target = fileFor(resolved.id, resolved.version)
+        val profile = activeProfile()
+        if (!trustedCloudSync && profile != null) {
+            val ownership = ownershipStore.ownership(resolved)
+            if (target.isFile) {
+                require(SchoolContentAccess.canModifyForm(ownership, profile)) {
+                    "Bu optik formu düzenleme yetkiniz yok."
+                }
+            } else if (ownership == null) {
+                ownershipStore.claimOwned(resolved, profile)
+            } else {
+                require(SchoolContentAccess.canModifyForm(ownership, profile)) {
+                    "Bu optik formu düzenleme yetkiniz yok."
+                }
+            }
+        }
+
         val safety = TemplateReadabilityAnalyzer.analyze(resolved)
         require(safety.canSave) {
             val firstError = safety.issues.firstOrNull { it.severity == ReadabilitySeverity.ERROR }
@@ -59,7 +78,6 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
                 if (firstError != null) append(". ${firstError.message}")
             }
         }
-        val target = fileFor(resolved.id, resolved.version)
 
         if (target.isFile) {
             val stored = runCatching { DesignerDocumentCodec.decode(target.readBytes()) }.getOrNull()
@@ -86,7 +104,15 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         return DesignerDocumentCodec.decode(file.readBytes())
     }
 
-    override fun list(): List<DesignerDocument> = directory.listFiles()
+    override fun list(): List<DesignerDocument> {
+        val all = listUnscoped()
+        val profile = activeProfile() ?: return all
+        return all.filter { document ->
+            SchoolContentAccess.canViewForm(ownershipStore.ownership(document), profile)
+        }
+    }
+
+    private fun listUnscoped(): List<DesignerDocument> = directory.listFiles()
         .orEmpty()
         .asSequence()
         .filter { it.isFile && it.extension == EXTENSION }
@@ -95,9 +121,21 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         .toList()
 
     override fun delete(id: String, version: Int): Boolean {
+        val document = load(id, version)
+        val profile = activeProfile()
+        if (document != null && profile != null) {
+            require(SchoolContentAccess.canDeleteForm(ownershipStore.ownership(document), profile)) {
+                "Bu optik formu silme yetkiniz yok."
+            }
+        }
         val file = fileFor(id, version)
-        return !file.exists() || file.delete()
+        val deleted = !file.exists() || file.delete()
+        if (deleted && document != null) ownershipStore.remove(document)
+        return deleted
     }
+
+    private fun activeProfile() =
+        runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
 
     private fun fileFor(id: String, version: Int): File {
         require(id.isNotBlank())

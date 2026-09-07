@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.student
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.school.SchoolStudentVisibilityStore
 import java.io.File
 import java.security.MessageDigest
 
@@ -14,7 +15,9 @@ interface StudentRosterRepository {
 
 /** App-private student roster. No student/guardian data leaves the device through this repository. */
 class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
-    private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+    private val schoolVisibilityStore = SchoolStudentVisibilityStore(appContext)
 
     override fun save(entry: StudentRosterEntry) {
         val normalized = entry.normalized()
@@ -55,7 +58,10 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
 
     override fun upsertImported(entries: List<StudentRosterEntry>): StudentImportSummary {
         if (entries.isEmpty()) return StudentImportSummary(0, 0, 0, 0)
+        val hidden = schoolVisibilityStore.hiddenStudentNumbers()
         val normalized = entries.map(StudentRosterEntry::normalized)
+            .filterNot { it.studentNumber in hidden }
+        if (normalized.isEmpty()) return StudentImportSummary(0, 0, 0, 0)
         normalized.groupBy { it.studentNumber }.forEach { (number, duplicates) ->
             val identities = duplicates.map { it.fullName.lowercase() to it.className.lowercase() }.distinct()
             require(identities.size == 1) {
@@ -97,11 +103,18 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
         )
     }
 
+    /**
+     * Deletes only the app-private roster file and records a local suppression marker so a later
+     * Okul Yönetim sync does not immediately re-import the student. No Firestore delete/update is
+     * performed here; the school application's oy_veliler record remains untouched.
+     */
     override fun delete(studentNumber: String): Boolean {
         val normalized = StudentNumber.normalize(studentNumber)
         if (normalized.isBlank()) return false
         val file = fileFor(normalized)
-        return !file.exists() || file.delete()
+        val deleted = !file.exists() || file.delete()
+        if (deleted) schoolVisibilityStore.hide(normalized)
+        return deleted
     }
 
     private fun sameData(a: StudentRosterEntry, b: StudentRosterEntry): Boolean =

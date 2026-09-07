@@ -43,6 +43,9 @@ object ExamCodec {
                 out.writeUTF(participant.studentName)
                 out.writeUTF(participant.className)
             }
+            out.writeUTF(exam.ownerUid)
+            out.writeUTF(exam.ownerDisplayName)
+            out.writeBoolean(exam.isPublic)
         }
         return bytes.toByteArray()
     }
@@ -94,6 +97,18 @@ object ExamCodec {
                 personalizedFormsEnabled = false
                 participants = emptyList()
             }
+            val ownerUid: String
+            val ownerDisplayName: String
+            val isPublic: Boolean
+            if (schema >= 3) {
+                ownerUid = input.readUTF()
+                ownerDisplayName = input.readUTF()
+                isPublic = input.readBoolean()
+            } else {
+                ownerUid = ""
+                ownerDisplayName = ""
+                isPublic = false
+            }
             val exam = Exam(
                 id = id,
                 name = name,
@@ -106,7 +121,10 @@ object ExamCodec {
                 papers = papers,
                 participants = participants,
                 bookletCount = bookletCount,
-                personalizedFormsEnabled = personalizedFormsEnabled
+                personalizedFormsEnabled = personalizedFormsEnabled,
+                ownerUid = ownerUid,
+                ownerDisplayName = ownerDisplayName,
+                isPublic = isPublic
             )
             require(input.available() == 0) { "Sınav dosyasında beklenmeyen ek veri var." }
             return exam
@@ -121,7 +139,7 @@ object ExamCodec {
 
     private const val MAGIC = 0x4F4D4558 // OMEX
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 2
+    private const val SCHEMA_VERSION = 3
     private const val MAX_PAPERS = 10000
     private const val MAX_PARTICIPANTS = 10000
 }

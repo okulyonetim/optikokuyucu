@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.school
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import com.okulyonetim.optikokuyucu.student.StudentGender
 import com.okulyonetim.optikokuyucu.student.StudentImportSummary
@@ -120,7 +121,9 @@ class SchoolDirectorySyncService(
         val mapped = studentDocs.map { doc -> SchoolDirectoryMapper.student(doc, classes) }
         val withoutNumber = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_NUMBER }
         val withoutClass = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_CLASS }
+        val hidden = SchoolStudentVisibilityStore(context.applicationContext).hiddenStudentNumbers()
         val entries = mapped.mapNotNull { it.entry }
+            .filterNot { SchoolStudentMatch.normalizeStudentNumber(it.studentNumber) in hidden }
 
         val repository = FileStudentRosterRepository(context.applicationContext)
         val summary = repository.upsertImported(entries)
@@ -148,11 +151,34 @@ class SchoolPortalManager private constructor(context: Context) {
 
     fun refreshProfile(): SchoolPortalSession = client.refreshProfile()
 
+    fun migrateLegacyAdminContent(): Int {
+        val profile = requireNotNull(client.cachedSession()).profile
+        return SchoolAccountMigration.claimLegacyAdminExams(appContext, profile)
+    }
+
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
     fun syncExamsAndResults(force: Boolean = false): SchoolExamCloudSyncResult? =
         cloudCoordinator.syncIfChanged(force)
+
+    fun syncTemplates(): SchoolTemplateSyncResult =
+        SchoolTemplateCloudSyncService(appContext, client).sync()
+
+    fun refreshExamCatalog(): List<SchoolExamSummary> =
+        SchoolExamCatalogSyncService(appContext, client).refresh()
+
+    fun setExamPublic(examId: String, isPublic: Boolean) {
+        SchoolExamCatalogSyncService(appContext, client).setPublic(examId, isPublic)
+    }
+
+    fun setTemplatePublic(document: DesignerDocument, isPublic: Boolean) {
+        SchoolTemplateCloudSyncService(appContext, client).setPublic(document, isPublic)
+    }
+
+    fun deleteTemplateCloudCopy(document: DesignerDocument) {
+        SchoolTemplateCloudSyncService(appContext, client).deleteCloudCopy(document)
+    }
 
     fun invalidateCloudSync() = cloudCoordinator.invalidate()
 

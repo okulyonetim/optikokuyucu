@@ -33,8 +33,8 @@ private data class ResultSyncStats(
 
 /**
  * Publishes local OMR exams into the same Firestore documents already consumed by Okul Yönetim.
- * The student number is the stable cross-app match key requested for this integration. Firestore
- * document ids are only compatibility pointers resolved from that student number.
+ * ownerUid is kept stable across accounts; a normal user never republishes another user's public
+ * exam under their own identity.
  */
 class SchoolExamCloudSyncService(
     context: Context,
@@ -49,6 +49,7 @@ class SchoolExamCloudSyncService(
 
     fun syncAll(): SchoolExamCloudSyncResult {
         val session = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }
+        val profile = session.profile
         val exams = examRepository.list()
         val failures = mutableListOf<String>()
         var definitions = 0
@@ -57,9 +58,14 @@ class SchoolExamCloudSyncService(
         var skippedPermission = 0
         var skippedIdentity = 0
 
-        exams.forEach { exam ->
-            if (session.profile.canEdit("sinavIslemleri")) {
-                runCatching { syncDefinition(exam, session.profile) }
+        exams.forEach { rawExam ->
+            val exam = if (rawExam.ownerUid.isBlank() && profile.admin) {
+                rawExam.copy(ownerUid = profile.uid, ownerDisplayName = profile.displayName).also(examRepository::save)
+            } else rawExam
+            if (!SchoolContentAccess.canModifyExam(exam, profile)) return@forEach
+
+            if (profile.canEdit("sinavIslemleri")) {
+                runCatching { syncDefinition(exam, profile) }
                     .onSuccess { definitions += 1 }
                     .onFailure { failures += "${exam.name} sınavı: ${it.message ?: "tanım gönderilemedi"}" }
             } else {
@@ -67,7 +73,7 @@ class SchoolExamCloudSyncService(
             }
 
             // Live firestore.rules allows denemeSonuclari writes for users who can view this module.
-            if (session.profile.canView("denemeSonuclari")) {
+            if (profile.canView("denemeSonuclari")) {
                 runCatching { syncResults(exam) }
                     .onSuccess { stats ->
                         resultDocs += 1
@@ -79,6 +85,9 @@ class SchoolExamCloudSyncService(
                 skippedPermission += 1
             }
         }
+
+        runCatching { SchoolExamCatalogSyncService(appContext, client).refresh() }
+            .onFailure { failures += "Sınav kataloğu: ${it.message ?: "yenilenemedi"}" }
 
         return SchoolExamCloudSyncResult(
             localExamCount = exams.size,
@@ -92,20 +101,29 @@ class SchoolExamCloudSyncService(
     }
 
     private fun syncDefinition(exam: Exam, profile: SchoolUserProfile) {
+        val ownerUid = exam.ownerUid.ifBlank { profile.uid }
+        val ownerName = exam.ownerDisplayName.ifBlank {
+            if (ownerUid == profile.uid) profile.displayName else ""
+        }
         val lessonDefinitions = lessonDefinitions(exam)
         val payload = linkedMapOf<String, Any?>(
             "ad" to exam.name,
+            "okulAdi" to exam.schoolName,
             "tarih" to LocalDate.ofEpochDay(exam.examDateEpochDay).toString(),
             "sinifSeviyesi" to commonGradeLevel(exam),
             "yanlisKatsayisi" to wrongCoefficient(exam.wrongAnswerPolicy),
             "dersler" to lessonDefinitions,
-            "sahipUid" to profile.uid,
+            "sahipUid" to ownerUid,
+            "sahipAdi" to ownerName,
+            "herkeseAcik" to exam.isPublic,
             "kaynak" to "optik-okuyucu",
             "optikSinavId" to exam.id,
             "optikFormId" to exam.templateSelection.templateId,
             "optikFormSurumu" to exam.templateSelection.templateVersion,
+            "optikFormKaynagi" to exam.templateSelection.source.name,
             "kitapcikSayisi" to exam.bookletCount,
-            "olusturmaTarihi" to java.time.Instant.ofEpochMilli(exam.createdAtEpochMs).toString()
+            "olusturmaTarihi" to java.time.Instant.ofEpochMilli(exam.createdAtEpochMs).toString(),
+            "guncellenmeTarihi" to java.time.Instant.now().toString()
         )
         client.upsertDocument(SchoolPortalConfig.TRIAL_EXAMS, exam.id, payload)
     }
@@ -166,7 +184,6 @@ class SchoolExamCloudSyncService(
                 "kaynak" to "optik-okuyucu"
             )
 
-            // A corrected/re-read paper replaces an older cloud row for the same normalized number.
             resultByStudentNumber[normalizedNumber] = result
         }
 
@@ -182,6 +199,7 @@ class SchoolExamCloudSyncService(
             "sonuclar" to results,
             "kaynak" to "optik-okuyucu",
             "optikSinavId" to exam.id,
+            "sahipUid" to exam.ownerUid,
             "guncellenmeTarihi" to java.time.Instant.now().toString()
         )
         client.upsertDocument(SchoolPortalConfig.TRIAL_RESULTS, exam.id, payload)
