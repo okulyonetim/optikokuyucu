@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerA4MultiUpLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPdfExporter
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
@@ -43,6 +44,9 @@ fun DesignerPdfExportCard(
     val compileIssue = compileResult.exceptionOrNull()
     val selectedProfile = remember(document.formSpec.paperSize, document.formSpec.orientation) {
         document.formSpec.pdfProfile()
+    }
+    val multiUpPlan = remember(selectedProfile) {
+        selectedProfile?.let(DesignerA4MultiUpLayout::planFor)
     }
 
     if (compiled == null) {
@@ -78,6 +82,7 @@ fun DesignerPdfExportCard(
         TemplateReadabilityAnalyzer.analyze(document, compiled)
     }
     var pendingProfile by remember { mutableStateOf<PdfPageProfile?>(null) }
+    var pendingA4Multi by remember { mutableStateOf(false) }
     var pdfStatus by remember { mutableStateOf<String?>(null) }
 
     val pdfLauncher = rememberLauncherForActivityResult(
@@ -87,25 +92,41 @@ fun DesignerPdfExportCard(
         if (uri == null || profile == null) {
             if (uri == null) pdfStatus = "PDF oluşturma iptal edildi"
             pendingProfile = null
+            pendingA4Multi = false
             return@rememberLauncherForActivityResult
         }
 
+        val isA4Multi = pendingA4Multi
         pdfStatus = runCatching {
             val stream = requireNotNull(context.contentResolver.openOutputStream(uri, "w")) {
                 "PDF çıktı akışı açılamadı."
             }
             stream.use { output ->
-                DesignerPdfExporter.export(
-                    document = document,
-                    output = output,
-                    profile = profile
-                )
+                if (isA4Multi) {
+                    DesignerPdfExporter.exportA4MultiUpCopies(
+                        document = document,
+                        output = output,
+                        sourceProfile = profile
+                    )
+                } else {
+                    DesignerPdfExporter.export(
+                        document = document,
+                        output = output,
+                        profile = profile
+                    )
+                }
             }
-            "${profile.displayName} PDF oluşturuldu ✓"
+            if (isA4Multi) {
+                val count = DesignerA4MultiUpLayout.planFor(profile)?.itemsPerSheet ?: 1
+                "A4 çoklu PDF oluşturuldu · $count form/sayfa ✓"
+            } else {
+                "${profile.displayName} PDF oluşturuldu ✓"
+            }
         }.getOrElse { error ->
             "PDF hatası: ${error.message ?: error.javaClass.simpleName}"
         }
         pendingProfile = null
+        pendingA4Multi = false
     }
 
     val canExport = readability.canSave && pendingProfile == null && selectedProfile != null
@@ -127,7 +148,7 @@ fun DesignerPdfExportCard(
             Text("PDF Dışa Aktar", style = MaterialTheme.typography.titleSmall)
             Text(
                 if (selectedProfile != null) {
-                    "Seçili kağıt ${selectedProfile.displayName}. PDF gerçek seçili fiziksel sayfa boyutunda üretilir; canonical OMR geometrisi değişmez."
+                    "Seçili kağıt ${selectedProfile.displayName}. Normal PDF gerçek seçili fiziksel sayfa boyutunda üretilir; canonical OMR geometrisi değişmez."
                 } else {
                     "Bu kağıt türü için fiziksel PDF profili tanımlı değil."
                 },
@@ -147,12 +168,41 @@ fun DesignerPdfExportCard(
                 onClick = {
                     selectedProfile?.let { profile ->
                         pendingProfile = profile
+                        pendingA4Multi = false
                         pdfStatus = null
-                        pdfLauncher.launch(suggestedPdfName(document, profile))
+                        pdfLauncher.launch(suggestedPdfName(document, profile, a4Multi = false))
                     }
                 }
             ) {
                 Text(selectedProfile?.let { "${it.displayName} PDF Oluştur" } ?: "PDF Profili Yok")
+            }
+
+            if (multiUpPlan != null) {
+                Text(
+                    "A4 çoklu çıktı: ${multiUpPlan.itemsPerSheet} adet ${selectedProfile?.displayName} form tek A4'e yerleştirilir ve kesim çizgileri eklenir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = canExport,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, borderColor),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.88f)
+                    ),
+                    onClick = {
+                        selectedProfile?.let { profile ->
+                            pendingProfile = profile
+                            pendingA4Multi = true
+                            pdfStatus = null
+                            pdfLauncher.launch(suggestedPdfName(document, profile, a4Multi = true))
+                        }
+                    }
+                ) {
+                    Text("A4 Çoklu PDF Oluştur · ${multiUpPlan.itemsPerSheet} Form")
+                }
             }
 
             if (!readability.canSave) {
@@ -170,11 +220,16 @@ fun DesignerPdfExportCard(
 
 private fun suggestedPdfName(
     document: DesignerDocument,
-    profile: PdfPageProfile
+    profile: PdfPageProfile,
+    a4Multi: Boolean
 ): String {
     val safeName = document.name
         .replace(Regex("[^\\p{L}\\p{N}._-]+"), "_")
         .trim('_')
         .ifBlank { "optik-form" }
-    return "$safeName-${profile.displayName}.pdf"
+    return if (a4Multi) {
+        "$safeName-${profile.displayName}-A4-coklu.pdf"
+    } else {
+        "$safeName-${profile.displayName}.pdf"
+    }
 }
