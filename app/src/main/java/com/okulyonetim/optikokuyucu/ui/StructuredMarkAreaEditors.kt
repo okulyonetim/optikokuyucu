@@ -133,7 +133,20 @@ internal fun AnswerAreaEditorScreen(
             .subjects
             .ifEmpty { AppSettings.DEFAULT_SUBJECTS }
     }
-    val normalized = draft.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+    val isNewArea = remember(document.components, draft.id) {
+        document.components.none { it.id == draft.id }
+    }
+    val initialLabel = if (
+        isNewArea && subjects.none { it.equals(draft.label, ignoreCase = true) }
+    ) {
+        subjects.firstOrNull() ?: draft.label
+    } else {
+        draft.label
+    }
+    val normalized = draft.copy(
+        bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
+        label = initialLabel
+    )
     fun update(candidate: QuestionGroupComponent) {
         onDraftChange(DesignerComponentPlacement.fitInsideSafeArea(document, candidate) as QuestionGroupComponent)
     }
