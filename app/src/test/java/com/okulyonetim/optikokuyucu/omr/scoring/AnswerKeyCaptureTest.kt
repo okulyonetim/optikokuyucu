@@ -30,7 +30,29 @@ class AnswerKeyCaptureTest {
     }
 
     @Test
-    fun `blank double and suspicious questions block answer key capture`() {
+    fun `double mark in answer key becomes two accepted choices`() {
+        val result = AnswerKeyCapture.fromRead(
+            templateId = "exam",
+            templateVersion = 1,
+            read = BubbleReadResult(
+                listOf(
+                    q(
+                        id = "1",
+                        state = QuestionState.DOUBLE_MARK,
+                        choice = null,
+                        scores = mapOf("A" to 0.31, "B" to 0.04, "C" to 0.27, "D" to 0.02)
+                    )
+                )
+            )
+        )
+
+        assertTrue(result.successful)
+        assertEquals("A|C", result.answerKey?.answers?.get("1"))
+        assertTrue(result.invalidQuestionIds.isEmpty())
+    }
+
+    @Test
+    fun `blank suspicious and ambiguous multi marks block answer key capture`() {
         val result = AnswerKeyCapture.fromRead(
             templateId = "exam",
             templateVersion = 1,
@@ -38,8 +60,13 @@ class AnswerKeyCaptureTest {
                 listOf(
                     q("1", QuestionState.MARKED, "A"),
                     q("2", QuestionState.BLANK, null),
-                    q("3", QuestionState.DOUBLE_MARK, null),
-                    q("4", QuestionState.SUSPICIOUS, "B")
+                    q("3", QuestionState.SUSPICIOUS, "B"),
+                    q(
+                        id = "4",
+                        state = QuestionState.DOUBLE_MARK,
+                        choice = null,
+                        scores = mapOf("A" to 0.30, "B" to 0.26, "C" to 0.22, "D" to 0.01)
+                    )
                 )
             )
         )
@@ -49,12 +76,16 @@ class AnswerKeyCaptureTest {
         assertEquals(listOf("2", "3", "4"), result.invalidQuestionIds)
     }
 
-    private fun q(id: String, state: QuestionState, choice: String?): QuestionRead =
-        QuestionRead(
-            questionId = id,
-            state = state,
-            selectedChoice = choice,
-            confidence = 0.9,
-            choiceScores = emptyMap()
-        )
+    private fun q(
+        id: String,
+        state: QuestionState,
+        choice: String?,
+        scores: Map<String, Double> = emptyMap()
+    ): QuestionRead = QuestionRead(
+        questionId = id,
+        state = state,
+        selectedChoice = choice,
+        confidence = 0.9,
+        choiceScores = scores
+    )
 }

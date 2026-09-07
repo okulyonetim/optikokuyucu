@@ -128,7 +128,12 @@ fun OmrRootScreen(
                 bottomBar = {
                     ProductBottomBar(
                         selected = rootTab,
-                        onSelect = { tab -> destination = tab.toRootDestination() }
+                        onSelect = { tab ->
+                            if (tab == ProductTab.FORMS) {
+                                formsReturnDestination = RootDestination.HOME
+                            }
+                            destination = tab.toRootDestination()
+                        }
                     )
                 }
             ) { innerPadding ->
@@ -152,13 +157,14 @@ fun OmrRootScreen(
                             }
                         )
 
-                        RootDestination.SCANNER -> OmrCameraScreen(
-                            openCvReady = openCvReady,
-                            selfTest = selfTest
-                        )
-
-                        RootDestination.RESULTS -> ScanSessionScreen(
-                            onBack = { destination = RootDestination.HOME }
+                        RootDestination.EXAMS -> ExamListScreen(
+                            onNewExam = { destination = RootDestination.NEW_EXAM },
+                            onOpenExam = { examId ->
+                                selectedExamId = examId
+                                selectedScanRecordId = null
+                                destination = RootDestination.EXAM_DETAIL
+                            },
+                            onOpenTools = { destination = RootDestination.TOOLS }
                         )
 
                         RootDestination.STUDENTS -> StudentRosterScreen(
@@ -167,6 +173,11 @@ fun OmrRootScreen(
                                 selectedScanRecordId = scanRecordId
                                 destination = RootDestination.STUDENT_PAPER
                             }
+                        )
+
+                        RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
+                            onBack = { destination = formsReturnDestination },
+                            onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
                         )
 
                         RootDestination.SETTINGS -> RootSettingsScreen(
@@ -284,6 +295,15 @@ fun OmrRootScreen(
                     onOpenDesigner = { openDesigner(RootDestination.TOOLS) }
                 )
 
+                RootDestination.SCANNER -> OmrCameraScreen(
+                    openCvReady = openCvReady,
+                    selfTest = selfTest
+                )
+
+                RootDestination.RESULTS -> ScanSessionScreen(
+                    onBack = { destination = RootDestination.HOME }
+                )
+
                 RootDestination.ANSWER_KEYS -> AnswerKeyScreen(
                     openCvReady = openCvReady,
                     onBack = {
@@ -309,8 +329,7 @@ fun OmrRootScreen(
                 )
 
                 RootDestination.HOME,
-                RootDestination.SCANNER,
-                RootDestination.RESULTS,
+                RootDestination.EXAMS,
                 RootDestination.STUDENTS,
                 RootDestination.SETTINGS -> Unit
             }
@@ -320,18 +339,18 @@ fun OmrRootScreen(
 
 private fun RootDestination.toProductTabOrNull(): ProductTab? = when (this) {
     RootDestination.HOME -> ProductTab.HOME
-    RootDestination.SCANNER -> ProductTab.CAMERA
+    RootDestination.EXAMS -> ProductTab.EXAMS
     RootDestination.STUDENTS -> ProductTab.STUDENTS
-    RootDestination.RESULTS -> ProductTab.RESULTS
+    RootDestination.ACTIVE_TEMPLATE -> ProductTab.FORMS
     RootDestination.SETTINGS -> ProductTab.SETTINGS
     else -> null
 }
 
 private fun ProductTab.toRootDestination(): RootDestination = when (this) {
     ProductTab.HOME -> RootDestination.HOME
-    ProductTab.CAMERA -> RootDestination.SCANNER
+    ProductTab.EXAMS -> RootDestination.EXAMS
     ProductTab.STUDENTS -> RootDestination.STUDENTS
-    ProductTab.RESULTS -> RootDestination.RESULTS
+    ProductTab.FORMS -> RootDestination.ACTIVE_TEMPLATE
     ProductTab.SETTINGS -> RootDestination.SETTINGS
 }
 

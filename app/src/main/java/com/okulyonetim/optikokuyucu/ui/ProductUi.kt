@@ -31,9 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val ProductPurple = Color(0xFF7357E8)
-private val ProductPurpleLight = Color(0xFFEDE8FF)
-private val ProductBackground = Color(0xFFF7F7FC)
+private val ProductPrimary = Color(0xFF3159D9)
+private val ProductPrimaryLight = Color(0xFFE6ECFF)
+private val ProductBackground = Color(0xFFF6F8FB)
 private val ProductGreen = Color(0xFF25865E)
 private val ProductGreenSoft = Color(0xFFE8F7F0)
 private val ProductOrange = Color(0xFFCF7A11)
@@ -42,34 +42,34 @@ private val ProductRed = Color(0xFFC94743)
 private val ProductRedSoft = Color(0xFFFFEBEA)
 
 private val LightProductScheme = lightColorScheme(
-    primary = ProductPurple,
+    primary = ProductPrimary,
     onPrimary = Color.White,
-    primaryContainer = ProductPurpleLight,
-    onPrimaryContainer = Color(0xFF2E176A),
-    secondary = Color(0xFF6652C6),
+    primaryContainer = ProductPrimaryLight,
+    onPrimaryContainer = Color(0xFF142B66),
+    secondary = Color(0xFF0F766E),
     background = ProductBackground,
     surface = Color.White,
-    surfaceVariant = Color(0xFFF1EFF8),
-    outline = Color(0xFFD4D0DF)
+    surfaceVariant = Color(0xFFEEF1F6),
+    outline = Color(0xFFC7CDD8)
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFFBCA9FF),
-    onPrimary = Color(0xFF28115E),
-    primaryContainer = Color(0xFF352861),
-    onPrimaryContainer = Color(0xFFEAE4FF),
-    secondary = Color(0xFFCABEFF),
-    background = Color(0xFF101016),
-    surface = Color(0xFF19181F),
-    surfaceVariant = Color(0xFF24222C),
-    outline = Color(0xFF827D8C)
+    primary = Color(0xFF9CB4FF),
+    onPrimary = Color(0xFF102656),
+    primaryContainer = Color(0xFF23366D),
+    onPrimaryContainer = Color(0xFFE3E9FF),
+    secondary = Color(0xFF72D5C8),
+    background = Color(0xFF0E1116),
+    surface = Color(0xFF161A21),
+    surfaceVariant = Color(0xFF222833),
+    outline = Color(0xFF737B89)
 )
 
 enum class ProductTab {
     HOME,
-    CAMERA,
+    EXAMS,
     STUDENTS,
-    RESULTS,
+    FORMS,
     SETTINGS
 }
 
@@ -228,9 +228,9 @@ fun ProductBottomBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ProductBottomItem(Modifier.weight(1f), "Anasayfa", "⌂", selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
-            ProductBottomItem(Modifier.weight(1f), "Kamera", "▣", selected == ProductTab.CAMERA) { onSelect(ProductTab.CAMERA) }
+            ProductBottomItem(Modifier.weight(1f), "Sınavlar", "▤", selected == ProductTab.EXAMS) { onSelect(ProductTab.EXAMS) }
             ProductBottomItem(Modifier.weight(1f), "Öğrenciler", "●", selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
-            ProductBottomItem(Modifier.weight(1f), "Sonuçlar", "▥", selected == ProductTab.RESULTS) { onSelect(ProductTab.RESULTS) }
+            ProductBottomItem(Modifier.weight(1f), "Optik Formlar", "◎", selected == ProductTab.FORMS) { onSelect(ProductTab.FORMS) }
             ProductBottomItem(Modifier.weight(1f), "Ayarlar", "⚙", selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
         }
     }

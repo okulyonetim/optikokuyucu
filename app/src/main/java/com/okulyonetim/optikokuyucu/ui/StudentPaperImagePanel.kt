@@ -26,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -35,12 +37,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
-import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
 import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkColumn
 import com.okulyonetim.optikokuyucu.omr.results.RecordedMarkState
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.results.StoredScanImage
+import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyChoiceCodec
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
@@ -49,15 +51,21 @@ import com.okulyonetim.optikokuyucu.omr.template.BubbleSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 
-private val OverlayGreen = Color(0xFF28B84A)
-private val OverlayRed = Color(0xFFF0443E)
-private val OverlayBlue = Color(0xFF145BFF)
-private val OverlayOrange = Color(0xFFF39B25)
+private val OverlayKeyGreen = Color(0xFF16A05D)
+private val OverlayCorrectGreen = Color(0xFF20A861)
+private val OverlayWrongRed = Color(0xFFE2464C)
+private val OverlayDoubleYellow = Color(0xFFF4B740)
+private val OverlayInfoBlue = Color(0xFF3B82F6)
 
 /**
- * Reference-style result image: canonical sheet plus recognition/scoring overlay.
- * Because both layers use the same template coordinate space, circles stay aligned after camera
- * perspective correction and regardless of A4/A5 or portrait/landscape printing.
+ * Canonical sheet plus a bubble-sized scoring overlay.
+ *
+ * Visual contract:
+ * - answer-key choices: green outline only
+ * - correct student choice: translucent green fill
+ * - wrong student choice: translucent red fill
+ * - student double/suspicious marks: translucent yellow fill
+ * - student/booklet information grids: subtle blue bubble-sized mark
  */
 @Composable
 fun StudentPaperImagePanel(
@@ -134,11 +142,11 @@ fun StudentPaperImagePanel(
             Text(
                 text = "Optik form sürümü bulunamadığı için görüntü gösteriliyor ancak işaret katmanı çizilemiyor.",
                 style = MaterialTheme.typography.bodySmall,
-                color = OverlayOrange
+                color = OverlayDoubleYellow
             )
         } else {
             Text(
-                text = "Yeşil doğru/beklenen, kırmızı yanlış, turuncu belirsiz/çift, mavi öğrenci ve kitapçık alanlarını gösterir.",
+                text = "Yeşil kenarlık cevap anahtarı; yeşil dolgu doğru, kırmızı dolgu yanlış, sarı dolgu çift/şüpheli cevaptır.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -154,14 +162,14 @@ private fun OverlayLegend() {
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LegendItem("Doğru", OverlayGreen)
-            LegendItem("Yanlış", OverlayRed)
-            LegendItem("Şüpheli", OverlayOrange)
-            LegendItem("Bilgi", OverlayBlue)
+            LegendItem("Anahtar", OverlayKeyGreen)
+            LegendItem("Doğru", OverlayCorrectGreen)
+            LegendItem("Yanlış", OverlayWrongRed)
+            LegendItem("Çift", OverlayDoubleYellow)
         }
     }
 }
@@ -231,25 +239,39 @@ private fun DrawScope.drawRecognitionOverlay(
 
         if (selectedChoice != null) {
             row.bubbles.firstOrNull { it.id == selectedChoice }?.let { bubble ->
-                val color = answerOverlayColor(answer, evaluation)
-                drawBubbleMarker(bubble, color, scaleX, scaleY, strong = true)
+                when (evaluation?.state) {
+                    QuestionEvaluationState.CORRECT ->
+                        drawBubbleFill(bubble, OverlayCorrectGreen.copy(alpha = 0.34f), scaleX, scaleY)
+                    QuestionEvaluationState.WRONG ->
+                        drawBubbleFill(bubble, OverlayWrongRed.copy(alpha = 0.34f), scaleX, scaleY)
+                    QuestionEvaluationState.SUSPICIOUS,
+                    QuestionEvaluationState.DOUBLE_MARK ->
+                        drawBubbleFill(bubble, OverlayDoubleYellow.copy(alpha = 0.38f), scaleX, scaleY)
+                    QuestionEvaluationState.NO_KEY,
+                    QuestionEvaluationState.BLANK,
+                    null ->
+                        drawBubbleFill(bubble, OverlayInfoBlue.copy(alpha = 0.18f), scaleX, scaleY)
+                }
             }
-        } else if (answer.state == RecordedAnswerState.DOUBLE_MARK) {
+        }
+
+        if (answer.state == RecordedAnswerState.DOUBLE_MARK) {
             answer.choiceScores.entries
                 .sortedByDescending { it.value }
                 .take(2)
                 .filter { it.value >= DOUBLE_OVERLAY_SCORE }
                 .forEach { candidate ->
                     row.bubbles.firstOrNull { it.id == candidate.key }?.let { bubble ->
-                        drawBubbleMarker(bubble, OverlayOrange, scaleX, scaleY, strong = true)
+                        drawBubbleFill(bubble, OverlayDoubleYellow.copy(alpha = 0.40f), scaleX, scaleY)
                     }
                 }
         }
 
-        val expectedChoice = evaluation?.expectedChoice
-        if (expectedChoice != null && expectedChoice != selectedChoice) {
+        // Draw the answer key last so its green border stays crisp above all fills. Multi-answer
+        // keys draw a green outline around every accepted choice.
+        AnswerKeyChoiceCodec.decode(evaluation?.expectedChoice).forEach { expectedChoice ->
             row.bubbles.firstOrNull { it.id == expectedChoice }?.let { bubble ->
-                drawBubbleMarker(bubble, OverlayGreen, scaleX, scaleY, strong = false)
+                drawBubbleOutline(bubble, OverlayKeyGreen, scaleX, scaleY, 1.5.dp.toPx())
             }
         }
     }
@@ -274,12 +296,13 @@ private fun DrawScope.drawMarkColumn(
     if (selected != null) {
         marks.firstOrNull { it.id == selected }?.let { bubble ->
             val color = when (recorded.state) {
-                RecordedMarkState.MARKED -> OverlayBlue
+                RecordedMarkState.MARKED -> OverlayInfoBlue
                 RecordedMarkState.SUSPICIOUS,
-                RecordedMarkState.DOUBLE_MARK -> OverlayOrange
-                RecordedMarkState.BLANK -> OverlayBlue
+                RecordedMarkState.DOUBLE_MARK -> OverlayDoubleYellow
+                RecordedMarkState.BLANK -> OverlayInfoBlue
             }
-            drawBubbleMarker(bubble, color, scaleX, scaleY, strong = true)
+            drawBubbleFill(bubble, color.copy(alpha = 0.24f), scaleX, scaleY)
+            drawBubbleOutline(bubble, color, scaleX, scaleY, 1.1.dp.toPx())
         }
     } else if (recorded.state == RecordedMarkState.DOUBLE_MARK) {
         recorded.scores.entries
@@ -288,58 +311,50 @@ private fun DrawScope.drawMarkColumn(
             .filter { it.value >= DOUBLE_OVERLAY_SCORE }
             .forEach { candidate ->
                 marks.firstOrNull { it.id == candidate.key }?.let { bubble ->
-                    drawBubbleMarker(bubble, OverlayOrange, scaleX, scaleY, strong = true)
+                    drawBubbleFill(bubble, OverlayDoubleYellow.copy(alpha = 0.36f), scaleX, scaleY)
                 }
             }
     }
 }
 
-private fun DrawScope.drawBubbleMarker(
+private fun DrawScope.drawBubbleFill(
+    bubble: BubbleSpec,
+    color: Color,
+    scaleX: Float,
+    scaleY: Float
+) {
+    val center = mapPoint(bubble.center, scaleX, scaleY)
+    val radiusX = bubble.radius.toFloat() * scaleX
+    val radiusY = bubble.radius.toFloat() * scaleY
+    drawOval(
+        color = color,
+        topLeft = Offset(center.x - radiusX, center.y - radiusY),
+        size = Size(radiusX * 2f, radiusY * 2f)
+    )
+}
+
+private fun DrawScope.drawBubbleOutline(
     bubble: BubbleSpec,
     color: Color,
     scaleX: Float,
     scaleY: Float,
-    strong: Boolean
+    strokeWidth: Float
 ) {
     val center = mapPoint(bubble.center, scaleX, scaleY)
-    val radius = bubble.radius.toFloat() * ((scaleX + scaleY) / 2f) * 1.35f
-    if (strong) {
-        drawCircle(
-            color = color.copy(alpha = 0.12f),
-            radius = radius * 0.72f,
-            center = center
-        )
-    }
-    drawCircle(
+    val radiusX = bubble.radius.toFloat() * scaleX
+    val radiusY = bubble.radius.toFloat() * scaleY
+    drawOval(
         color = color,
-        radius = radius,
-        center = center,
-        style = Stroke(width = if (strong) 2.6.dp.toPx() else 1.8.dp.toPx())
+        topLeft = Offset(center.x - radiusX, center.y - radiusY),
+        size = Size(radiusX * 2f, radiusY * 2f),
+        style = Stroke(width = strokeWidth)
     )
 }
 
 private fun DrawScope.mapPoint(point: TemplatePoint, scaleX: Float, scaleY: Float) =
-    androidx.compose.ui.geometry.Offset(
+    Offset(
         x = point.x.toFloat() * scaleX,
         y = point.y.toFloat() * scaleY
     )
-
-private fun answerOverlayColor(
-    answer: RecordedAnswer,
-    evaluation: QuestionEvaluation?
-): Color = when (evaluation?.state) {
-    QuestionEvaluationState.CORRECT -> OverlayGreen
-    QuestionEvaluationState.WRONG -> OverlayRed
-    QuestionEvaluationState.DOUBLE_MARK,
-    QuestionEvaluationState.SUSPICIOUS -> OverlayOrange
-    QuestionEvaluationState.BLANK -> OverlayBlue
-    QuestionEvaluationState.NO_KEY,
-    null -> when (answer.state) {
-        RecordedAnswerState.MARKED -> OverlayBlue
-        RecordedAnswerState.BLANK -> OverlayBlue
-        RecordedAnswerState.DOUBLE_MARK,
-        RecordedAnswerState.SUSPICIOUS -> OverlayOrange
-    }
-}
 
 private const val DOUBLE_OVERLAY_SCORE = 0.10

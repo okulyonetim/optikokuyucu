@@ -7,6 +7,7 @@ import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
+import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
 import com.okulyonetim.optikokuyucu.omr.live.LiveReadConsensus
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanFingerprint
 import com.okulyonetim.optikokuyucu.omr.live.LiveScanGate
@@ -17,6 +18,7 @@ import com.okulyonetim.optikokuyucu.omr.results.MAX_SCAN_IMAGE_PIXELS
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
+import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import org.opencv.core.CvType
@@ -57,6 +59,7 @@ class CameraFrameAnalyzer(
     private var frameCount = 0
     private var windowStartedAtNs = System.nanoTime()
     private var latestDetection = FiducialDetectionResult.Empty
+    private var latestPageBoundary: ImageQuadrilateral? = null
     private var latestTrackingPhase = PageTrackingPhase.SEARCHING
     private var latestTrackingConfidence = 0.0
     private var latestMotionRatio = 1.0
@@ -75,6 +78,7 @@ class CameraFrameAnalyzer(
                 }.onFailure {
                     detectorHealthy = false
                 }.getOrDefault(FiducialDetectionResult.Empty)
+                latestPageBoundary = estimatePageBoundary(latestDetection)
 
                 val tracking = pageTracker.onCandidate(
                     quad = latestDetection.pageQuadrilateral,
@@ -161,6 +165,7 @@ class CameraFrameAnalyzer(
                         averageLuma = sampleAverageLuma(image),
                         openCvReady = detector != null && detectorHealthy,
                         markerCount = latestDetection.detectedMarkers.size,
+                        pageQuadrilateral = latestPageBoundary,
                         pageConfidence = latestTrackingConfidence,
                         trackingPhase = latestTrackingPhase,
                         motionRatio = latestMotionRatio,
@@ -177,6 +182,23 @@ class CameraFrameAnalyzer(
         } finally {
             image.close()
         }
+    }
+
+    /**
+     * The four markers are inset from the physical page edge. Once their homography is known we
+     * project the four canonical page corners back to the camera image, producing the actual page
+     * outline instead of connecting marker centers.
+     */
+    private fun estimatePageBoundary(detection: FiducialDetectionResult): ImageQuadrilateral? {
+        val transform = detection.canonicalRegistration?.templateToImage ?: return null
+        val width = template.space.width
+        val height = template.space.height
+        return ImageQuadrilateral(
+            topLeft = transform.mapTemplate(TemplatePoint(0.0, 0.0)) ?: return null,
+            topRight = transform.mapTemplate(TemplatePoint(width, 0.0)) ?: return null,
+            bottomRight = transform.mapTemplate(TemplatePoint(width, height)) ?: return null,
+            bottomLeft = transform.mapTemplate(TemplatePoint(0.0, height)) ?: return null
+        )
     }
 
     private fun readLockedFrame(
@@ -326,6 +348,8 @@ data class CameraFrameStats(
     val averageLuma: Int,
     val openCvReady: Boolean,
     val markerCount: Int,
+    /** Estimated physical page boundary in analyzer pixel coordinates; null until all 4 markers exist. */
+    val pageQuadrilateral: ImageQuadrilateral?,
     val pageConfidence: Double,
     val trackingPhase: PageTrackingPhase,
     val motionRatio: Double,
@@ -343,6 +367,7 @@ data class CameraFrameStats(
             averageLuma = 0,
             openCvReady = false,
             markerCount = 0,
+            pageQuadrilateral = null,
             pageConfidence = 0.0,
             trackingPhase = PageTrackingPhase.SEARCHING,
             motionRatio = 1.0,
