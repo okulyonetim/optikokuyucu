@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.omr.designer
 
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.max
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -62,5 +63,16 @@ class DesignerEditSafetyTest {
         assertNotNull(issue)
         assertTrue(requireNotNull(issue).contains("köşe işaretleyicisinin"))
         assertFalse(DesignerEditSafety.isPlacementSafe(document, bounds))
+    }
+
+    @Test
+    fun `new answer area starts with one question and compiles safely`() {
+        val page = DesignerPageGeometry.apply(document)
+        val answer = DesignerAreaCatalog.createAnswerArea(page)
+
+        assertEquals(1, answer.questionCount)
+
+        val compiled = DesignerTemplateCompiler.compile(page.copy(components = listOf(answer)))
+        assertEquals(1, compiled.bubbleRows.size)
     }
 }
