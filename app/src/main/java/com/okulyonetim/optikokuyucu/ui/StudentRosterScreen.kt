@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,10 +22,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -134,6 +133,7 @@ private fun buildStudentRosterOverviews(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentRosterScreen(
     onOpenPaper: (String, String) -> Unit
@@ -188,15 +188,6 @@ fun StudentRosterScreen(
         roster = rosterRepository.list()
         storedClasses = classRepository.list()
         exams = examRepository.list()
-    }
-
-    fun launchPdf(label: String) {
-        if (!busy) {
-            importSourceLabel = label
-            pdfPicker@ run {
-                // launcher is invoked after declaration below through the menu callbacks.
-            }
-        }
     }
 
     val pdfPicker = rememberLauncherForActivityResult(
@@ -256,25 +247,15 @@ fun StudentRosterScreen(
             title = { Text("$importSourceLabel Önizleme") },
             text = {
                 Column(
-                    modifier = Modifier
-                        .heightIn(max = 430.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        "${preview.students.size} öğrenci · ${preview.classCounts.size} sınıf",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    preview.classCounts.forEach { (className, count) ->
-                        Text("$className · $count öğrenci")
-                    }
+                    Text("${preview.students.size} öğrenci · ${preview.classCounts.size} sınıf", fontWeight = FontWeight.SemiBold)
+                    preview.classCounts.forEach { (className, count) -> Text("$className · $count öğrenci") }
                     Spacer(Modifier.height(4.dp))
                     Text("Öğrenciler", fontWeight = FontWeight.SemiBold)
                     preview.students.forEach { student ->
-                        Text(
-                            "${student.className} · No ${student.studentNumber} · ${student.fullName}",
-                            fontSize = 12.sp
-                        )
+                        Text("${student.className} · No ${student.studentNumber} · ${student.fullName}", fontSize = 12.sp)
                     }
                     Text(
                         "PDF veli adı veya telefon içermiyorsa mevcut veli bilgileri korunur; yeni öğrencilerde boş bırakılır.",
@@ -305,9 +286,7 @@ fun StudentRosterScreen(
                     }
                 ) { Text("İçe Aktar") }
             },
-            dismissButton = {
-                TextButton(onClick = { importPreview = null }) { Text("Vazgeç") }
-            }
+            dismissButton = { TextButton(onClick = { importPreview = null }) { Text("Vazgeç") } }
         )
     }
 
@@ -354,19 +333,13 @@ fun StudentRosterScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (studentGender == StudentGender.GIRL) {
                             FilledTonalButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
-                        } else {
-                            OutlinedButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
-                        }
+                        } else OutlinedButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
                         if (studentGender == StudentGender.BOY) {
                             FilledTonalButton(onClick = { studentGender = StudentGender.BOY }) { Text("Erkek") }
-                        } else {
-                            OutlinedButton(onClick = { studentGender = StudentGender.BOY }) { Text("Erkek") }
-                        }
+                        } else OutlinedButton(onClick = { studentGender = StudentGender.BOY }) { Text("Erkek") }
                         if (studentGender == StudentGender.UNKNOWN) {
                             FilledTonalButton(onClick = { studentGender = StudentGender.UNKNOWN }) { Text("—") }
-                        } else {
-                            OutlinedButton(onClick = { studentGender = StudentGender.UNKNOWN }) { Text("—") }
-                        }
+                        } else OutlinedButton(onClick = { studentGender = StudentGender.UNKNOWN }) { Text("—") }
                     }
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
@@ -391,8 +364,7 @@ fun StudentRosterScreen(
                             val normalizedNumber = StudentNumber.normalize(studentNumberText)
                             require(normalizedNumber.isNotBlank()) { "Öğrenci numarası zorunludur." }
                             require(rosterRepository.findByNumber(normalizedNumber) == null) { "Bu öğrenci numarası zaten kayıtlı." }
-                            val grade = studentGradeText.toIntOrNull()
-                                ?: error("Sınıf seviyesi girilmelidir.")
+                            val grade = studentGradeText.toIntOrNull() ?: error("Sınıf seviyesi girilmelidir.")
                             val entry = StudentRosterEntry(
                                 studentNumber = normalizedNumber,
                                 fullName = studentNameText,
@@ -415,15 +387,11 @@ fun StudentRosterScreen(
                             studentPhoneText = ""
                             studentGender = StudentGender.UNKNOWN
                             feedback.success("Öğrenci eklendi.")
-                        }.onFailure { error ->
-                            feedback.warning(error.message ?: "Öğrenci eklenemedi.")
-                        }
+                        }.onFailure { error -> feedback.warning(error.message ?: "Öğrenci eklenemedi.") }
                     }
                 ) { Text("Ekle") }
             },
-            dismissButton = {
-                TextButton(onClick = { manualStudentOpen = false }) { Text("Vazgeç") }
-            }
+            dismissButton = { TextButton(onClick = { manualStudentOpen = false }) { Text("Vazgeç") } }
         )
     }
 
@@ -433,14 +401,10 @@ fun StudentRosterScreen(
             title = { Text("Sınıflar") },
             text = {
                 Column(
-                    modifier = Modifier
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    if (classEntries.isEmpty()) {
-                        Text("Henüz sınıf eklenmedi.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    if (classEntries.isEmpty()) Text("Henüz sınıf eklenmedi.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     classEntries.forEach { entry ->
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
@@ -464,24 +428,17 @@ fun StudentRosterScreen(
                             classManagerOpen = false
                             classEditorOpen = true
                         }
-                    ) {
-                        Text("+ Yeni Sınıf")
-                    }
+                    ) { Text("+ Yeni Sınıf") }
                 }
             },
             confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { classManagerOpen = false }) { Text("Kapat") }
-            }
+            dismissButton = { TextButton(onClick = { classManagerOpen = false }) { Text("Kapat") } }
         )
     }
 
     if (classEditorOpen) {
         AlertDialog(
-            onDismissRequest = {
-                classEditorOpen = false
-                classManagerOpen = true
-            },
+            onDismissRequest = { classEditorOpen = false; classManagerOpen = true },
             title = { Text(if (editingClass == null) "Sınıf Ekle" else "Sınıfı Düzenle") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -515,8 +472,7 @@ fun StudentRosterScreen(
                 TextButton(
                     onClick = {
                         runCatching {
-                            val grade = classGradeText.toIntOrNull()
-                                ?: error("Sınıf seviyesi girilmelidir.")
+                            val grade = classGradeText.toIntOrNull() ?: error("Sınıf seviyesi girilmelidir.")
                             val updatedClass = StudentClassEntry(grade, classBranchText).normalized()
                             val old = editingClass
                             if (old != null && old.className != updatedClass.className) {
@@ -530,30 +486,21 @@ fun StudentRosterScreen(
                                     )
                                 }
                                 classRepository.delete(old)
+                                if (selectedClass == old.className) selectedClass = updatedClass.className
                             }
                             classRepository.save(updatedClass)
                         }.onSuccess {
                             refreshRoster()
-                            selectedClass = editingClass?.className
-                                ?.takeIf { oldName -> oldName in classes }
-                                ?.let { null }
                             classEditorOpen = false
                             classManagerOpen = true
                             feedback.success(if (editingClass == null) "Sınıf eklendi." else "Sınıf güncellendi.")
                             editingClass = null
-                        }.onFailure { error ->
-                            feedback.warning(error.message ?: "Sınıf kaydedilemedi.")
-                        }
+                        }.onFailure { error -> feedback.warning(error.message ?: "Sınıf kaydedilemedi.") }
                     }
                 ) { Text("Kaydet") }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        classEditorOpen = false
-                        classManagerOpen = true
-                    }
-                ) { Text("Vazgeç") }
+                TextButton(onClick = { classEditorOpen = false; classManagerOpen = true }) { Text("Vazgeç") }
             }
         )
     }
@@ -596,9 +543,7 @@ fun StudentRosterScreen(
                                 editing = null
                                 onOpenPaper(latestExamId, latestScanRecordId)
                             }
-                        ) {
-                            Text("Son Optik Kağıdı Aç")
-                        }
+                        ) { Text("Son Optik Kağıdı Aç") }
                     }
                 }
             },
@@ -625,60 +570,18 @@ fun StudentRosterScreen(
                     }
                 ) { Text("Kaydet") }
             },
-            dismissButton = {
-                TextButton(onClick = { editing = null }) { Text("Vazgeç") }
-            }
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Vazgeç") } }
         )
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            ProductTopBar(
-                title = "Öğrenciler",
-                actionText = "⋮",
-                onActionClick = { optionsExpanded = true }
-            )
-            DropdownMenu(
-                modifier = Modifier.align(Alignment.TopEnd),
-                expanded = optionsExpanded,
-                onDismissRequest = { optionsExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("e-Okul PDF İçe Aktar") },
-                    onClick = {
-                        optionsExpanded = false
-                        importSourceLabel = "e-Okul PDF"
-                        if (!busy) pdfPicker.launch(arrayOf("application/pdf"))
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("PDF Öğrenci Ekle") },
-                    onClick = {
-                        optionsExpanded = false
-                        importSourceLabel = "Öğrenci PDF"
-                        if (!busy) pdfPicker.launch(arrayOf("application/pdf"))
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Manuel Öğrenci Ekle") },
-                    onClick = {
-                        optionsExpanded = false
-                        manualStudentOpen = true
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Sınıfları Yönet") },
-                    onClick = {
-                        optionsExpanded = false
-                        classManagerOpen = true
-                    }
-                )
-            }
-        }
+        ProductTopBar(
+            title = "Öğrenciler",
+            actionText = "⋮",
+            onActionClick = { optionsExpanded = true }
+        )
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
@@ -694,19 +597,10 @@ fun StudentRosterScreen(
                 )
             }
             if (busy) {
-                item {
-                    Text(
-                        "$importSourceLabel okunuyor…",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                item { Text("$importSourceLabel okunuyor…", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary) }
             }
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     RosterStatCard(Modifier.weight(1f), "Öğrenci", overviews.size.toString())
                     RosterStatCard(Modifier.weight(1f), "Sınıf", classes.size.toString())
                     RosterStatCard(Modifier.weight(1f), "Kağıt", overviews.sumOf { it.scanCount }.toString())
@@ -732,7 +626,6 @@ fun StudentRosterScreen(
                     }
                 }
             }
-
             if (filtered.isEmpty()) {
                 item {
                     Card(
@@ -741,10 +634,7 @@ fun StudentRosterScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                if (overviews.isEmpty()) "Henüz öğrenci yok" else "Öğrenci bulunamadı",
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text(if (overviews.isEmpty()) "Henüz öğrenci yok" else "Öğrenci bulunamadı", fontWeight = FontWeight.SemiBold)
                             Text(
                                 if (overviews.isEmpty())
                                     "Sağ üstteki seçeneklerden PDF içe aktarabilir veya manuel öğrenci ekleyebilirsiniz."
@@ -777,6 +667,59 @@ fun StudentRosterScreen(
             item { Spacer(Modifier.height(10.dp)) }
         }
     }
+
+    if (optionsExpanded) {
+        ModalBottomSheet(onDismissRequest = { optionsExpanded = false }) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text("Öğrenci Seçenekleri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                StudentOptionRow("⇩", "e-Okul PDF İçe Aktar", enabled = !busy) {
+                    optionsExpanded = false
+                    importSourceLabel = "e-Okul PDF"
+                    pdfPicker.launch(arrayOf("application/pdf"))
+                }
+                StudentOptionRow("＋", "PDF Öğrenci Ekle", enabled = !busy) {
+                    optionsExpanded = false
+                    importSourceLabel = "Öğrenci PDF"
+                    pdfPicker.launch(arrayOf("application/pdf"))
+                }
+                StudentOptionRow("＋", "Manuel Öğrenci Ekle") {
+                    optionsExpanded = false
+                    manualStudentOpen = true
+                }
+                StudentOptionRow("▤", "Sınıfları Yönet") {
+                    optionsExpanded = false
+                    classManagerOpen = true
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudentOptionRow(
+    symbol: String,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    TextButton(
+        modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(symbol, fontSize = 19.sp)
+            Text(label, fontSize = 15.sp)
+        }
+    }
 }
 
 @Composable
@@ -787,17 +730,8 @@ private fun RosterStatCard(modifier: Modifier, label: String, value: String) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 9.dp)
-        ) {
-            Text(
-                value,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 9.dp)) {
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -809,17 +743,13 @@ private fun StudentRosterOverviewCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 13.dp, vertical = 11.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
