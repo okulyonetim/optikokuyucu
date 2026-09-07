@@ -656,6 +656,7 @@ private fun RootSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+            item { SchoolAccountSettingsCard() }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
