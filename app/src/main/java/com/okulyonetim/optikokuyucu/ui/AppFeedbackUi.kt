@@ -97,24 +97,29 @@ private fun AppFeedbackPopup(message: AppFeedbackMessage) {
         AppFeedbackTone.ERROR -> "×"
     }
 
-    Surface(
+    Box(
         modifier = Modifier
-            .align(Alignment.TopCenter)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .fillMaxSize()
             .zIndex(100f),
-        shape = RoundedCornerShape(16.dp),
-        color = container,
-        contentColor = Color.White,
-        shadowElevation = 10.dp
+        contentAlignment = Alignment.TopCenter
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = container,
+            contentColor = Color.White,
+            shadowElevation = 10.dp
         ) {
-            Text(symbol, fontWeight = FontWeight.Bold)
-            Text(message.text, style = MaterialTheme.typography.bodyMedium)
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(symbol, fontWeight = FontWeight.Bold)
+                Text(message.text, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
