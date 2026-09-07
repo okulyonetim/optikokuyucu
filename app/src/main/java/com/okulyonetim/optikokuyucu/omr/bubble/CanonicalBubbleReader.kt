@@ -96,6 +96,9 @@ class CanonicalBubbleReader(
             bestScore < MIN_MARK_SCORE ->
                 QuestionRead(questionId, QuestionState.BLANK, null, 1.0 - bestScore, scores)
 
+            // Two independently strong fills are a double mark even if glare/shadow makes one
+            // visibly lighter than the other. Requiring nearly equal darkness caused real double
+            // marks to collapse into a single answer when illumination was spatially uneven.
             strongMarkCount >= 2 ->
                 QuestionRead(
                     questionId,
@@ -105,6 +108,8 @@ class CanonicalBubbleReader(
                     scores
                 )
 
+            // A weaker second candidate is accepted as double only when it is close to the winner.
+            // This preserves rejection of erase residue, print dirt and other weak secondary traces.
             secondScore >= DOUBLE_MARK_SCORE && gap < DOUBLE_GAP ->
                 QuestionRead(
                     questionId,
