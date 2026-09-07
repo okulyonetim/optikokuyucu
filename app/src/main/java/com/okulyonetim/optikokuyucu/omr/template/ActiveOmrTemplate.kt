@@ -144,12 +144,16 @@ object ActiveOmrTemplateResolver {
             } ?: starterDocuments.firstOrNull {
                 it.id == selection.templateId && it.version == selection.templateVersion
             }
-            document?.let {
-                ResolvedActiveTemplate(
-                    selection = selection,
-                    name = it.name,
-                    template = DesignerTemplateCompiler.compile(it)
-                )
+            document?.let { selected ->
+                runCatching { DesignerTemplateCompiler.compile(selected) }
+                    .getOrNull()
+                    ?.let { compiled ->
+                        ResolvedActiveTemplate(
+                            selection = selection,
+                            name = selected.name,
+                            template = compiled
+                        )
+                    }
             }
         }
     }
