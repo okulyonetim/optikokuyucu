@@ -13,8 +13,6 @@ import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
-import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
-import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.student.StudentNumber
 import java.time.LocalDate
 
@@ -26,16 +24,6 @@ data class SchoolExamCloudSyncResult(
     val skippedWithoutPermission: Int,
     val skippedWithoutStudentIdentity: Int,
     val failures: List<String>
-)
-
-private data class SubjectCounters(
-    var correct: Int = 0,
-    var wrong: Int = 0,
-    var blank: Int = 0,
-    var doubleMark: Int = 0,
-    var suspicious: Int = 0,
-    var noKey: Int = 0,
-    var net: Double = 0.0
 )
 
 private data class ResultSyncStats(
@@ -151,13 +139,14 @@ class SchoolExamCloudSyncService(
                 )
             }.getOrNull() ?: return@forEach
 
-            val grouped = linkedMapOf<String, SubjectCounters>()
-            score.evaluations.forEach { evaluation ->
-                val subject = subjectMap[evaluation.questionId]
-                    ?: fallbackSubject(evaluation.questionId)
-                grouped.getOrPut(subject) { SubjectCounters() }.add(evaluation)
+            val grouped = score.evaluations.groupBy { evaluation ->
+                subjectMap[evaluation.questionId] ?: fallbackSubject(evaluation.questionId)
             }
-            val lessonResults = grouped.mapValues { (_, counters) -> counters.toFirestoreMap() }
+            val lessonResults = grouped.mapValues { (_, evaluations) ->
+                SchoolLessonResultMapper.toFirestoreMap(
+                    SchoolLessonResultMapper.summarize(evaluations)
+                )
+            }
             val result = linkedMapOf<String, Any?>(
                 "ogrenciId" to schoolDocumentId,
                 "ogrenciAdi" to link.studentName,
@@ -251,26 +240,4 @@ class SchoolExamCloudSyncService(
         if (prefix.isBlank() || prefix.startsWith("answers-", ignoreCase = true)) return "Genel"
         return prefix
     }
-
-    private fun SubjectCounters.add(evaluation: QuestionEvaluation) {
-        when (evaluation.state) {
-            QuestionEvaluationState.CORRECT -> correct += 1
-            QuestionEvaluationState.WRONG -> wrong += 1
-            QuestionEvaluationState.BLANK -> blank += 1
-            QuestionEvaluationState.DOUBLE_MARK -> doubleMark += 1
-            QuestionEvaluationState.SUSPICIOUS -> suspicious += 1
-            QuestionEvaluationState.NO_KEY -> noKey += 1
-        }
-        net += evaluation.points
-    }
-
-    private fun SubjectCounters.toFirestoreMap(): Map<String, Any?> = linkedMapOf(
-        "dogru" to correct,
-        "yanlis" to wrong,
-        "bos" to blank,
-        "cift" to doubleMark,
-        "supheli" to suspicious,
-        "anahtarsiz" to noKey,
-        "net" to net
-    )
 }
