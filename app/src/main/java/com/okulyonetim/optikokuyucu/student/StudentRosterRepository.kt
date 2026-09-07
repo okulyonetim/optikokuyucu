@@ -8,9 +8,12 @@ import java.security.MessageDigest
 interface StudentRosterRepository {
     fun save(entry: StudentRosterEntry)
     fun findByNumber(studentNumber: String): StudentRosterEntry?
+    fun findByNumberAndGrade(studentNumber: String, gradeLevel: Int): StudentRosterEntry?
+    fun listByNumber(studentNumber: String): List<StudentRosterEntry>
     fun list(): List<StudentRosterEntry>
     fun upsertImported(entries: List<StudentRosterEntry>): StudentImportSummary
     fun delete(studentNumber: String): Boolean
+    fun delete(studentNumber: String, gradeLevel: Int): Boolean
 }
 
 /** App-private student roster. No student/guardian data leaves the device through this repository. */
@@ -21,7 +24,7 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
 
     override fun save(entry: StudentRosterEntry) {
         val normalized = entry.normalized()
-        val destination = fileFor(normalized.studentNumber)
+        val destination = fileFor(normalized)
         val temporary = File(directory, destination.name + ".tmp")
         temporary.writeBytes(StudentRosterCodec.encode(normalized))
         if (destination.exists() && !destination.delete()) {
@@ -32,22 +35,41 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
             temporary.delete()
             error("Öğrenci kaydı kalıcı depoya taşınamadı.")
         }
+
+        // 0.17.1 ve öncesindeki yalnız-numara dosyasını, aynı kurum kimliğine aitse temizle.
+        // Böylece yükseltme sonrası öğrenci listesinde aynı kayıt iki kez görünmez.
+        val legacy = legacyFileFor(normalized.studentNumber)
+        if (legacy != destination && legacy.isFile) {
+            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
+            if (legacyEntry?.identityKey == normalized.identityKey) legacy.delete()
+        }
     }
 
-    override fun findByNumber(studentNumber: String): StudentRosterEntry? {
-        val normalizedNumber = StudentNumber.normalize(studentNumber)
-        if (normalizedNumber.isBlank()) return null
-        val file = fileFor(normalizedNumber)
-        if (!file.isFile) return null
-        return runCatching { StudentRosterCodec.decode(file.readBytes()) }
-            .getOrNull()
-            ?.takeIf { it.studentNumber == normalizedNumber }
+    /**
+     * Numara iki kurumda birden varsa bilinçli olarak null döner. Çağıran taraf sınıf/kurum bilgisi
+     * ile [findByNumberAndGrade] kullanmalıdır; böylece yanlış öğrencinin seçilmesi engellenir.
+     */
+    override fun findByNumber(studentNumber: String): StudentRosterEntry? =
+        listByNumber(studentNumber).singleOrNull()
+
+    override fun findByNumberAndGrade(studentNumber: String, gradeLevel: Int): StudentRosterEntry? {
+        val identity = StudentSchoolIdentity.identityKey(studentNumber, gradeLevel)
+        if (identity.isBlank()) return null
+        return list().firstOrNull { it.identityKey == identity }
+    }
+
+    override fun listByNumber(studentNumber: String): List<StudentRosterEntry> {
+        val normalized = StudentNumber.normalize(studentNumber)
+        if (normalized.isBlank()) return emptyList()
+        return list().filter { it.studentNumber == normalized }
     }
 
     override fun list(): List<StudentRosterEntry> = directory
         .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
         .orEmpty()
         .mapNotNull { file -> runCatching { StudentRosterCodec.decode(file.readBytes()) }.getOrNull() }
+        .groupBy { it.identityKey }
+        .mapNotNull { (_, records) -> records.maxByOrNull { it.updatedAtEpochMs } }
         .sortedWith(
             compareBy<StudentRosterEntry> { it.gradeLevel }
                 .thenBy { it.branch }
@@ -58,22 +80,26 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
 
     override fun upsertImported(entries: List<StudentRosterEntry>): StudentImportSummary {
         if (entries.isEmpty()) return StudentImportSummary(0, 0, 0, 0)
-        val hidden = schoolVisibilityStore.hiddenStudentNumbers()
         val normalized = entries.map(StudentRosterEntry::normalized)
-            .filterNot { it.studentNumber in hidden }
+            .filterNot(schoolVisibilityStore::isHidden)
         if (normalized.isEmpty()) return StudentImportSummary(0, 0, 0, 0)
-        normalized.groupBy { it.studentNumber }.forEach { (number, duplicates) ->
+
+        // Aynı numara İlkokul ve Ortaokulda bulunabilir. Yalnız aynı kurum içinde aynı numaranın
+        // iki farklı öğrenciye ait görünmesi gerçek bir çakışmadır.
+        normalized.groupBy { it.identityKey }.forEach { (_, duplicates) ->
             val identities = duplicates.map { it.fullName.lowercase() to it.className.lowercase() }.distinct()
             require(identities.size == 1) {
-                "Öğrenci no $number içe aktarma dosyasında birden fazla öğrenciye ait görünüyor."
+                val sample = duplicates.first()
+                val school = sample.schoolName.ifBlank { "${sample.gradeLevel}. sınıf" }
+                "$school öğrenci no ${sample.studentNumber} birden fazla öğrenciye ait görünüyor."
             }
         }
 
         var inserted = 0
         var updated = 0
         var unchanged = 0
-        normalized.distinctBy { it.studentNumber }.forEach { incoming ->
-            val existing = findByNumber(incoming.studentNumber)
+        normalized.distinctBy { it.identityKey }.forEach { incoming ->
+            val existing = findByNumberAndGrade(incoming.studentNumber, incoming.gradeLevel)
             val merged = if (existing == null) {
                 incoming
             } else {
@@ -104,16 +130,35 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
     }
 
     /**
-     * Deletes only the app-private roster file and records a local suppression marker so a later
-     * Okul Yönetim sync does not immediately re-import the student. No Firestore delete/update is
-     * performed here; the school application's oy_veliler record remains untouched.
+     * Legacy convenience path. Only succeeds when the number identifies exactly one local student.
+     * If the same number exists in both Koruk İlkokulu and Koruk Ortaokulu, grade must be supplied.
      */
     override fun delete(studentNumber: String): Boolean {
-        val normalized = StudentNumber.normalize(studentNumber)
-        if (normalized.isBlank()) return false
-        val file = fileFor(normalized)
-        val deleted = !file.exists() || file.delete()
-        if (deleted) schoolVisibilityStore.hide(normalized)
+        val only = listByNumber(studentNumber).singleOrNull() ?: return false
+        return delete(only.studentNumber, only.gradeLevel)
+    }
+
+    /**
+     * Deletes only the app-private roster file and records a local institution-aware suppression
+     * marker. No Firestore delete/update is performed; Okul Yönetim oy_veliler remains untouched.
+     */
+    override fun delete(studentNumber: String, gradeLevel: Int): Boolean {
+        val normalizedNumber = StudentNumber.normalize(studentNumber)
+        if (normalizedNumber.isBlank()) return false
+        val identity = StudentSchoolIdentity.identityKey(normalizedNumber, gradeLevel)
+        val matching = list().firstOrNull { it.identityKey == identity }
+
+        val destination = matching?.let(::fileFor) ?: fileForIdentity(identity)
+        var deleted = !destination.exists() || destination.delete()
+
+        // Yükseltme öncesi numara-temelli dosya hâlâ varsa ve aynı kuruma aitse onu da kaldır.
+        val legacy = legacyFileFor(normalizedNumber)
+        if (legacy.isFile) {
+            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
+            if (legacyEntry?.identityKey == identity) deleted = legacy.delete() && deleted
+        }
+
+        if (deleted) schoolVisibilityStore.hide(normalizedNumber, gradeLevel)
         return deleted
     }
 
@@ -126,11 +171,17 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
             a.guardianName == b.guardianName &&
             a.guardianPhone == b.guardianPhone
 
-    private fun fileFor(studentNumber: String): File = File(directory, keyFor(studentNumber) + FILE_SUFFIX)
+    private fun fileFor(entry: StudentRosterEntry): File = fileForIdentity(entry.identityKey)
 
-    private fun keyFor(studentNumber: String): String {
+    private fun fileForIdentity(identityKey: String): File =
+        File(directory, hashKey(identityKey) + FILE_SUFFIX)
+
+    private fun legacyFileFor(studentNumber: String): File =
+        File(directory, hashKey(StudentNumber.normalize(studentNumber)) + FILE_SUFFIX)
+
+    private fun hashKey(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest(studentNumber.toByteArray(Charsets.UTF_8))
+            .digest(value.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xFF) }
     }
 
