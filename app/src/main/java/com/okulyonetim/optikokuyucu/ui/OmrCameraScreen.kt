@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +51,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size as ComposeSize
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -65,11 +65,14 @@ import com.okulyonetim.optikokuyucu.camera.CameraFrameAnalyzer
 import com.okulyonetim.optikokuyucu.camera.CameraFrameStats
 import com.okulyonetim.optikokuyucu.camera.LiveOmrReadResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
+import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
+import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlin.math.max
 
 @Composable
 fun OmrCameraScreen(
@@ -203,7 +206,7 @@ private fun CameraPreviewContent(
                         liveRead != null && !newStats.readArmed -> "Okuma tamamlandı"
                         newStats.trackingPhase == PageTrackingPhase.LOCKED -> "Form algılandı · okunuyor"
                         newStats.trackingPhase == PageTrackingPhase.TRACKING -> "Form algılandı · sabit tutun"
-                        else -> "Formu çerçeve içine alın"
+                        else -> "Dört köşe markerını gösterin"
                     }
                 }
             },
@@ -254,7 +257,7 @@ private fun CameraPreviewContent(
                     preview,
                     analysis
                 )
-                cameraMessage = "Formu çerçeve içine alın"
+                cameraMessage = "Dört köşe markerını gösterin"
             } catch (error: Exception) {
                 cameraMessage = "Kamera başlatılamadı: ${error.message ?: error.javaClass.simpleName}"
             }
@@ -274,7 +277,7 @@ private fun CameraPreviewContent(
         liveRead != null && !stats.readArmed -> "Okundu · yeni formu gösterin"
         stats.trackingPhase == PageTrackingPhase.LOCKED -> "Form kilitlendi · otomatik okunuyor"
         stats.trackingPhase == PageTrackingPhase.TRACKING -> "Form algılandı · sabit tutun"
-        else -> "Dört köşe işaretini çerçeve içine alın"
+        else -> "Dört köşe markerını kamera içinde tutun"
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -283,6 +286,10 @@ private fun CameraPreviewContent(
         OmrGuideOverlay(
             modifier = Modifier.fillMaxSize(),
             templateAspect = template.space.aspectRatio.toFloat(),
+            detectedPage = stats.pageQuadrilateral,
+            sourceWidth = stats.width,
+            sourceHeight = stats.height,
+            rotationDegrees = stats.rotationDegrees,
             phase = stats.trackingPhase,
             confidence = stats.pageConfidence
         )
@@ -360,7 +367,7 @@ private fun CameraProductHeader(
     val stateText = when {
         !openCvReady -> "Okuma motoru hazır değil"
         !selfTest.passed -> "Okuma motoru kontrol gerekli"
-        stats.markerCount > 0 -> "${stats.markerCount}/4 köşe · güven %${(stats.pageConfidence * 100).toInt()}"
+        stats.markerCount > 0 -> "${stats.markerCount}/4 marker · güven %${(stats.pageConfidence * 100).toInt()}"
         else -> "Otomatik okuma açık"
     }
 
@@ -496,48 +503,97 @@ private fun LiveReadResultCard(result: LiveOmrReadResult) {
 private fun OmrGuideOverlay(
     modifier: Modifier = Modifier,
     templateAspect: Float = StandardOmrTemplate.DEFAULT.space.aspectRatio.toFloat(),
+    detectedPage: ImageQuadrilateral? = null,
+    sourceWidth: Int = 0,
+    sourceHeight: Int = 0,
+    rotationDegrees: Int = 0,
     phase: PageTrackingPhase = PageTrackingPhase.SEARCHING,
     confidence: Double = 0.0
 ) {
     val primary = MaterialTheme.colorScheme.primary
     Canvas(modifier = modifier) {
-        val maxWidth = size.width * 0.84f
-        val maxHeight = size.height * 0.66f
-        val width: Float
-        val height: Float
-        if (maxWidth / maxHeight > templateAspect) {
-            height = maxHeight
-            width = height * templateAspect
-        } else {
-            width = maxWidth
-            height = width / templateAspect
-        }
-        val left = (size.width - width) / 2f
-        val top = (size.height - height) / 2f
         val accent = when (phase) {
-            PageTrackingPhase.LOCKED -> Color(0xFF55E6A5)
-            PageTrackingPhase.TRACKING -> Color(0xFFFFC45B)
-            else -> primary.copy(alpha = if (confidence > 0.0) 0.95f else 0.78f)
+            PageTrackingPhase.LOCKED -> Color(0xFF4ADE80)
+            PageTrackingPhase.TRACKING -> Color(0xFFFBBF24)
+            else -> primary.copy(alpha = if (confidence > 0.0) 0.95f else 0.70f)
         }
 
-        drawRoundRect(
-            color = Color.White.copy(alpha = 0.62f),
-            topLeft = Offset(left, top),
-            size = ComposeSize(width, height),
-            cornerRadius = CornerRadius(24f, 24f),
-            style = Stroke(width = 2.5f)
-        )
+        if (detectedPage != null && sourceWidth > 0 && sourceHeight > 0) {
+            val rotation = ((rotationDegrees % 360) + 360) % 360
+            val rotatedWidth = if (rotation == 90 || rotation == 270) sourceHeight.toFloat() else sourceWidth.toFloat()
+            val rotatedHeight = if (rotation == 90 || rotation == 270) sourceWidth.toFloat() else sourceHeight.toFloat()
+            val scale = max(size.width / rotatedWidth, size.height / rotatedHeight)
+            val offsetX = (size.width - rotatedWidth * scale) / 2f
+            val offsetY = (size.height - rotatedHeight * scale) / 2f
 
-        val cornerLength = size.minDimension * 0.06f
-        val cornerStroke = 9f
-        fun drawCorner(x: Float, y: Float, horizontalDirection: Float, verticalDirection: Float) {
-            drawLine(accent, Offset(x, y), Offset(x + cornerLength * horizontalDirection, y), cornerStroke)
-            drawLine(accent, Offset(x, y), Offset(x, y + cornerLength * verticalDirection), cornerStroke)
+            fun mapPoint(point: ImagePoint): Offset {
+                val x: Float
+                val y: Float
+                when (rotation) {
+                    90 -> {
+                        x = (sourceHeight - point.y).toFloat()
+                        y = point.x.toFloat()
+                    }
+                    180 -> {
+                        x = (sourceWidth - point.x).toFloat()
+                        y = (sourceHeight - point.y).toFloat()
+                    }
+                    270 -> {
+                        x = point.y.toFloat()
+                        y = (sourceWidth - point.x).toFloat()
+                    }
+                    else -> {
+                        x = point.x.toFloat()
+                        y = point.y.toFloat()
+                    }
+                }
+                return Offset(offsetX + x * scale, offsetY + y * scale)
+            }
+
+            val points = listOf(
+                mapPoint(detectedPage.topLeft),
+                mapPoint(detectedPage.topRight),
+                mapPoint(detectedPage.bottomRight),
+                mapPoint(detectedPage.bottomLeft)
+            )
+            val path = Path().apply {
+                moveTo(points[0].x, points[0].y)
+                lineTo(points[1].x, points[1].y)
+                lineTo(points[2].x, points[2].y)
+                lineTo(points[3].x, points[3].y)
+                close()
+            }
+            drawPath(path, color = Color.Black.copy(alpha = 0.24f), style = Stroke(width = 9f))
+            drawPath(path, color = accent, style = Stroke(width = 5f))
+            points.forEach { point ->
+                drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = 10f, center = point)
+                drawCircle(color = accent, radius = 6f, center = point)
+            }
+        } else {
+            // Before all four markers are found, show only a subtle ratio-correct guide. The guide
+            // automatically follows portrait, landscape and custom template aspect ratios.
+            val maxWidth = size.width * 0.84f
+            val maxHeight = size.height * 0.66f
+            val width: Float
+            val height: Float
+            if (maxWidth / maxHeight > templateAspect) {
+                height = maxHeight
+                width = height * templateAspect
+            } else {
+                width = maxWidth
+                height = width / templateAspect
+            }
+            val left = (size.width - width) / 2f
+            val top = (size.height - height) / 2f
+
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.34f),
+                topLeft = Offset(left, top),
+                size = ComposeSize(width, height),
+                cornerRadius = CornerRadius(20f, 20f),
+                style = Stroke(width = 2f)
+            )
         }
-        drawCorner(left, top, 1f, 1f)
-        drawCorner(left + width, top, -1f, 1f)
-        drawCorner(left, top + height, 1f, -1f)
-        drawCorner(left + width, top + height, -1f, -1f)
     }
 }
 
