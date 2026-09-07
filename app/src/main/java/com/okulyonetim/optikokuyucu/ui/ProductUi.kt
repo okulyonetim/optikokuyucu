@@ -146,6 +146,7 @@ fun ProductTopBar(
     showAutomaticBack: Boolean = true
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val themeController = LocalProductThemeController.current
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
         showAutomaticBack && dispatcher != null -> "‹"
@@ -154,6 +155,17 @@ fun ProductTopBar(
     val resolvedLeadingClick = when {
         onLeadingClick != null -> onLeadingClick
         showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
+        else -> null
+    }
+    val settingsThemeAction = title == "Ayarlar" && onActionClick == null && themeController != null
+    val resolvedActionText = when {
+        onActionClick != null -> actionText
+        settingsThemeAction -> if (themeController?.isDark == true) "☀" else "☾"
+        else -> null
+    }
+    val resolvedActionClick: (() -> Unit)? = when {
+        onActionClick != null -> onActionClick
+        settingsThemeAction -> ({ themeController?.toggleLightDark() })
         else -> null
     }
 
@@ -190,8 +202,8 @@ fun ProductTopBar(
             )
 
             HeaderAction(
-                text = if (onActionClick != null) actionText else null,
-                onClick = onActionClick
+                text = resolvedActionText,
+                onClick = resolvedActionClick
             )
         }
     }
@@ -244,7 +256,7 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 
 @Composable
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
-    val light = !isSystemInDarkTheme()
+    val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     val background = when (tone) {
         ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF173A2D)
         ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF463015)
