@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
@@ -40,10 +41,14 @@ object DesignerPdfExporter {
         profile: PdfPageProfile = PdfPageProfile.A4
     ) {
         require(pages.isNotEmpty()) { "PDF için en az bir sayfa gerekir." }
+        if (pages.size > 1 && DesignerA4MultiUpLayout.planFor(profile) != null) {
+            exportA4MultiUp(document, pages, output, profile)
+            return
+        }
+
         val renderPlan = DesignerPrintRenderer.render(document)
         val template = renderPlan.template
-        val readability = TemplateReadabilityAnalyzer.analyze(document, template)
-        require(readability.canSave) { "Template cannot be exported while readability errors exist." }
+        requireExportable(document, template)
         val transform = DesignerPdfLayout.fit(template.space, profile)
         val pdf = PdfDocument()
         try {
@@ -53,11 +58,7 @@ object DesignerPdfExporter {
                 try {
                     val canvas = page.canvas
                     canvas.drawColor(Color.WHITE)
-                    drawVisualLayer(canvas, document, transform, pageData)
-                    drawComponentDecorations(canvas, document, transform, pageData)
-                    drawPrintOmrLayer(canvas, renderPlan, transform)
-                    drawFilledMarks(canvas, template, transform, pageData.filledMarks)
-                    drawFiducials(canvas, template, transform)
+                    drawPageContent(canvas, document, renderPlan, template, transform, pageData)
                 } finally {
                     pdf.finishPage(page)
                 }
@@ -66,6 +67,102 @@ object DesignerPdfExporter {
             output.flush()
         } finally {
             pdf.close()
+        }
+    }
+
+    fun exportA4MultiUpCopies(
+        document: DesignerDocument,
+        output: OutputStream,
+        sourceProfile: PdfPageProfile
+    ) {
+        val plan = requireNotNull(DesignerA4MultiUpLayout.planFor(sourceProfile)) {
+            "A4 çoklu çıktı yalnız A5, A6 ve A7 formlarında kullanılabilir."
+        }
+        exportA4MultiUp(
+            document = document,
+            pages = List(plan.itemsPerSheet) { DesignerPdfPageData() },
+            output = output,
+            sourceProfile = sourceProfile
+        )
+    }
+
+    fun exportA4MultiUp(
+        document: DesignerDocument,
+        pages: List<DesignerPdfPageData>,
+        output: OutputStream,
+        sourceProfile: PdfPageProfile
+    ) {
+        require(pages.isNotEmpty()) { "PDF için en az bir form gerekir." }
+        val plan = requireNotNull(DesignerA4MultiUpLayout.planFor(sourceProfile)) {
+            "A4 çoklu çıktı yalnız A5, A6 ve A7 formlarında kullanılabilir."
+        }
+        val renderPlan = DesignerPrintRenderer.render(document)
+        val template = renderPlan.template
+        requireExportable(document, template)
+        val sourceTransform = DesignerPdfLayout.fit(template.space, sourceProfile)
+        val pdf = PdfDocument()
+        try {
+            pages.chunked(plan.itemsPerSheet).forEachIndexed { sheetIndex, sheetPages ->
+                val outputProfile = plan.outputProfile
+                val pageInfo = PdfDocument.PageInfo.Builder(
+                    outputProfile.widthPoints,
+                    outputProfile.heightPoints,
+                    sheetIndex + 1
+                ).create()
+                val page = pdf.startPage(pageInfo)
+                try {
+                    val canvas = page.canvas
+                    canvas.drawColor(Color.WHITE)
+                    sheetPages.forEachIndexed { slotIndex, pageData ->
+                        val transform = plan.transform(sourceTransform, slotIndex)
+                        drawPageContent(canvas, document, renderPlan, template, transform, pageData)
+                    }
+                    drawCutGuides(canvas, plan)
+                } finally {
+                    pdf.finishPage(page)
+                }
+            }
+            pdf.writeTo(output)
+            output.flush()
+        } finally {
+            pdf.close()
+        }
+    }
+
+    private fun requireExportable(document: DesignerDocument, template: OmrTemplate) {
+        val readability = TemplateReadabilityAnalyzer.analyze(document, template)
+        require(readability.canSave) { "Template cannot be exported while readability errors exist." }
+    }
+
+    private fun drawPageContent(
+        canvas: Canvas,
+        document: DesignerDocument,
+        renderPlan: DesignerPrintRenderPlan,
+        template: OmrTemplate,
+        transform: CanonicalPageTransform,
+        pageData: DesignerPdfPageData
+    ) {
+        drawVisualLayer(canvas, document, transform, pageData)
+        drawComponentDecorations(canvas, document, transform, pageData)
+        drawPrintOmrLayer(canvas, renderPlan, transform)
+        drawFilledMarks(canvas, template, transform, pageData.filledMarks)
+        drawFiducials(canvas, template, transform)
+    }
+
+    private fun drawCutGuides(canvas: Canvas, plan: DesignerA4MultiUpPlan) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(165, 165, 165)
+            style = Paint.Style.STROKE
+            strokeWidth = 0.7f
+            pathEffect = DashPathEffect(floatArrayOf(6f, 5f), 0f)
+        }
+        for (column in 1 until plan.columns) {
+            val x = (plan.cellWidthPoints * column).toFloat()
+            canvas.drawLine(x, 0f, x, plan.outputProfile.heightPoints.toFloat(), paint)
+        }
+        for (row in 1 until plan.rows) {
+            val y = (plan.cellHeightPoints * row).toFloat()
+            canvas.drawLine(0f, y, plan.outputProfile.widthPoints.toFloat(), y, paint)
         }
     }
 
