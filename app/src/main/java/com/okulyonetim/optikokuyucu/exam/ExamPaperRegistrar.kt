@@ -4,6 +4,7 @@ import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.student.StudentNumber
 import com.okulyonetim.optikokuyucu.student.StudentRosterRepository
+import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 
 /** Associates an immutable raw ScanRecord with one offline exam. */
 class ExamPaperRegistrar(
@@ -36,16 +37,36 @@ class ExamPaperRegistrar(
         val detectedClass = bindings.classCode(record).orEmpty()
         val detectedBooklet = bindings.booklet(record).orEmpty()
         val normalizedNumber = StudentNumber.normalize(detectedNumber)
-        val rosterStudent = normalizedNumber
-            .takeIf { it.isNotBlank() }
-            ?.let { studentRepository?.findByNumber(it) }
-        val participant = normalizedNumber
+        val detectedGrade = StudentSchoolIdentity.gradeLevelFromClassName(detectedClass)
+
+        val participantCandidates = normalizedNumber
             .takeIf { it.isNotBlank() }
             ?.let { number ->
-                exam.participants.firstOrNull {
-                    StudentNumber.normalize(it.studentNumber) == number
-                }
+                exam.participants.filter { StudentNumber.normalize(it.studentNumber) == number }
             }
+            .orEmpty()
+        val participant = when {
+            participantCandidates.size == 1 -> participantCandidates.single()
+            detectedGrade != null -> participantCandidates.firstOrNull { candidate ->
+                val participantGrade = StudentSchoolIdentity.gradeLevelFromClassName(candidate.className)
+                participantGrade != null && StudentSchoolIdentity.sameInstitution(participantGrade, detectedGrade)
+            }
+            else -> null
+        }
+        val participantGrade = participant?.let {
+            StudentSchoolIdentity.gradeLevelFromClassName(it.className)
+        }
+
+        // Aynı numara İlkokul ve Ortaokulda varsa kurum/sınıf bilgisini kullanmadan roster kaydı
+        // seçilmez. Böylece örneğin İlkokuldaki 3 numaralı öğrenci Ortaokul öğrencisine dönüşmez.
+        val rosterStudent = normalizedNumber.takeIf { it.isNotBlank() }?.let { number ->
+            when {
+                participantGrade != null -> studentRepository?.findByNumberAndGrade(number, participantGrade)
+                detectedGrade != null -> studentRepository?.findByNumberAndGrade(number, detectedGrade)
+                else -> studentRepository?.findByNumber(number)
+            }
+        }
+
         val resolvedNumber = rosterStudent?.studentNumber
             ?: participant?.studentNumber
             ?: detectedNumber

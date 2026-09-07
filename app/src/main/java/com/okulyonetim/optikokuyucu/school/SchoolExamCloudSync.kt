@@ -14,6 +14,7 @@ import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.student.StudentNumber
+import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.time.LocalDate
 
 data class SchoolExamCloudSyncResult(
@@ -132,7 +133,7 @@ class SchoolExamCloudSyncService(
         val records = recordRepository.list().associateBy { it.id }
         val keys = keyRepository.list()
         val subjectMap = questionSubjectMap(exam)
-        val resultByStudentNumber = linkedMapOf<String, Map<String, Any?>>()
+        val resultByStudentIdentity = linkedMapOf<String, Map<String, Any?>>()
         var skippedWithoutStudentIdentity = 0
 
         exam.papers.forEach { link ->
@@ -141,7 +142,26 @@ class SchoolExamCloudSyncService(
                 skippedWithoutStudentIdentity += 1
                 return@forEach
             }
-            val schoolDocumentId = studentIdentityStore.documentIdFor(normalizedNumber)
+
+            val linkedGrade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
+            val participantGrade = exam.participants
+                .filter { StudentNumber.normalize(it.studentNumber) == normalizedNumber }
+                .mapNotNull { StudentSchoolIdentity.gradeLevelFromClassName(it.className) }
+                .let { grades ->
+                    when {
+                        linkedGrade != null -> grades.firstOrNull {
+                            StudentSchoolIdentity.sameInstitution(it, linkedGrade)
+                        } ?: linkedGrade
+                        grades.distinctBy(StudentSchoolIdentity::institutionKeyForGrade).size == 1 -> grades.firstOrNull()
+                        else -> null
+                    }
+                }
+            val gradeLevel = linkedGrade ?: participantGrade
+            val schoolDocumentId = if (gradeLevel != null) {
+                studentIdentityStore.documentIdFor(normalizedNumber, gradeLevel)
+            } else {
+                studentIdentityStore.documentIdFor(normalizedNumber)
+            }
             if (schoolDocumentId.isNullOrBlank()) {
                 skippedWithoutStudentIdentity += 1
                 return@forEach
@@ -170,6 +190,7 @@ class SchoolExamCloudSyncService(
                 "ogrenciAdi" to link.studentName,
                 "ogrenciNo" to normalizedNumber,
                 "sinif" to link.className,
+                "okulAdi" to gradeLevel?.let(StudentSchoolIdentity::schoolNameForGrade).orEmpty(),
                 "dersSonuclari" to lessonResults,
                 "dogru" to score.correctCount,
                 "yanlis" to score.wrongCount,
@@ -184,10 +205,13 @@ class SchoolExamCloudSyncService(
                 "kaynak" to "optik-okuyucu"
             )
 
-            resultByStudentNumber[normalizedNumber] = result
+            val resultIdentity = gradeLevel?.let {
+                StudentSchoolIdentity.identityKey(normalizedNumber, it)
+            }?.takeIf(String::isNotBlank) ?: "number:$normalizedNumber"
+            resultByStudentIdentity[resultIdentity] = result
         }
 
-        val results = resultByStudentNumber.values.toList()
+        val results = resultByStudentIdentity.values.toList()
         val payload = linkedMapOf<String, Any?>(
             "sinavId" to exam.id,
             "ad" to exam.name,

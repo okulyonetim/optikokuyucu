@@ -112,24 +112,31 @@ class SchoolDirectorySyncService(
         }
         val studentDocs = client.listDocuments(SchoolPortalConfig.STUDENTS)
 
-        val numberToDocumentId = studentDocs.mapNotNull { doc ->
-            val number = SchoolStudentMatch.normalizeStudentNumber(doc.fields["ogrenciNo"]?.toString().orEmpty())
-            number.takeIf(String::isNotBlank)?.let { it to doc.id }
-        }.toMap()
-        SchoolStudentIdentityStore(context.applicationContext).replace(numberToDocumentId)
+        // Mapping is performed before identity caching so the class level can distinguish the same
+        // number in Koruk İlkokulu (1–4) and Koruk Ortaokulu (5–8).
+        val mapped = studentDocs.map { doc -> doc to SchoolDirectoryMapper.student(doc, classes) }
+        val documentIdentities = mapped.mapNotNull { (doc, mapping) ->
+            mapping.entry?.let { entry ->
+                SchoolStudentDocumentIdentity(
+                    studentNumber = entry.studentNumber,
+                    gradeLevel = entry.gradeLevel,
+                    documentId = doc.id
+                )
+            }
+        }
+        SchoolStudentIdentityStore(context.applicationContext).replace(documentIdentities)
 
-        val mapped = studentDocs.map { doc -> SchoolDirectoryMapper.student(doc, classes) }
-        val withoutNumber = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_NUMBER }
-        val withoutClass = mapped.count { it.skipReason == SchoolStudentSkipReason.WITHOUT_CLASS }
-        val hidden = SchoolStudentVisibilityStore(context.applicationContext).hiddenStudentNumbers()
-        val entries = mapped.mapNotNull { it.entry }
-            .filterNot { SchoolStudentMatch.normalizeStudentNumber(it.studentNumber) in hidden }
+        val withoutNumber = mapped.count { it.second.skipReason == SchoolStudentSkipReason.WITHOUT_NUMBER }
+        val withoutClass = mapped.count { it.second.skipReason == SchoolStudentSkipReason.WITHOUT_CLASS }
+        val visibilityStore = SchoolStudentVisibilityStore(context.applicationContext)
+        val entries = mapped.mapNotNull { it.second.entry }
+            .filterNot(visibilityStore::isHidden)
 
         val repository = FileStudentRosterRepository(context.applicationContext)
         val summary = repository.upsertImported(entries)
         return SchoolDirectorySyncResult(
             cloudStudents = studentDocs.size,
-            importedStudents = entries.distinctBy { it.studentNumber }.size,
+            importedStudents = entries.distinctBy { it.identityKey }.size,
             skippedWithoutNumber = withoutNumber,
             skippedWithoutClass = withoutClass,
             localSummary = summary

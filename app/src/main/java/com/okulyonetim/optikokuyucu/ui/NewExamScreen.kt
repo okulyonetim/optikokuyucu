@@ -78,7 +78,7 @@ fun NewExamScreen(
     }
     var wrongPolicy by remember { mutableStateOf(WrongAnswerPolicy.KEEP_AS_IS) }
     var selectedClasses by remember { mutableStateOf(emptySet<String>()) }
-    var selectedStudentNumbers by remember { mutableStateOf(emptySet<String>()) }
+    var selectedStudentKeys by remember { mutableStateOf(emptySet<String>()) }
     var bookletCount by remember { mutableStateOf(1) }
     var personalizedFormsEnabled by remember { mutableStateOf(false) }
     var templateMenuOpen by remember { mutableStateOf(false) }
@@ -89,7 +89,7 @@ fun NewExamScreen(
     var status by remember { mutableStateOf("") }
 
     val selectedParticipants = roster.filter { student ->
-        student.className in selectedClasses || student.studentNumber in selectedStudentNumbers
+        student.className in selectedClasses || student.identityKey in selectedStudentKeys
     }
     val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
 
@@ -327,7 +327,7 @@ fun NewExamScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "Sınıfları toplu seçebilir veya öğrencileri tek tek ekleyebilirsiniz. Aynı öğrenci yalnız bir kez sınava eklenir.",
+                        "Sınıfları toplu seçebilir veya öğrencileri tek tek ekleyebilirsiniz. İlkokul ve Ortaokulda aynı numara varsa öğrenciler kurumlarına göre ayrı tutulur.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -399,7 +399,7 @@ fun NewExamScreen(
                             ) {
                                 Text("Bireysel Öğrenci Seçimi", style = MaterialTheme.typography.labelSmall)
                                 Text(
-                                    if (selectedStudentNumbers.isEmpty()) "Öğrenci seçin" else "${selectedStudentNumbers.size} öğrenci tek tek seçildi",
+                                    if (selectedStudentKeys.isEmpty()) "Öğrenci seçin" else "${selectedStudentKeys.size} öğrenci tek tek seçildi",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -420,7 +420,7 @@ fun NewExamScreen(
                                         text = {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Checkbox(
-                                                    checked = student.studentNumber in selectedStudentNumbers,
+                                                    checked = student.identityKey in selectedStudentKeys,
                                                     onCheckedChange = null
                                                 )
                                                 Column {
@@ -430,7 +430,10 @@ fun NewExamScreen(
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                     Text(
-                                                        "${student.className} · No ${student.studentNumber}",
+                                                        buildString {
+                                                            if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
+                                                            append(student.className).append(" · No ").append(student.studentNumber)
+                                                        },
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
@@ -438,10 +441,10 @@ fun NewExamScreen(
                                             }
                                         },
                                         onClick = {
-                                            selectedStudentNumbers = if (student.studentNumber in selectedStudentNumbers) {
-                                                selectedStudentNumbers - student.studentNumber
+                                            selectedStudentKeys = if (student.identityKey in selectedStudentKeys) {
+                                                selectedStudentKeys - student.identityKey
                                             } else {
-                                                selectedStudentNumbers + student.studentNumber
+                                                selectedStudentKeys + student.identityKey
                                             }
                                         }
                                     )

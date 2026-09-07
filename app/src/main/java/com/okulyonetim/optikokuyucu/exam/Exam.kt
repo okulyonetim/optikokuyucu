@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
+import com.okulyonetim.optikokuyucu.student.StudentNumber
+import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.util.UUID
 
 enum class WrongAnswerPolicy {
@@ -40,8 +42,17 @@ data class ExamParticipant(
         require(className.isNotBlank()) { "Sınıf adı boş olamaz." }
     }
 
+    val identityKey: String
+        get() {
+            val number = StudentNumber.normalize(studentNumber)
+            val grade = StudentSchoolIdentity.gradeLevelFromClassName(className)
+            return grade?.let { StudentSchoolIdentity.identityKey(number, it) }
+                ?.takeIf(String::isNotBlank)
+                ?: "number:$number"
+        }
+
     fun normalized(): ExamParticipant = copy(
-        studentNumber = studentNumber.trim(),
+        studentNumber = StudentNumber.normalize(studentNumber),
         studentName = studentName.trim().replace(Regex("\\s+"), " "),
         className = className.trim().replace(Regex("\\s+"), " ")
     )
@@ -80,8 +91,8 @@ data class Exam(
         require(papers.map { it.scanRecordId }.toSet().size == papers.size) {
             "Aynı tarama bir sınava birden fazla kez bağlanamaz."
         }
-        require(participants.map { it.studentNumber }.toSet().size == participants.size) {
-            "Aynı öğrenci sınava birden fazla kez eklenemez."
+        require(participants.map { it.identityKey }.toSet().size == participants.size) {
+            "Aynı kurum içindeki aynı öğrenci sınava birden fazla kez eklenemez."
         }
         require(!personalizedFormsEnabled || participants.isNotEmpty()) {
             "Öğrenciye özel form için en az bir öğrenci seçilmelidir."
@@ -119,20 +130,24 @@ object ExamFactory {
         isPublic: Boolean = false,
         id: String = UUID.randomUUID().toString(),
         createdAtEpochMs: Long = System.currentTimeMillis()
-    ): Exam = Exam(
-        id = id,
-        name = name.trim(),
-        schoolName = schoolName.trim(),
-        templateSelection = templateSelection,
-        wrongAnswerPolicy = wrongAnswerPolicy,
-        folderName = folderName.trim(),
-        examDateEpochDay = examDateEpochDay,
-        createdAtEpochMs = createdAtEpochMs,
-        participants = participants.map(ExamParticipant::normalized).distinctBy { it.studentNumber },
-        bookletCount = bookletCount,
-        personalizedFormsEnabled = personalizedFormsEnabled,
-        ownerUid = ownerUid.trim(),
-        ownerDisplayName = ownerDisplayName.trim(),
-        isPublic = isPublic
-    )
+    ): Exam {
+        val normalizedParticipants = participants.map(ExamParticipant::normalized)
+            .distinctBy { it.identityKey }
+        return Exam(
+            id = id,
+            name = name.trim(),
+            schoolName = schoolName.trim(),
+            templateSelection = templateSelection,
+            wrongAnswerPolicy = wrongAnswerPolicy,
+            folderName = folderName.trim(),
+            examDateEpochDay = examDateEpochDay,
+            createdAtEpochMs = createdAtEpochMs,
+            participants = normalizedParticipants,
+            bookletCount = bookletCount,
+            personalizedFormsEnabled = personalizedFormsEnabled,
+            ownerUid = ownerUid.trim(),
+            ownerDisplayName = ownerDisplayName.trim(),
+            isPublic = isPublic
+        )
+    }
 }

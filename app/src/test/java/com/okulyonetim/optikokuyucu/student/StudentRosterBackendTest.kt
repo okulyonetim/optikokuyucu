@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.student
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,6 +54,61 @@ class StudentRosterBackendTest {
         assertEquals("16", StudentNumber.normalize(" 16 "))
         assertEquals("0", StudentNumber.normalize("000000"))
         assertEquals("", StudentNumber.normalize(""))
+    }
+
+    @Test
+    fun `primary and middle grades map to requested Koruk schools`() {
+        assertEquals("Koruk İlkokulu", StudentSchoolIdentity.schoolNameForGrade(1))
+        assertEquals("Koruk İlkokulu", StudentSchoolIdentity.schoolNameForGrade(4))
+        assertEquals("Koruk Ortaokulu", StudentSchoolIdentity.schoolNameForGrade(5))
+        assertEquals("Koruk Ortaokulu", StudentSchoolIdentity.schoolNameForGrade(8))
+    }
+
+    @Test
+    fun `same student number is distinct between primary and middle school`() {
+        val primary = StudentSchoolIdentity.identityKey("0003", 3)
+        val middle = StudentSchoolIdentity.identityKey("3", 6)
+
+        assertEquals("koruk-ilkokulu:3", primary)
+        assertEquals("koruk-ortaokulu:3", middle)
+        assertNotEquals(primary, middle)
+    }
+
+    @Test
+    fun `same number remains one institution identity inside primary grades`() {
+        assertEquals(
+            StudentSchoolIdentity.identityKey("3", 1),
+            StudentSchoolIdentity.identityKey("003", 4)
+        )
+        assertEquals(
+            StudentSchoolIdentity.identityKey("3", 5),
+            StudentSchoolIdentity.identityKey("003", 8)
+        )
+    }
+
+    @Test
+    fun `student codec infers school from preserved grade without schema change`() {
+        val primary = StudentRosterEntry(
+            studentNumber = "3",
+            fullName = "İLKOKUL ÖĞRENCİSİ",
+            gradeLevel = 3,
+            branch = "A",
+            updatedAtEpochMs = 10L
+        )
+        val middle = StudentRosterEntry(
+            studentNumber = "3",
+            fullName = "ORTAOKUL ÖĞRENCİSİ",
+            gradeLevel = 6,
+            branch = "B",
+            updatedAtEpochMs = 11L
+        )
+
+        val decodedPrimary = StudentRosterCodec.decode(StudentRosterCodec.encode(primary))
+        val decodedMiddle = StudentRosterCodec.decode(StudentRosterCodec.encode(middle))
+
+        assertEquals("Koruk İlkokulu", decodedPrimary.schoolName)
+        assertEquals("Koruk Ortaokulu", decodedMiddle.schoolName)
+        assertNotEquals(decodedPrimary.identityKey, decodedMiddle.identityKey)
     }
 
     @Test

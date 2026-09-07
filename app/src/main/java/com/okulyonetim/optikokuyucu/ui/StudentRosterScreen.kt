@@ -54,6 +54,7 @@ import com.okulyonetim.optikokuyucu.student.StudentClassEntry
 import com.okulyonetim.optikokuyucu.student.StudentGender
 import com.okulyonetim.optikokuyucu.student.StudentNumber
 import com.okulyonetim.optikokuyucu.student.StudentRosterEntry
+import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -63,6 +64,7 @@ private data class StudentRosterOverview(
     val name: String,
     val number: String,
     val className: String,
+    val schoolName: String,
     val guardianName: String,
     val guardianPhone: String,
     val scanCount: Int,
@@ -75,22 +77,30 @@ private fun buildStudentRosterOverviews(
     exams: List<Exam>
 ): List<StudentRosterOverview> {
     val linkedPapers = exams.flatMap { exam -> exam.papers.map { exam.id to it } }
-    val papersByNumber = linkedPapers
-        .filter { StudentNumber.normalize(it.second.studentNumber).isNotBlank() }
-        .groupBy { StudentNumber.normalize(it.second.studentNumber) }
+    val rosterCountByNumber = roster.groupingBy { it.studentNumber }.eachCount()
     val consumedScanIds = mutableSetOf<String>()
     val overviews = mutableListOf<StudentRosterOverview>()
 
     roster.forEach { entry ->
-        val matches = papersByNumber[entry.studentNumber].orEmpty()
+        val matches = linkedPapers.filter { (_, link) ->
+            val number = StudentNumber.normalize(link.studentNumber)
+            if (number != entry.studentNumber) return@filter false
+            val linkedGrade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
+            when {
+                linkedGrade != null -> StudentSchoolIdentity.sameInstitution(entry.gradeLevel, linkedGrade)
+                rosterCountByNumber[entry.studentNumber] == 1 -> true
+                else -> false
+            }
+        }
         matches.forEach { consumedScanIds += it.second.scanRecordId }
         val latest = matches.maxByOrNull { it.second.linkedAtEpochMs }
         overviews += StudentRosterOverview(
-            key = "roster:${entry.studentNumber}",
+            key = "roster:${entry.identityKey}",
             roster = entry,
             name = entry.fullName,
             number = entry.studentNumber,
             className = entry.className,
+            schoolName = entry.schoolName,
             guardianName = entry.guardianName,
             guardianPhone = entry.guardianPhone,
             scanCount = matches.size,
@@ -103,7 +113,10 @@ private fun buildStudentRosterOverviews(
         .filterNot { it.second.scanRecordId in consumedScanIds }
         .groupBy { (_, link) ->
             val number = StudentNumber.normalize(link.studentNumber)
+            val grade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
             when {
+                number.isNotBlank() && grade != null ->
+                    "identity:${StudentSchoolIdentity.identityKey(number, grade)}"
                 number.isNotBlank() -> "number:$number"
                 link.studentName.isNotBlank() -> "name:${link.studentName.trim().lowercase()}|${link.className.trim().lowercase()}"
                 else -> "scan:${link.scanRecordId}"
@@ -112,12 +125,14 @@ private fun buildStudentRosterOverviews(
         .forEach { (key, papers) ->
             val latest = papers.maxByOrNull { it.second.linkedAtEpochMs } ?: return@forEach
             val link = latest.second
+            val grade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
             overviews += StudentRosterOverview(
                 key = "orphan:$key",
                 roster = null,
                 name = link.studentName.trim(),
                 number = StudentNumber.normalize(link.studentNumber),
                 className = link.className.trim(),
+                schoolName = grade?.let(StudentSchoolIdentity::schoolNameForGrade).orEmpty(),
                 guardianName = "",
                 guardianPhone = "",
                 scanCount = papers.size,
@@ -237,6 +252,7 @@ fun StudentRosterScreen(
             student.name.lowercase().contains(normalizedQuery) ||
             student.number.lowercase().contains(normalizedQuery) ||
             student.className.lowercase().contains(normalizedQuery) ||
+            student.schoolName.lowercase().contains(normalizedQuery) ||
             student.guardianName.lowercase().contains(normalizedQuery) ||
             student.guardianPhone.contains(normalizedQuery)
         matchesClass && matchesQuery
@@ -256,7 +272,8 @@ fun StudentRosterScreen(
                     Spacer(Modifier.height(4.dp))
                     Text("Öğrenciler", fontWeight = FontWeight.SemiBold)
                     preview.students.forEach { student ->
-                        Text("${student.className} · No ${student.studentNumber} · ${student.fullName}", fontSize = 12.sp)
+                        val school = student.schoolName.takeIf(String::isNotBlank)?.let { "$it · " }.orEmpty()
+                        Text("$school${student.className} · No ${student.studentNumber} · ${student.fullName}", fontSize = 12.sp)
                     }
                     Text(
                         "PDF veli adı veya telefon içermiyorsa mevcut veli bilgileri korunur; yeni öğrencilerde boş bırakılır.",
@@ -364,8 +381,11 @@ fun StudentRosterScreen(
                         runCatching {
                             val normalizedNumber = StudentNumber.normalize(studentNumberText)
                             require(normalizedNumber.isNotBlank()) { "Öğrenci numarası zorunludur." }
-                            require(rosterRepository.findByNumber(normalizedNumber) == null) { "Bu öğrenci numarası zaten kayıtlı." }
                             val grade = studentGradeText.toIntOrNull() ?: error("Sınıf seviyesi girilmelidir.")
+                            val school = StudentSchoolIdentity.schoolNameForGrade(grade).ifBlank { "bu sınıf grubu" }
+                            require(rosterRepository.findByNumberAndGrade(normalizedNumber, grade) == null) {
+                                "$school içinde bu öğrenci numarası zaten kayıtlı."
+                            }
                             val entry = StudentRosterEntry(
                                 studentNumber = normalizedNumber,
                                 fullName = studentNameText,
@@ -478,7 +498,8 @@ fun StudentRosterScreen(
                             val old = editingClass
                             if (old != null && old.className != updatedClass.className) {
                                 roster.filter { it.className == old.className }.forEach { student ->
-                                    rosterRepository.save(
+                                    rosterRepository.replace(
+                                        student,
                                         student.copy(
                                             gradeLevel = updatedClass.gradeLevel,
                                             branch = updatedClass.branch,
@@ -512,7 +533,12 @@ fun StudentRosterScreen(
             title = { Text(original.fullName) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("${original.className} · No ${original.studentNumber}")
+                    Text(
+                        buildString {
+                            if (original.schoolName.isNotBlank()) append(original.schoolName).append(" · ")
+                            append(original.className).append(" · No ").append(original.studentNumber)
+                        }
+                    )
                     Text(
                         when (original.gender) {
                             StudentGender.GIRL -> "Cinsiyet: Kız"
@@ -595,13 +621,19 @@ fun StudentRosterScreen(
             title = { Text("Öğrenciyi Bu Cihazdan Kaldır") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${student.fullName} · ${student.className} · No ${student.studentNumber}")
+                    Text(
+                        buildString {
+                            if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
+                            append(student.fullName).append(" · ").append(student.className)
+                                .append(" · No ").append(student.studentNumber)
+                        }
+                    )
                     Text(
                         "Öğrenci yalnız Optik Okuyucu'nun bu cihazdaki listesinden kaldırılacak. Okul Yönetim'deki öğrenci kaydı silinmeyecek ve değiştirilmeyecek.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Sonraki Okul Yönetim senkronunda bu öğrenci otomatik olarak yeniden eklenmeyecek.",
+                        "Sonraki Okul Yönetim senkronunda bu öğrenci otomatik olarak yeniden eklenmeyecek. Aynı numaralı diğer kurum öğrencisi etkilenmeyecek.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -611,7 +643,9 @@ fun StudentRosterScreen(
                 TextButton(
                     onClick = {
                         runCatching {
-                            check(rosterRepository.delete(student.studentNumber)) { "Öğrenci cihazdan kaldırılamadı." }
+                            check(rosterRepository.delete(student.studentNumber, student.gradeLevel)) {
+                                "Öğrenci cihazdan kaldırılamadı."
+                            }
                         }.onSuccess {
                             pendingDeleteStudent = null
                             refreshRoster()
@@ -647,7 +681,7 @@ fun StudentRosterScreen(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    label = { Text("Öğrenci, numara, sınıf veya veli ara") },
+                    label = { Text("Öğrenci, numara, okul, sınıf veya veli ara") },
                     leadingIcon = { Text("⌕", fontSize = 22.sp) },
                     shape = RoundedCornerShape(18.dp)
                 )
@@ -818,7 +852,11 @@ private fun StudentRosterOverviewCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${student.className.ifBlank { "Sınıf —" }} · No: ${student.number.ifBlank { "—" }}",
+                    buildString {
+                        if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
+                        append(student.className.ifBlank { "Sınıf —" })
+                        append(" · No: ").append(student.number.ifBlank { "—" })
+                    },
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
