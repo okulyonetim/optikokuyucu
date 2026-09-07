@@ -60,6 +60,7 @@ fun NewExamScreen(
     onSaved: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val feedback = LocalAppFeedback.current
     val appContext = context.applicationContext
     val repository = remember(context) { FileExamRepository(appContext) }
     val settingsRepository = remember(context) { AppSettingsRepository(appContext) }
@@ -92,16 +93,21 @@ fun NewExamScreen(
     }
     val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
 
+    fun warn(message: String) {
+        status = message
+        feedback.warning(message)
+    }
+
     val saveExam = {
         val parsedDate = parseExamDate(dateText)
         when {
-            examName.isBlank() -> status = "Sınav adı zorunludur."
-            schoolName.isBlank() -> status = "Okul alanı zorunludur. Ayarlar bölümünden okul adını kaydedebilirsiniz."
-            parsedDate == null -> status = "Tarih GG.AA.YYYY biçiminde olmalıdır."
+            examName.isBlank() -> warn("Sınav adı zorunludur.")
+            schoolName.isBlank() -> warn("Okul alanı zorunludur. Ayarlar bölümünden okul adını kaydedebilirsiniz.")
+            parsedDate == null -> warn("Tarih GG.AA.YYYY biçiminde olmalıdır.")
             personalizedFormsEnabled && selectedParticipants.isEmpty() ->
-                status = "Öğrenciye özel form için en az bir sınıf veya öğrenci seçin."
+                warn("Öğrenciye özel form için en az bir sınıf veya öğrenci seçin.")
             personalizedFormsEnabled && !designerBackedForm ->
-                status = "Öğrenciye özel form için Form Editörü ile oluşturulmuş bir optik form seçin."
+                warn("Öğrenciye özel form için Form Editörü ile oluşturulmuş bir optik form seçin.")
             else -> {
                 runCatching {
                     ExamFactory.create(
@@ -122,9 +128,11 @@ fun NewExamScreen(
                         personalizedFormsEnabled = personalizedFormsEnabled
                     ).also(repository::save)
                 }.onSuccess { exam ->
+                    feedback.success("Sınav kaydedildi.")
                     onSaved(exam.id)
                 }.onFailure { error ->
                     status = "Sınav kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                    feedback.error(status)
                 }
             }
         }
@@ -136,7 +144,7 @@ fun NewExamScreen(
         topBar = {
             ProductTopBar(
                 title = "Yeni Sınav",
-                leadingText = "×",
+                leadingText = "‹",
                 onLeadingClick = onBack,
                 actionText = "Kaydet",
                 onActionClick = saveExam

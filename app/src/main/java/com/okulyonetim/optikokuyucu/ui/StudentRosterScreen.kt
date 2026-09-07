@@ -134,6 +134,7 @@ fun StudentRosterScreen(
     onOpenPaper: (String, String) -> Unit
 ) {
     val context = LocalContext.current
+    val feedback = LocalAppFeedback.current
     val appContext = context.applicationContext
     val rosterRepository = remember(context) { FileStudentRosterRepository(appContext) }
     val examRepository = remember(context) { FileExamRepository(appContext) }
@@ -176,6 +177,7 @@ fun StudentRosterScreen(
             }
             busy = true
             status = "e-Okul PDF okunuyor…"
+            feedback.info(status)
             worker.execute {
                 val outcome = runCatching { EschoolPdfImporter.read(appContext, uri) }
                 mainExecutor.execute {
@@ -184,8 +186,10 @@ fun StudentRosterScreen(
                         outcome.onSuccess { preview ->
                             importPreview = preview
                             status = "${preview.students.size} öğrenci bulundu. Önizlemeyi kontrol edin."
+                            feedback.info(status)
                         }.onFailure { error ->
                             status = "PDF içe aktarılamadı: ${error.message ?: error.javaClass.simpleName}"
+                            feedback.error(status)
                         }
                     }
                 }
@@ -250,9 +254,11 @@ fun StudentRosterScreen(
                                 refreshRoster()
                                 importPreview = null
                                 status = "İçe aktarma tamamlandı · ${summary.inserted} yeni · ${summary.updated} güncellendi · ${summary.unchanged} değişmedi"
+                                feedback.success("Öğrenciler içe aktarıldı · ${summary.inserted} yeni · ${summary.updated} güncellendi")
                             }
                             .onFailure { error ->
                                 status = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                                feedback.error(status)
                             }
                     }
                 ) { Text("İçe Aktar") }
@@ -322,8 +328,10 @@ fun StudentRosterScreen(
                             refreshRoster()
                             editing = null
                             status = "Veli bilgileri kaydedildi."
+                            feedback.success(status)
                         }.onFailure { error ->
                             status = "Veli bilgileri kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                            feedback.error(status)
                         }
                     }
                 ) { Text("Kaydet") }

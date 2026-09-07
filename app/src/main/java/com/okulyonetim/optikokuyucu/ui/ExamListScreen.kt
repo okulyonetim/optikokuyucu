@@ -50,6 +50,7 @@ fun ExamListScreen(
 ) {
     val context = LocalContext.current
     val repository = remember(context) { FileExamRepository(context.applicationContext) }
+    val feedback = LocalAppFeedback.current
     var exams by remember { mutableStateOf(repository.list()) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(ExamListFilter.ALL) }
@@ -73,11 +74,8 @@ fun ExamListScreen(
         topBar = {
             ProductTopBar(
                 title = "Sınavlar",
-                leadingText = "☰",
-                onLeadingClick = onOpenTools,
-                onActionClick = {
-                    exams = repository.list()
-                }
+                actionText = "⋮",
+                onActionClick = onOpenTools
             )
         },
         floatingActionButton = {
