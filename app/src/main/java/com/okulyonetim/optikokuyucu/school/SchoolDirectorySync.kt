@@ -107,6 +107,7 @@ class SchoolPortalManager private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val store = SchoolSessionStore(appContext)
     val client = SchoolPortalClient(store)
+    private val cloudCoordinator = SchoolCloudSyncCoordinator(appContext, client)
 
     fun cachedSession(): SchoolPortalSession? = client.cachedSession()
 
@@ -118,10 +119,15 @@ class SchoolPortalManager private constructor(context: Context) {
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
-    fun syncExamsAndResults(): SchoolExamCloudSyncResult =
-        SchoolExamCloudSyncService(appContext, client).syncAll()
+    fun syncExamsAndResults(force: Boolean = false): SchoolExamCloudSyncResult? =
+        cloudCoordinator.syncIfChanged(force)
 
-    fun signOut() = client.signOut()
+    fun invalidateCloudSync() = cloudCoordinator.invalidate()
+
+    fun signOut() {
+        cloudCoordinator.invalidate()
+        client.signOut()
+    }
 
     companion object {
         @Volatile private var instance: SchoolPortalManager? = null
