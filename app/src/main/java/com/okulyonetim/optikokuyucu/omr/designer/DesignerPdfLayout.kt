@@ -20,7 +20,7 @@ enum class PdfPageProfile(
     A4(widthPoints = 595, heightPoints = 842, marginPoints = 24.0, displayName = "A4 Dikey"),
     A4_LANDSCAPE(widthPoints = 842, heightPoints = 595, marginPoints = 24.0, displayName = "A4 Yatay"),
     A5(widthPoints = 420, heightPoints = 595, marginPoints = 18.0, displayName = "A5 Dikey"),
-    A5_LANDSCAPE(widthPoints = 595, heightPoints = 420, marginPoints = 18.0, displayName = "A5 Yatay"),
+    A5_LANDSCAPE(widthPoints = 595, heightPoints = 420, marginPoints = 14.0, displayName = "A5 Yatay"),
     A6(widthPoints = 298, heightPoints = 420, marginPoints = 12.0, displayName = "A6 Dikey"),
     A6_LANDSCAPE(widthPoints = 420, heightPoints = 298, marginPoints = 12.0, displayName = "A6 Yatay"),
     A7(widthPoints = 210, heightPoints = 298, marginPoints = 9.0, displayName = "A7 Dikey"),

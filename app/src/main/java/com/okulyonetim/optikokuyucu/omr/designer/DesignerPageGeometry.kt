@@ -5,6 +5,7 @@ import com.okulyonetim.optikokuyucu.omr.template.FiducialSpec
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import com.okulyonetim.optikokuyucu.omr.template.TemplateSize
+import kotlin.math.abs
 import kotlin.math.min
 
 /** Physical paper dimensions used only to establish the page aspect shown by the editor/export UI. */
@@ -35,6 +36,8 @@ object DesignerPageGeometry {
     private const val FIDUCIAL_SIZE_RATIO = 0.050
     private const val FIDUCIAL_INSET_RATIO = 0.032
     private const val SAFE_MARGIN_RATIO = 0.085
+    private const val A5_LANDSCAPE_SAFE_MARGIN_RATIO = 0.065
+    private const val SPACE_MATCH_EPSILON = 0.01
 
     fun dimensions(paperSize: DesignerPaperSize): DesignerPaperDimensions? = when (paperSize) {
         DesignerPaperSize.A3 -> DesignerPaperDimensions(297.0, 420.0)
@@ -113,13 +116,24 @@ object DesignerPageGeometry {
     }
 
     fun safeArea(space: TemplateSize): TemplateRect {
-        val margin = min(space.width, space.height) * SAFE_MARGIN_RATIO
+        val marginRatio = if (isA5LandscapeSpace(space)) {
+            A5_LANDSCAPE_SAFE_MARGIN_RATIO
+        } else {
+            SAFE_MARGIN_RATIO
+        }
+        val margin = min(space.width, space.height) * marginRatio
         return TemplateRect(
             left = margin,
             top = margin,
             width = space.width - margin * 2.0,
             height = space.height - margin * 2.0
         )
+    }
+
+    private fun isA5LandscapeSpace(space: TemplateSize): Boolean {
+        val expected = canonicalSpace(DesignerPaperSize.A5, DesignerPageOrientation.LANDSCAPE)
+        return abs(space.width - expected.width) <= SPACE_MATCH_EPSILON &&
+            abs(space.height - expected.height) <= SPACE_MATCH_EPSILON
     }
 
     fun apply(
