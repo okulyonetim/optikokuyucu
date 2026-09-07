@@ -13,7 +13,8 @@ class ExamPaperRegistrar(
     fun register(
         examId: String,
         record: ScanRecord,
-        linkedAtEpochMs: Long = System.currentTimeMillis()
+        linkedAtEpochMs: Long = System.currentTimeMillis(),
+        replaceScanRecordId: String? = null
     ): Exam {
         val exam = requireNotNull(examRepository.load(examId)) { "Sınav bulunamadı." }
         require(record.templateId == exam.templateSelection.templateId) {
@@ -21,6 +22,12 @@ class ExamPaperRegistrar(
         }
         require(record.templateVersion == exam.templateSelection.templateVersion) {
             "Tarama sınavın optik form sürümüyle eşleşmiyor."
+        }
+        if (replaceScanRecordId != null) {
+            require(replaceScanRecordId != record.id) { "Yeni tarama eski kayıtla aynı kimliği kullanamaz." }
+            requireNotNull(exam.paperForScan(replaceScanRecordId)) {
+                "Güncellenecek eski öğrenci kağıdı sınavda bulunamadı."
+            }
         }
 
         val bindings = OmrRecognitionBindingsResolver.fromRecord(record)
@@ -66,7 +73,9 @@ class ExamPaperRegistrar(
                 bookletCode = previous.bookletCode.ifBlank { detectedBooklet }
             )
         }
-        val updated = exam.withPaper(link)
+
+        val baseExam = replaceScanRecordId?.let(exam::withoutPaper) ?: exam
+        val updated = baseExam.withPaper(link)
         examRepository.save(updated)
         return updated
     }
