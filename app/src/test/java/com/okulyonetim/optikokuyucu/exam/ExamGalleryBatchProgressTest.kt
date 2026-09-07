@@ -28,7 +28,7 @@ class ExamGalleryBatchProgressTest {
     }
 
     @Test
-    fun duplicateGuardMatchesOnlyNonBlankStudentNumbers() {
+    fun duplicateGuardMatchesOnlyNonBlankNormalizedStudentNumbers() {
         val exam = Exam(
             id = "exam-1",
             name = "Deneme",
@@ -41,14 +41,15 @@ class ExamGalleryBatchProgressTest {
             examDateEpochDay = 1L,
             createdAtEpochMs = 1L,
             papers = listOf(
-                ExamPaperLink(scanRecordId = "scan-1", studentNumber = "123456", linkedAtEpochMs = 1L),
+                ExamPaperLink(scanRecordId = "scan-1", studentNumber = "9", linkedAtEpochMs = 1L),
                 ExamPaperLink(scanRecordId = "scan-2", studentNumber = "", linkedAtEpochMs = 2L)
             )
         )
 
-        assertTrue(exam.containsStudentNumber("123456"))
-        assertTrue(exam.containsStudentNumber(" 123456 "))
-        assertFalse(exam.containsStudentNumber("654321"))
+        assertTrue(exam.containsStudentNumber("9"))
+        assertTrue(exam.containsStudentNumber(" 0009 "))
+        assertEquals("scan-1", exam.paperForStudentNumber("0009")?.scanRecordId)
+        assertFalse(exam.containsStudentNumber("10"))
         assertFalse(exam.containsStudentNumber(""))
         assertFalse(exam.containsStudentNumber("   "))
     }
