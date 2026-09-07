@@ -163,8 +163,10 @@ fun ProductTopBar(
     onActionClick: (() -> Unit)? = null,
     showAutomaticBack: Boolean = true
 ) {
+    val context = LocalContext.current
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
+    val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
     var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
@@ -217,6 +219,10 @@ fun ProductTopBar(
             )
             HeaderAction(text = resolvedActionText, onClick = resolvedActionClick)
         }
+    }
+
+    if (title == "Ayarlar" && onActionClick == null) {
+        SettingsSubjectsCard(settingsRepository)
     }
 
     if (settingsPanelOpen && themeController != null) {
