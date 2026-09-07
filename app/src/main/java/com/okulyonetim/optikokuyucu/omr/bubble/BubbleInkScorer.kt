@@ -24,10 +24,9 @@ import kotlin.math.roundToInt
  * a very small cross around the predicted center and requires support from several neighboring
  * samples. This improves tolerance to geometry drift without promoting one-off dirt or ring edges.
  *
- * Designer forms can legitimately use smaller bubbles than the large diagnostic templates. On a
- * 6-9 px radius bubble, the old fixed 0.50..0.76 annulus was only about 1.5-2.3 px wide. For those
- * small bubbles we widen only the glyph-safe annulus, while still staying clear of both the center
- * label and the printed outline. Larger bubbles keep the established sampling geometry unchanged.
+ * Important compatibility rule: all bubble radii use the same conservative glyph-safe annulus.
+ * Legacy designer forms with small printed bubbles must not widen the annulus toward the printed
+ * outline because anti-aliased ring pixels can otherwise be promoted into false marks/doubles.
  */
 object BubbleInkScorer {
     fun score(
@@ -76,10 +75,7 @@ object BubbleInkScorer {
                 val bucket = value.roundToInt().coerceIn(0, 255)
 
                 when {
-                    BubbleInkSamplingGeometry.isMarkSample(
-                        distanceRatio = distanceRatio,
-                        radius = safeRadius
-                    ) -> {
+                    BubbleInkSamplingGeometry.isMarkSample(distanceRatio) -> {
                         markSum += value
                         markCount += 1
                         markHistogram[bucket] += 1
@@ -133,22 +129,15 @@ object BubbleInkScorer {
 
 /** Pure geometry/contrast policy kept separately so the glyph-safe behavior is JVM-testable. */
 object BubbleInkSamplingGeometry {
-    /** Established geometry retained for compatibility/tests representing normal-size bubbles. */
     fun isMarkSample(distanceRatio: Double): Boolean =
-        distanceRatio in NORMAL_MARK_INNER_RATIO..NORMAL_MARK_OUTER_RATIO
+        distanceRatio in MARK_INNER_RATIO..MARK_OUTER_RATIO
 
-    /** Radius-aware production geometry. Small designer bubbles receive a wider safe annulus. */
-    fun isMarkSample(distanceRatio: Double, radius: Double): Boolean {
-        val range = markSampleRange(radius)
-        return distanceRatio in range.start..range.endInclusive
-    }
+    /** Radius is intentionally ignored: legacy and current bubbles use the same safe annulus. */
+    fun isMarkSample(distanceRatio: Double, radius: Double): Boolean =
+        isMarkSample(distanceRatio)
 
     fun markSampleRange(radius: Double): ClosedFloatingPointRange<Double> =
-        if (radius <= SMALL_BUBBLE_MAX_RADIUS) {
-            SMALL_MARK_INNER_RATIO..SMALL_MARK_OUTER_RATIO
-        } else {
-            NORMAL_MARK_INNER_RATIO..NORMAL_MARK_OUTER_RATIO
-        }
+        MARK_INNER_RATIO..MARK_OUTER_RATIO
 
     fun isBackgroundSample(
         distanceRatio: Double,
@@ -183,11 +172,8 @@ object BubbleInkSamplingGeometry {
         return (contrast * CONTRAST_WEIGHT + coverage * COVERAGE_WEIGHT).coerceIn(0.0, 1.0)
     }
 
-    private const val SMALL_BUBBLE_MAX_RADIUS = 9.0
-    private const val SMALL_MARK_INNER_RATIO = 0.46
-    private const val SMALL_MARK_OUTER_RATIO = 0.82
-    private const val NORMAL_MARK_INNER_RATIO = 0.50
-    private const val NORMAL_MARK_OUTER_RATIO = 0.76
+    private const val MARK_INNER_RATIO = 0.50
+    private const val MARK_OUTER_RATIO = 0.76
     private const val BACKGROUND_INNER_RATIO = 1.18
     private const val BACKGROUND_OUTER_RATIO = 1.55
     private const val BACKGROUND_DIAGONAL_MIN_AXIS = 0.34
