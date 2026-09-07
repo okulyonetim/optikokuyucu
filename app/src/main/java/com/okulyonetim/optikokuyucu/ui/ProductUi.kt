@@ -1,5 +1,6 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -95,8 +96,21 @@ fun ProductTopBar(
     leadingText: String? = null,
     onLeadingClick: (() -> Unit)? = null,
     actionText: String = "⋮",
-    onActionClick: (() -> Unit)? = null
+    onActionClick: (() -> Unit)? = null,
+    showAutomaticBack: Boolean = true
 ) {
+    val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val resolvedLeadingText = when {
+        leadingText != null -> leadingText
+        showAutomaticBack && dispatcher != null -> "‹"
+        else -> null
+    }
+    val resolvedLeadingClick = when {
+        onLeadingClick != null -> onLeadingClick
+        showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
+        else -> null
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -112,9 +126,9 @@ fun ProductTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (leadingText != null && onLeadingClick != null) {
-                TextButton(onClick = onLeadingClick) {
-                    Text(leadingText, color = MaterialTheme.colorScheme.primary, fontSize = 23.sp)
+            if (resolvedLeadingText != null && resolvedLeadingClick != null) {
+                TextButton(onClick = resolvedLeadingClick) {
+                    Text(resolvedLeadingText, color = MaterialTheme.colorScheme.primary, fontSize = 23.sp)
                 }
             } else {
                 Spacer(Modifier.size(42.dp))
