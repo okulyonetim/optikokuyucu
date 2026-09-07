@@ -41,8 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaKind
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditSafety
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamPreset
@@ -51,7 +53,9 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageOrientation
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPaperSize
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
@@ -61,6 +65,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 @Composable
 fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpenAdvanced: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val feedback = LocalAppFeedback.current
     val repository = remember(context) { FileDesignerDocumentRepository(context.applicationContext) }
     val openRequest = remember { DesignerLibraryOpenHandoff.consume() }
     val initialDocument = remember(openRequest) {
@@ -83,6 +88,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
     var status by remember { mutableStateOf("") }
     var showAreaPicker by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf<StructuredPaperSelection?>(null) }
+    var pendingDeleteSelection by remember { mutableStateOf<StructuredPaperSelection?>(null) }
     var workspaceDirectDragActive by remember { mutableStateOf(false) }
     var editingExistingId by remember { mutableStateOf<String?>(null) }
 
@@ -105,6 +111,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 libraryMode = DesignerLibraryOpenMode.EDIT
                 selection = null
                 status = "Düzenleme modu açıldı."
+                feedback.info(status)
             }
         )
         return
@@ -123,42 +130,102 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         imageEditorOpen = false
     }
 
+    fun placementIssue(candidate: DesignerDocument, target: StructuredPaperSelection): String? {
+        val bounds = when (target.kind) {
+            StructuredSelectionKind.COMPONENT -> candidate.components.firstOrNull { it.id == target.id }
+                ?.let(DesignerComponentGeometry::interactionBounds)
+            StructuredSelectionKind.VISUAL -> candidate.visualElements.firstOrNull { it.id == target.id }
+                ?.let(DesignerVisualGeometry::bounds)
+        } ?: return "Öğe form üzerinde bulunamadı. Değişiklik uygulanmadı."
+        return DesignerEditSafety.placementIssue(candidate, bounds)
+    }
+
+    fun applyCandidate(
+        candidate: DesignerDocument,
+        target: StructuredPaperSelection,
+        successText: String,
+        validateCompile: Boolean,
+        notifySuccess: Boolean = true
+    ): Boolean {
+        val issue = placementIssue(candidate, target)
+        if (issue != null) {
+            status = issue
+            feedback.warning(issue)
+            return false
+        }
+        if (validateCompile && target.kind == StructuredSelectionKind.COMPONENT) {
+            val compileError = runCatching { DesignerTemplateCompiler.compile(candidate) }.exceptionOrNull()
+            if (compileError != null) {
+                val message = "Öğe form alanına sığmıyor veya geçerli OMR geometrisi oluşturmuyor. Boyutu/konumu düzeltin."
+                status = message
+                feedback.warning(message)
+                return false
+            }
+        }
+        document = candidate
+        status = successText
+        if (notifySuccess) feedback.success(successText)
+        return true
+    }
+
     fun saveDocument() {
         val name = formName.trim()
         if (name.isBlank()) {
             status = "Form adı zorunludur."
+            feedback.warning(status)
             return
         }
-        status = runCatching {
-            val stored = repository.save(document.copy(name = name))
+        val candidate = document.copy(name = name)
+        val compileError = runCatching { DesignerTemplateCompiler.compile(candidate) }.exceptionOrNull()
+        if (compileError != null) {
+            status = "Form kaydedilemedi: Bir veya daha fazla öğe form alanına sığmıyor."
+            feedback.warning(status)
+            return
+        }
+        runCatching {
+            repository.save(candidate)
+        }.onSuccess { stored ->
             document = stored
             formName = stored.name
-            "Kaydedildi · v${stored.version}"
-        }.getOrElse { "Kaydetme hatası: ${it.message ?: it.javaClass.simpleName}" }
+            status = "Kaydedildi · v${stored.version}"
+            feedback.success(status)
+        }.onFailure { error ->
+            status = "Kaydetme hatası: ${error.message ?: error.javaClass.simpleName}"
+            feedback.error(status)
+        }
     }
 
     fun storeComponent(component: com.okulyonetim.optikokuyucu.omr.designer.DesignerOmrComponent) {
         val existing = editingExistingId
-        document = if (existing == null) {
+        val candidate = if (existing == null) {
             document.copy(components = document.components + component)
         } else {
-            DesignerDocumentEditor.replaceComponent(document, component)
+            runCatching { DesignerDocumentEditor.replaceComponent(document, component) }
+                .getOrElse { error ->
+                    status = "Alan güncellenemedi: ${error.message ?: error.javaClass.simpleName}"
+                    feedback.error(status)
+                    return
+                }
         }
-        selection = StructuredPaperSelection(StructuredSelectionKind.COMPONENT, component.id)
-        status = if (existing == null) "Alan eklendi." else "Alan güncellendi."
-        clearEditing()
+        val target = StructuredPaperSelection(StructuredSelectionKind.COMPONENT, component.id)
+        if (applyCandidate(candidate, target, if (existing == null) "Alan eklendi." else "Alan güncellendi.", true)) {
+            selection = target
+            clearEditing()
+        }
     }
 
     fun storeVisual(element: com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement) {
         val existing = editingExistingId
-        document = if (existing == null) {
+        val candidate = if (existing == null) {
             document.copy(visualElements = document.visualElements + element)
         } else {
             document.copy(visualElements = document.visualElements.map { if (it.id == element.id) element else it })
         }
-        selection = StructuredPaperSelection(StructuredSelectionKind.VISUAL, element.id)
-        status = if (existing == null) "Alan eklendi." else "Alan güncellendi."
-        clearEditing()
+        val target = StructuredPaperSelection(StructuredSelectionKind.VISUAL, element.id)
+        if (applyCandidate(candidate, target, if (existing == null) "Alan eklendi." else "Alan güncellendi.", false)) {
+            selection = target
+            clearEditing()
+        }
     }
 
     numberDraft?.let { draft ->
@@ -270,6 +337,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 else -> {
                     editingExistingId = null
                     status = "Bu görsel öğe gelişmiş düzenleyicide düzenlenebilir."
+                    feedback.info(status)
                 }
             }
         }
@@ -278,10 +346,10 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
     fun duplicateSelected() {
         val selected = selection ?: return
         val offset = DesignerEditorLayout.canonicalForMillimeters(document, 4.0)
-        when (selected.kind) {
-            StructuredSelectionKind.COMPONENT -> {
-                val id = nextDuplicateId(selected.id, false)
-                document = DesignerDocumentEditor.duplicateComponent(
+        val id = nextDuplicateId(selected.id, selected.kind == StructuredSelectionKind.VISUAL)
+        val candidate = runCatching {
+            when (selected.kind) {
+                StructuredSelectionKind.COMPONENT -> DesignerDocumentEditor.duplicateComponent(
                     document,
                     selected.id,
                     id,
@@ -289,12 +357,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                     offset,
                     DesignerEditorLayout.canonicalForMillimeters(document, 1.0)
                 )
-                selection = StructuredPaperSelection(StructuredSelectionKind.COMPONENT, id)
-            }
-
-            StructuredSelectionKind.VISUAL -> {
-                val id = nextDuplicateId(selected.id, true)
-                document = DesignerDocumentEditor.duplicateVisualElement(
+                StructuredSelectionKind.VISUAL -> DesignerDocumentEditor.duplicateVisualElement(
                     document,
                     selected.id,
                     id,
@@ -302,20 +365,20 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                     offset,
                     DesignerEditorLayout.canonicalForMillimeters(document, 1.0)
                 )
-                selection = StructuredPaperSelection(StructuredSelectionKind.VISUAL, id)
             }
+        }.getOrElse { error ->
+            status = "Öğe kopyalanamadı: ${error.message ?: error.javaClass.simpleName}"
+            feedback.error(status)
+            return
         }
-        status = "Öğe kopyalandı."
+        val target = StructuredPaperSelection(selected.kind, id)
+        if (applyCandidate(candidate, target, "Öğe kopyalandı.", selected.kind == StructuredSelectionKind.COMPONENT)) {
+            selection = target
+        }
     }
 
     fun deleteSelected() {
-        val selected = selection ?: return
-        document = when (selected.kind) {
-            StructuredSelectionKind.COMPONENT -> DesignerDocumentEditor.deleteComponent(document, selected.id)
-            StructuredSelectionKind.VISUAL -> DesignerDocumentEditor.deleteVisualElement(document, selected.id)
-        }
-        selection = null
-        status = "Öğe silindi."
+        selection?.let { pendingDeleteSelection = it }
     }
 
     Column(
@@ -348,10 +411,12 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 {
                     document = DesignerPageGeometry.apply(document, paperSize = it)
                     selection = null
+                    feedback.info("Kağıt boyutu güncellendi.")
                 },
                 {
                     document = DesignerPageGeometry.apply(document, orientation = it)
                     selection = null
+                    feedback.info("Sayfa yönü güncellendi.")
                 }
             )
             OpticalFormAreaHeader {
@@ -362,7 +427,20 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 document = document,
                 selection = selection,
                 onSelectionChange = { selection = it },
-                onDocumentChange = { document = it },
+                onDocumentChange = { candidate ->
+                    val selected = selection
+                    if (selected == null) {
+                        document = candidate
+                    } else {
+                        applyCandidate(
+                            candidate = candidate,
+                            target = selected,
+                            successText = "Öğe konumu güncellendi.",
+                            validateCompile = false,
+                            notifySuccess = false
+                        )
+                    }
+                },
                 onDirectDragActiveChange = { workspaceDirectDragActive = it }
             )
             selection?.let {
@@ -422,6 +500,27 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
             }
         )
     }
+
+    pendingDeleteSelection?.let { selected ->
+        AppConfirmationDialog(
+            title = "Öğe silinsin mi?",
+            message = "Seçili öğe optik formdan kaldırılacak. Bu işlem geri alınamaz.",
+            confirmText = "Sil",
+            destructive = true,
+            onConfirm = {
+                val candidate = when (selected.kind) {
+                    StructuredSelectionKind.COMPONENT -> DesignerDocumentEditor.deleteComponent(document, selected.id)
+                    StructuredSelectionKind.VISUAL -> DesignerDocumentEditor.deleteVisualElement(document, selected.id)
+                }
+                document = candidate
+                selection = null
+                pendingDeleteSelection = null
+                status = "Öğe silindi."
+                feedback.success(status)
+            },
+            onDismiss = { pendingDeleteSelection = null }
+        )
+    }
 }
 
 @Composable
@@ -450,7 +549,7 @@ private fun EditorTopBar(title: String, onBack: () -> Unit, onSave: () -> Unit) 
             TextButton(
                 onClick = onBack,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
-            ) { Text("×", style = MaterialTheme.typography.titleLarge) }
+            ) { Text("‹", style = MaterialTheme.typography.titleLarge) }
             Text(
                 title,
                 modifier = Modifier.weight(1f),
