@@ -42,7 +42,8 @@ data class SchoolAccountUi(
     val profile: SchoolUserProfile,
     val directoryStatus: String,
     val cloudStatus: String,
-    val syncNow: suspend () -> String,
+    val syncDirectoryNow: suspend () -> String,
+    val syncCloudNow: suspend () -> String,
     val signOut: () -> Unit
 )
 
@@ -75,6 +76,8 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
             ?: return@withContext cloudStatus.ifBlank { "Sınav verileri güncel" }
         when {
             result.failures.isNotEmpty() -> "${result.syncedStudentResults} sonuç gönderildi · ${result.failures.size} hata"
+            result.skippedWithoutStudentIdentity > 0 ->
+                "${result.syncedStudentResults} sonuç gönderildi · ${result.skippedWithoutStudentIdentity} eşleşmeyen kağıt cihazda kaldı"
             result.skippedWithoutPermission > 0 -> "${result.syncedStudentResults} sonuç gönderildi · bazı bulut işlemleri için yetki yok"
             else -> "${result.syncedStudentResults} öğrenci sonucu Okul Yönetim'e gönderildi"
         }
@@ -96,7 +99,7 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
     }
 
     // Local OMR work remains offline-first. This loop computes a local fingerprint every 10 seconds;
-    // Firestore is contacted only when an exam, paper or answer key actually changed.
+    // Firestore is contacted only when an exam, paper, scan result or answer key actually changed.
     LaunchedEffect(profile?.uid, Unit) {
         if (profile == null) return@LaunchedEffect
         while (true) {
@@ -113,18 +116,17 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
             profile = signedIn,
             directoryStatus = directoryStatus,
             cloudStatus = cloudStatus,
-            syncNow = {
-                val directory = runCatching { syncDirectory() }
+            syncDirectoryNow = {
+                runCatching { syncDirectory() }
                     .onSuccess { directoryStatus = it }
-                    .getOrElse { error ->
-                        val message = error.message ?: "Öğrenciler eşitlenemedi"
-                        directoryStatus = message
-                        message
-                    }
+                    .onFailure { directoryStatus = it.message ?: "Öğrenciler eşitlenemedi" }
+                    .getOrThrow()
+            },
+            syncCloudNow = {
                 runCatching { syncCloud(force = true) }
                     .onSuccess { cloudStatus = it }
                     .onFailure { cloudStatus = it.message ?: "Bulut senkronu başarısız" }
-                directory
+                    .getOrThrow()
             },
             signOut = {
                 manager.signOut()
