@@ -60,9 +60,12 @@ data class OmrRecognitionBindings(
         val first = marked.first()
         val last = marked.last()
         if ((first..last).any { grid.columns[it].state != MarkColumnState.MARKED }) return null
-        return (first..last).joinToString(separator = "") {
-            grid.columns[it].selectedValue ?: return null
+        val value = StringBuilder()
+        for (index in first..last) {
+            val selected = grid.columns[index].selectedValue ?: return null
+            value.append(selected)
         }
+        return value.toString()
     }
 
     private fun studentNumberValue(grid: RecordedMarkGrid): String? {
@@ -76,9 +79,12 @@ data class OmrRecognitionBindings(
         val first = marked.first()
         val last = marked.last()
         if ((first..last).any { grid.columns[it].state != RecordedMarkState.MARKED }) return null
-        return (first..last).joinToString(separator = "") {
-            grid.columns[it].selectedValue ?: return null
+        val value = StringBuilder()
+        for (index in first..last) {
+            val selected = grid.columns[index].selectedValue ?: return null
+            value.append(selected)
         }
+        return value.toString()
     }
 }
 
