@@ -15,11 +15,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,7 +119,7 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     val controller = remember(themeMode, dark, repository) {
         ProductThemeController(themeMode, dark) { next ->
             if (next != themeMode) {
-                runCatching { repository.save(repository.load().copy(themeMode = next)) }
+                runCatching { repository.saveThemeMode(next) }
                     .onSuccess { themeMode = next }
             }
         }
@@ -136,6 +142,7 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductTopBar(
     title: String,
@@ -147,6 +154,7 @@ fun ProductTopBar(
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
+    var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
         showAutomaticBack && dispatcher != null -> "‹"
@@ -157,15 +165,15 @@ fun ProductTopBar(
         showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
         else -> null
     }
-    val settingsThemeAction = title == "Ayarlar" && onActionClick == null && themeController != null
+    val settingsPanelAvailable = title == "Ayarlar" && onActionClick == null && themeController != null
     val resolvedActionText = when {
         onActionClick != null -> actionText
-        settingsThemeAction -> if (themeController?.isDark == true) "☀" else "☾"
+        settingsPanelAvailable -> "◐"
         else -> null
     }
     val resolvedActionClick: (() -> Unit)? = when {
         onActionClick != null -> onActionClick
-        settingsThemeAction -> ({ themeController?.toggleLightDark() })
+        settingsPanelAvailable -> ({ settingsPanelOpen = true })
         else -> null
     }
 
@@ -207,6 +215,13 @@ fun ProductTopBar(
             )
         }
     }
+
+    if (settingsPanelOpen && themeController != null) {
+        SettingsAppearanceAndSubjectsSheet(
+            themeController = themeController,
+            onDismiss = { settingsPanelOpen = false }
+        )
+    }
 }
 
 @Composable
@@ -222,6 +237,115 @@ private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
         }
     } else {
         Spacer(Modifier.size(40.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsAppearanceAndSubjectsSheet(
+    themeController: ProductThemeController,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val feedback = LocalAppFeedback.current
+    val repository = remember(context) { AppSettingsRepository(context.applicationContext) }
+    var subjects by remember { mutableStateOf(repository.load().subjects) }
+    var newSubject by remember { mutableStateOf("") }
+
+    fun persistSubjects(updated: List<String>) {
+        runCatching { repository.saveSubjects(updated) }
+            .onSuccess {
+                subjects = repository.load().subjects
+                feedback.success("Dersler güncellendi.")
+            }
+            .onFailure { feedback.error("Dersler kaydedilemedi: ${it.message ?: it.javaClass.simpleName}") }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Görünüm ve Dersler", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text("Görünüm", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                ThemeModeButton(Modifier.weight(1f), "Sistem", AppThemeMode.SYSTEM, themeController)
+                ThemeModeButton(Modifier.weight(1f), "Açık", AppThemeMode.LIGHT, themeController)
+                ThemeModeButton(Modifier.weight(1f), "Koyu", AppThemeMode.DARK, themeController)
+            }
+            Text(
+                "Tema değişikliği anında uygulanır ve cihazda saklanır.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text("Dersler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            subjects.forEach { subject ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(subject, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        TextButton(
+                            enabled = subjects.size > 1,
+                            onClick = { persistSubjects(subjects.filterNot { it == subject }) }
+                        ) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier.weight(1f),
+                    value = newSubject,
+                    onValueChange = { newSubject = it.take(60) },
+                    label = { Text("Yeni ders") },
+                    singleLine = true
+                )
+                FilledTonalButton(
+                    enabled = newSubject.isNotBlank(),
+                    onClick = {
+                        val value = newSubject.trim()
+                        if (subjects.any { it.equals(value, ignoreCase = true) }) {
+                            feedback.warning("Bu ders zaten listede.")
+                        } else {
+                            persistSubjects(subjects + value)
+                            newSubject = ""
+                        }
+                    }
+                ) { Text("Ekle") }
+            }
+            Spacer(Modifier.height(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun ThemeModeButton(
+    modifier: Modifier,
+    label: String,
+    mode: AppThemeMode,
+    controller: ProductThemeController
+) {
+    if (controller.mode == mode) {
+        FilledTonalButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
+    } else {
+        OutlinedButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
     }
 }
 
