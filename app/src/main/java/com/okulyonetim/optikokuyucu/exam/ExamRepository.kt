@@ -1,12 +1,17 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import java.io.File
 import java.security.MessageDigest
 
 internal object ExamTemplateBindingPolicy {
     fun validateUpdate(stored: Exam, incoming: Exam) {
         require(stored.id == incoming.id) { "Sınav kimliği değiştirilemez." }
+        require(stored.ownerUid.isBlank() || incoming.ownerUid == stored.ownerUid) {
+            "Sınav sahibi değiştirilemez."
+        }
         if (stored.templateSelection != incoming.templateSelection) {
             require(stored.papers.isEmpty() && incoming.papers.isEmpty()) {
                 "Okunmuş kağıdı bulunan sınavın optik formu değiştirilemez. Önce bağlı kağıtları kaldırın."
@@ -24,20 +29,36 @@ interface ExamRepository {
 
 /** App-private exam storage; atomic-ish writes, no network and no storage permission. */
 class FileExamRepository(context: Context) : ExamRepository {
-    private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
     override fun save(exam: Exam) {
-        val destination = fileFor(exam.id)
+        val profile = runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
+        val ownedExam = if (exam.ownerUid.isBlank() && profile != null) {
+            exam.copy(ownerUid = profile.uid, ownerDisplayName = profile.displayName)
+        } else exam
+        if (profile != null && ownedExam.ownerUid.isNotBlank()) {
+            require(SchoolContentAccess.canModifyExam(ownedExam, profile)) {
+                "Bu sınavı düzenleme yetkiniz yok."
+            }
+        }
+
+        val destination = fileFor(ownedExam.id)
         if (destination.isFile) {
             val stored = runCatching { ExamCodec.decode(destination.readBytes()) }
                 .getOrElse { error ->
                     throw IllegalStateException("Mevcut sınav kaydı okunamadı.", error)
                 }
-            ExamTemplateBindingPolicy.validateUpdate(stored, exam)
+            if (profile != null && stored.ownerUid.isNotBlank()) {
+                require(SchoolContentAccess.canModifyExam(stored, profile)) {
+                    "Bu sınavı düzenleme yetkiniz yok."
+                }
+            }
+            ExamTemplateBindingPolicy.validateUpdate(stored, ownedExam)
         }
 
         val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(ExamCodec.encode(exam))
+        temporary.writeBytes(ExamCodec.encode(ownedExam))
         if (destination.exists() && !destination.delete()) {
             temporary.delete()
             error("Eski sınav kaydı güncellenemedi.")
@@ -67,6 +88,13 @@ class FileExamRepository(context: Context) : ExamRepository {
         )
 
     override fun delete(id: String): Boolean {
+        val stored = load(id)
+        val profile = runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
+        if (stored != null && profile != null && stored.ownerUid.isNotBlank()) {
+            require(SchoolContentAccess.canModifyExam(stored, profile)) {
+                "Bu sınavı silme yetkiniz yok."
+            }
+        }
         val file = fileFor(id)
         return !file.exists() || file.delete()
     }
