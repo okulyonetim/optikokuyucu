@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,13 +40,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.ExamStatus
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
-import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
+import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
+import com.okulyonetim.optikokuyucu.school.SchoolExamCatalogStore
+import com.okulyonetim.optikokuyucu.school.SchoolExamListItem
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.settings.AppSettings
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -365,11 +370,35 @@ private fun ProductHomeScreen(
     onOpenExam: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val exams = remember(context) { FileExamRepository(context.applicationContext).list() }
-    val scans = remember(context) { FileScanRecordRepository(context.applicationContext).list() }
-    val readExams = exams.count { it.status == ExamStatus.READ }
-    val waitingExams = exams.count { it.status == ExamStatus.WAITING }
-    val linkedPapers = exams.sumOf { it.papers.size }
+    val appContext = context.applicationContext
+    val repository = remember(context) { FileExamRepository(appContext) }
+    val catalogStore = remember(context) { SchoolExamCatalogStore(appContext) }
+    val manager = remember(context) { SchoolPortalManager.get(appContext) }
+    val profile = LocalSchoolAccount.current?.profile
+    var localExams by remember(profile?.uid) { mutableStateOf(repository.list()) }
+    var cloudCatalog by remember(profile?.uid) { mutableStateOf(catalogStore.list()) }
+
+    LaunchedEffect(profile?.uid) {
+        if (profile != null) {
+            runCatching { withContext(Dispatchers.IO) { manager.refreshExamCatalog() } }
+        }
+        localExams = repository.list()
+        cloudCatalog = catalogStore.list()
+    }
+
+    val examItems = if (profile == null) {
+        localExams.map { exam -> SchoolExamListItem(SchoolContentAccess.run { exam.toSummary() }, exam) }
+    } else {
+        SchoolContentAccess.mergeExamItems(localExams, cloudCatalog, profile)
+    }
+    val readExams = examItems.count { it.localExam?.status == ExamStatus.READ }
+    val waitingExams = examItems.count { it.localExam == null || it.localExam.status == ExamStatus.WAITING }
+    val linkedPapers = examItems.sumOf { it.localExam?.papers?.size ?: 0 }
+    val scannedPapers = examItems
+        .flatMap { it.localExam?.papers.orEmpty() }
+        .map { it.scanRecordId }
+        .distinct()
+        .size
 
     LazyColumn(
         modifier = Modifier
@@ -388,9 +417,15 @@ private fun ProductHomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("Optik Okuyucu", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Optik değerlendirme merkezi",
+                        when {
+                            profile?.admin == true -> "Admin ana sayfası · tüm kullanıcı sınavları"
+                            profile != null -> "${profile.displayName} · kişisel sınavlar ve herkese açık sınavlar"
+                            else -> "Optik değerlendirme merkezi"
+                        },
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Surface(
@@ -400,7 +435,7 @@ private fun ProductHomeScreen(
                 ) {
                     Text(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        text = "OMR",
+                        text = if (profile?.admin == true) "ADMIN" else "OMR",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -453,8 +488,8 @@ private fun ProductHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                HomeStatCard(Modifier.weight(1f), "Sınav", exams.size.toString())
-                HomeStatCard(Modifier.weight(1f), "Taranan", scans.size.toString())
+                HomeStatCard(Modifier.weight(1f), "Sınav", examItems.size.toString())
+                HomeStatCard(Modifier.weight(1f), "Taranan", scannedPapers.toString())
                 HomeStatCard(Modifier.weight(1f), "Okunan", readExams.toString())
                 HomeStatCard(Modifier.weight(1f), "Bekleyen", waitingExams.toString())
             }
@@ -487,7 +522,7 @@ private fun ProductHomeScreen(
             }
         }
 
-        if (exams.isEmpty()) {
+        if (examItems.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -503,7 +538,7 @@ private fun ProductHomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Henüz sınav yok", fontWeight = FontWeight.SemiBold)
+                            Text("Henüz görünür sınav yok", fontWeight = FontWeight.SemiBold)
                             Text(
                                 "İlk sınavınızı oluşturun.",
                                 fontSize = 11.sp,
@@ -517,8 +552,14 @@ private fun ProductHomeScreen(
                 }
             }
         } else {
-            items(exams.take(4), key = { it.id }) { exam ->
-                HomeExamCard(exam = exam, onClick = { onOpenExam(exam.id) })
+            items(examItems.take(4), key = { it.summary.id }) { item ->
+                HomeExamCard(
+                    item = item,
+                    onClick = {
+                        val local = item.localExam
+                        if (local != null) onOpenExam(local.id) else onOpenExams()
+                    }
+                )
             }
         }
 
@@ -595,7 +636,9 @@ private fun HomeActionCard(
 }
 
 @Composable
-private fun HomeExamCard(exam: Exam, onClick: () -> Unit) {
+private fun HomeExamCard(item: SchoolExamListItem, onClick: () -> Unit) {
+    val summary = item.summary
+    val exam = item.localExam
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -613,21 +656,39 @@ private fun HomeExamCard(exam: Exam, onClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    exam.name,
+                    summary.name,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${formatHomeExamDate(exam.examDateEpochDay)} · ${exam.papers.size} kağıt",
+                    buildString {
+                        append(formatHomeExamDate(summary.examDateEpochDay))
+                        append(" · ")
+                        append(exam?.papers?.size ?: 0)
+                        append(" kağıt")
+                        if (summary.ownerName.isNotBlank()) append(" · ${summary.ownerName}")
+                        if (summary.isPublic) append(" · Herkese açık")
+                        if (exam == null) append(" · Bulut")
+                    },
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             ProductStatusBadge(
-                text = if (exam.status == ExamStatus.READ) "OKUNDU" else "BEKLİYOR",
-                tone = if (exam.status == ExamStatus.READ) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
+                text = when {
+                    exam == null -> "BULUT"
+                    exam.status == ExamStatus.READ -> "OKUNDU"
+                    else -> "BEKLİYOR"
+                },
+                tone = when {
+                    exam == null -> ProductBadgeTone.NEUTRAL
+                    exam.status == ExamStatus.READ -> ProductBadgeTone.GREEN
+                    else -> ProductBadgeTone.ORANGE
+                }
             )
         }
     }
