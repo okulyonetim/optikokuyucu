@@ -73,7 +73,6 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
-import com.okulyonetim.optikokuyucu.student.StudentNumber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -468,7 +467,7 @@ private fun EditExamDialog(
     }
     val participantOptions = remember(rosterParticipants, exam.participants) {
         (rosterParticipants + exam.participants.map(ExamParticipant::normalized))
-            .distinctBy { StudentNumber.normalize(it.studentNumber) }
+            .distinctBy { it.identityKey }
             .sortedWith(compareBy<ExamParticipant> { it.className }.thenBy { it.studentName })
     }
     val participantClasses = remember(participantOptions) {
@@ -485,19 +484,15 @@ private fun EditExamDialog(
     var wrongPolicy by remember(exam.id) { mutableStateOf(exam.wrongAnswerPolicy) }
     var wrongPolicyMenu by remember { mutableStateOf(false) }
     var personalizedEnabled by remember(exam.id) { mutableStateOf(exam.personalizedFormsEnabled) }
-    var selectedParticipantNumbers by remember(exam.id) {
-        mutableStateOf(exam.participants.map { StudentNumber.normalize(it.studentNumber) }.toSet())
-    }
-    var participantClass by remember(exam.id, participantClasses) {
-        mutableStateOf(participantClasses.firstOrNull())
+    var selectedParticipantKeys by remember(exam.id) {
+        mutableStateOf(exam.participants.map { it.normalized().identityKey }.toSet())
     }
     var participantClassMenu by remember { mutableStateOf(false) }
+    var participantStudentMenu by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf("") }
 
-    val visibleParticipants = participantOptions.filter { participantClass == null || it.className == participantClass }
-    val selectedParticipants = participantOptions.filter {
-        StudentNumber.normalize(it.studentNumber) in selectedParticipantNumbers
-    }
+    val selectedParticipants = participantOptions.filter { it.identityKey in selectedParticipantKeys }
+    val selectedClassNames = selectedParticipants.map { it.className }.distinct().sorted()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -610,66 +605,110 @@ private fun EditExamDialog(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { participantClassMenu = true }
                         ) {
-                            Text("Sınıf: ${participantClass ?: "Tümü"} · Seçili ${selectedParticipants.size}")
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text("Toplu Sınıf Seçimi", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    if (selectedClassNames.isEmpty()) {
+                                        "Sınıf seçin · Seçili ${selectedParticipants.size}"
+                                    } else {
+                                        "${selectedClassNames.joinToString(", ")} · Seçili ${selectedParticipants.size}"
+                                    },
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                         DropdownMenu(
                             expanded = participantClassMenu,
                             onDismissRequest = { participantClassMenu = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Tüm Sınıflar") },
-                                onClick = { participantClass = null; participantClassMenu = false }
-                            )
                             participantClasses.forEach { clazz ->
+                                val classParticipants = participantOptions.filter { it.className == clazz }
+                                val classKeys = classParticipants.map { it.identityKey }.toSet()
+                                val allClassSelected = classKeys.isNotEmpty() && classKeys.all { it in selectedParticipantKeys }
                                 DropdownMenuItem(
-                                    text = { Text(clazz) },
-                                    onClick = { participantClass = clazz; participantClassMenu = false }
-                                )
-                            }
-                        }
-                    }
-                    if (visibleParticipants.isNotEmpty()) {
-                        val visibleNumbers = visibleParticipants.map { StudentNumber.normalize(it.studentNumber) }.toSet()
-                        val allVisibleSelected = visibleNumbers.all { it in selectedParticipantNumbers }
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                selectedParticipantNumbers = if (allVisibleSelected) {
-                                    selectedParticipantNumbers - visibleNumbers
-                                } else {
-                                    selectedParticipantNumbers + visibleNumbers
-                                }
-                            }
-                        ) {
-                            Text(if (allVisibleSelected) "Bu Sınıfı Seçimden Çıkar" else "Bu Sınıfın Tümünü Seç")
-                        }
-                        visibleParticipants.forEach { participant ->
-                            val number = StudentNumber.normalize(participant.studentNumber)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = number in selectedParticipantNumbers,
-                                    onCheckedChange = { checked ->
-                                        selectedParticipantNumbers = if (checked) {
-                                            selectedParticipantNumbers + number
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(checked = allClassSelected, onCheckedChange = null)
+                                            Text("$clazz · ${classParticipants.size} öğrenci")
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedParticipantKeys = if (allClassSelected) {
+                                            selectedParticipantKeys - classKeys
                                         } else {
-                                            selectedParticipantNumbers - number
+                                            selectedParticipantKeys + classKeys
                                         }
                                     }
                                 )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(participant.studentName, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        "${participant.className} · No: ${participant.studentNumber}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
                             }
                         }
                     }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { participantStudentMenu = true }
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text("Bireysel Öğrenci Seçimi", style = MaterialTheme.typography.labelSmall)
+                                Text("${selectedParticipants.size} öğrenci seçili")
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = participantStudentMenu,
+                            onDismissRequest = { participantStudentMenu = false }
+                        ) {
+                            participantOptions.forEach { participant ->
+                                val key = participant.identityKey
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = key in selectedParticipantKeys,
+                                                onCheckedChange = null
+                                            )
+                                            Column {
+                                                Text(
+                                                    participant.studentName,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    "${participant.className} · No: ${participant.studentNumber}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedParticipantKeys = if (key in selectedParticipantKeys) {
+                                            selectedParticipantKeys - key
+                                        } else {
+                                            selectedParticipantKeys + key
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        if (selectedParticipants.isEmpty()) {
+                            "Katılımcı seçilmedi. Sınav serbest taramaya açık kalır."
+                        } else {
+                            "${selectedClassNames.size} sınıftan toplam ${selectedParticipants.size} öğrenci seçili."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
 
                 Row(
