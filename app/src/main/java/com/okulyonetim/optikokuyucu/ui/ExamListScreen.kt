@@ -51,6 +51,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class ExamListFilter { ALL, READ, WAITING }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ExamListScreen(
     onNewExam: () -> Unit,
@@ -77,7 +78,7 @@ fun ExamListScreen(
         SchoolContentAccess.mergeExamItems(localExams, cloudCatalog, profile)
     }
 
-    var items = currentItems()
+    val items = currentItems()
     val normalizedQuery = query.trim().lowercase()
     val filtered = items.filter { item ->
         val summary = item.summary
@@ -140,8 +141,7 @@ fun ExamListScreen(
         topBar = {
             ProductTopBar(
                 title = "Sınavlar",
-                actionText = "⋮",
-                onActionClick = onOpenTools
+                showAutomaticBack = false
             )
         },
         floatingActionButton = {
