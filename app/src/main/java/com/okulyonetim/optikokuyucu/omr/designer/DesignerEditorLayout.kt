@@ -22,6 +22,8 @@ object DesignerEditorLayout {
     const val A4_PORTRAIT_COURSE_SLOTS = 6
     private const val DEFAULT_ANSWER_TOP_INSET = 95.0
     private const val A5_LANDSCAPE_ANSWER_TOP_INSET = 60.0
+    private const val DEFAULT_ANSWER_LEFT_INSET_RADII = 3.0
+    private const val A5_LANDSCAPE_ANSWER_LEFT_INSET_RADII = 5.0
 
     fun canonicalUnitsPerMillimeter(document: DesignerDocument): Double {
         val dimensions = DesignerPageGeometry.dimensions(document.formSpec.paperSize)
@@ -38,11 +40,16 @@ object DesignerEditorLayout {
         val slot = answerOrdinal.coerceAtLeast(0) % slots
         val rowBand = answerOrdinal.coerceAtLeast(0) / slots
         val slotWidth = safe.width / slots.toDouble()
-        val firstChoiceX = safe.left + slot * slotWidth + STANDARD_BUBBLE_RADIUS * 3.0
-        val topInset = if (
+        val compactA5Landscape =
             document.formSpec.paperSize == DesignerPaperSize.A5 &&
-            document.formSpec.orientation == DesignerPageOrientation.LANDSCAPE
-        ) {
+                document.formSpec.orientation == DesignerPageOrientation.LANDSCAPE
+        val leftInsetRadii = if (compactA5Landscape) {
+            A5_LANDSCAPE_ANSWER_LEFT_INSET_RADII
+        } else {
+            DEFAULT_ANSWER_LEFT_INSET_RADII
+        }
+        val firstChoiceX = safe.left + slot * slotWidth + STANDARD_BUBBLE_RADIUS * leftInsetRadii
+        val topInset = if (compactA5Landscape) {
             A5_LANDSCAPE_ANSWER_TOP_INSET
         } else {
             DEFAULT_ANSWER_TOP_INSET
