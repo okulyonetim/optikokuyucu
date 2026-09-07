@@ -27,13 +27,13 @@ interface ExamRepository {
     fun delete(id: String): Boolean
 }
 
-/** App-private exam storage; atomic-ish writes, no network and no storage permission. */
+/** App-private exam storage; account visibility is enforced before records reach the UI. */
 class FileExamRepository(context: Context) : ExamRepository {
     private val appContext = context.applicationContext
     private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
     override fun save(exam: Exam) {
-        val profile = runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
+        val profile = activeProfile()
         val ownedExam = if (exam.ownerUid.isBlank() && profile != null) {
             exam.copy(ownerUid = profile.uid, ownerDisplayName = profile.displayName)
         } else exam
@@ -46,9 +46,7 @@ class FileExamRepository(context: Context) : ExamRepository {
         val destination = fileFor(ownedExam.id)
         if (destination.isFile) {
             val stored = runCatching { ExamCodec.decode(destination.readBytes()) }
-                .getOrElse { error ->
-                    throw IllegalStateException("Mevcut sınav kaydı okunamadı.", error)
-                }
+                .getOrElse { error -> throw IllegalStateException("Mevcut sınav kaydı okunamadı.", error) }
             if (profile != null && stored.ownerUid.isNotBlank()) {
                 require(SchoolContentAccess.canModifyExam(stored, profile)) {
                     "Bu sınavı düzenleme yetkiniz yok."
@@ -77,19 +75,23 @@ class FileExamRepository(context: Context) : ExamRepository {
             ?.takeIf { it.id == id }
     }
 
-    override fun list(): List<Exam> = directory
-        .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
-        .orEmpty()
-        .mapNotNull { file -> runCatching { ExamCodec.decode(file.readBytes()) }.getOrNull() }
-        .sortedWith(
-            compareByDescending<Exam> { it.examDateEpochDay }
-                .thenByDescending { it.createdAtEpochMs }
-                .thenBy { it.name }
-        )
+    override fun list(): List<Exam> {
+        val all = directory
+            .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
+            .orEmpty()
+            .mapNotNull { file -> runCatching { ExamCodec.decode(file.readBytes()) }.getOrNull() }
+            .sortedWith(
+                compareByDescending<Exam> { it.examDateEpochDay }
+                    .thenByDescending { it.createdAtEpochMs }
+                    .thenBy { it.name }
+            )
+        val profile = activeProfile() ?: return all
+        return all.filter { SchoolContentAccess.canViewExam(it, profile) }
+    }
 
     override fun delete(id: String): Boolean {
         val stored = load(id)
-        val profile = runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
+        val profile = activeProfile()
         if (stored != null && profile != null && stored.ownerUid.isNotBlank()) {
             require(SchoolContentAccess.canModifyExam(stored, profile)) {
                 "Bu sınavı silme yetkiniz yok."
@@ -98,6 +100,9 @@ class FileExamRepository(context: Context) : ExamRepository {
         val file = fileFor(id)
         return !file.exists() || file.delete()
     }
+
+    private fun activeProfile() =
+        runCatching { SchoolPortalManager.get(appContext).cachedSession()?.profile }.getOrNull()
 
     private fun fileFor(id: String): File = File(directory, keyFor(id) + FILE_SUFFIX)
 
