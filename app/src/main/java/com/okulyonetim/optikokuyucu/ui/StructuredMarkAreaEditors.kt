@@ -21,6 +21,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAnswerAppearance
@@ -57,6 +60,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupOrientation
 import com.okulyonetim.optikokuyucu.omr.template.BubbleRowSpec
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
+import com.okulyonetim.optikokuyucu.settings.AppSettings
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import kotlin.math.roundToInt
 
 @Composable
@@ -121,7 +126,27 @@ internal fun AnswerAreaEditorScreen(
     onCancel: () -> Unit,
     onComplete: (QuestionGroupComponent) -> Unit
 ) {
-    val normalized = draft.copy(bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS)
+    val context = LocalContext.current
+    val subjects = remember(context) {
+        AppSettingsRepository(context.applicationContext)
+            .load()
+            .subjects
+            .ifEmpty { AppSettings.DEFAULT_SUBJECTS }
+    }
+    val isNewArea = remember(document.components, draft.id) {
+        document.components.none { it.id == draft.id }
+    }
+    val initialLabel = if (
+        isNewArea && subjects.none { it.equals(draft.label, ignoreCase = true) }
+    ) {
+        subjects.firstOrNull() ?: draft.label
+    } else {
+        draft.label
+    }
+    val normalized = draft.copy(
+        bubbleRadius = DesignerEditorLayout.STANDARD_BUBBLE_RADIUS,
+        label = initialLabel
+    )
     fun update(candidate: QuestionGroupComponent) {
         onDraftChange(DesignerComponentPlacement.fitInsideSafeArea(document, candidate) as QuestionGroupComponent)
     }
@@ -139,9 +164,13 @@ internal fun AnswerAreaEditorScreen(
             MoveControls(document) { dx, dy ->
                 update(DesignerComponentPlacement.translate(normalized, dx, dy) as QuestionGroupComponent)
             }
-            LabelControls(normalized.label, normalized.showLabel, "Ders Adı", { update(normalized.copy(showLabel = it)) }) {
-                update(normalized.copy(label = it))
-            }
+            AnswerSubjectControls(
+                selectedSubject = normalized.label,
+                showLabel = normalized.showLabel,
+                subjects = subjects,
+                onShowLabelChange = { update(normalized.copy(showLabel = it)) },
+                onSubjectSelected = { update(normalized.copy(label = it)) }
+            )
             Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
             AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.answerPatternPresets, onPatternTextChange)
@@ -220,6 +249,66 @@ private fun LabelControls(label: String, showLabel: Boolean, title: String, onSh
         Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
     }
     OutlinedTextField(value = label, onValueChange = { if ('\n' !in it && '\r' !in it && it.length <= 60) onLabelChange(it) }, modifier = Modifier.fillMaxWidth(), label = { Text(title) }, enabled = showLabel, singleLine = true)
+}
+
+@Composable
+private fun AnswerSubjectControls(
+    selectedSubject: String,
+    showLabel: Boolean,
+    subjects: List<String>,
+    onShowLabelChange: (Boolean) -> Unit,
+    onSubjectSelected: (String) -> Unit
+) {
+    val options = remember(subjects) {
+        subjects
+            .map { it.trim().replace(Regex("\\s+"), " ") }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+    }
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Etiketi Gizle", modifier = Modifier.weight(1f))
+        Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
+    }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = options.isNotEmpty(),
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text("Ders Adı", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    selectedSubject.ifBlank { "Ders seçin" },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { subject ->
+                DropdownMenuItem(
+                    text = { Text(if (subject == selectedSubject) "$subject ✓" else subject) },
+                    onClick = {
+                        onSubjectSelected(subject)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+    Text(
+        "Dersler Ayarlar bölümündeki ders listesinden gelir.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
