@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.school.SchoolOfflineSessionPolicy
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.school.SchoolUserProfile
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +59,14 @@ val LocalSchoolAccount = staticCompositionLocalOf<SchoolAccountUi?> { null }
 fun SchoolPortalGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val manager = remember(context) { SchoolPortalManager.get(context.applicationContext) }
-    var profile by remember { mutableStateOf(manager.cachedSession()?.profile) }
+    val cachedSession = remember(manager) { manager.cachedSession() }
+    var profile by remember {
+        mutableStateOf(
+            cachedSession
+                ?.takeIf { SchoolOfflineSessionPolicy.canOpenCached(it) }
+                ?.profile
+        )
+    }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
