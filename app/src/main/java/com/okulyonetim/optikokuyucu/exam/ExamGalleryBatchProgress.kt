@@ -37,14 +37,17 @@ data class ExamGalleryBatchProgress(
     }
 }
 
-/** Returns the existing exam paper for one readable normalized student number. */
-fun Exam.paperForStudentNumber(studentNumber: String): ExamPaperLink? {
+/** Returns every existing exam paper for one readable normalized student number. */
+fun Exam.papersForStudentNumber(studentNumber: String): List<ExamPaperLink> {
     val normalized = StudentNumber.normalize(studentNumber)
-    if (normalized.isBlank()) return null
-    return papers.firstOrNull {
+    if (normalized.isBlank()) return emptyList()
+    return papers.filter {
         StudentNumber.normalize(it.studentNumber) == normalized
     }
 }
+
+fun Exam.paperForStudentNumber(studentNumber: String): ExamPaperLink? =
+    papersForStudentNumber(studentNumber).firstOrNull()
 
 /**
  * Blank/unreadable numbers are intentionally not treated as duplicates so they can still be reviewed
