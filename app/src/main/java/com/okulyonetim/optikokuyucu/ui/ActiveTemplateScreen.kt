@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,6 +54,7 @@ fun ActiveTemplateScreen(
     onCreateForm: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val feedback = LocalAppFeedback.current
     val appContext = context.applicationContext
     val selectionRepository = remember(context) { FileActiveTemplateSelectionRepository(appContext) }
     val documentRepository = remember(context) { FileDesignerDocumentRepository(appContext) }
@@ -88,8 +88,10 @@ fun ActiveTemplateScreen(
             }
         }.onSuccess {
             status = "${document.name} düzenlenebilir .omrd formu olarak dışa aktarıldı."
+            feedback.success("Form dışa aktarıldı.")
         }.onFailure { error ->
             status = "Form dışa aktarılamadı: ${error.message ?: error.javaClass.simpleName}"
+            feedback.error(status)
         }
     }
 
@@ -104,9 +106,11 @@ fun ActiveTemplateScreen(
         }.onSuccess { stored ->
             savedDocuments = documentRepository.list()
             status = "${stored.name} içe aktarıldı · v${stored.version}. Düzenleme ekranı açılıyor."
+            feedback.success("Form içe aktarıldı.")
             openDocument(stored, DesignerLibraryOpenMode.EDIT)
         }.onFailure { error ->
             status = "Form içe aktarılamadı: ${error.message ?: error.javaClass.simpleName}"
+            feedback.error(status)
         }
     }
 
@@ -121,9 +125,11 @@ fun ActiveTemplateScreen(
             .onSuccess {
                 selected = selection
                 status = "$name aktif form olarak seçildi."
+                feedback.success("Aktif form güncellendi.")
             }
             .onFailure { error ->
                 status = "Form seçilemedi: ${error.message ?: error.javaClass.simpleName}"
+                feedback.error(status)
             }
     }
 
@@ -137,6 +143,7 @@ fun ActiveTemplateScreen(
         val linkedExamCount = examRepository.list().count { it.templateSelection == selection }
         if (linkedExamCount > 0) {
             status = "${document.name} $linkedExamCount sınavda kullanılıyor. Sınavın optik formunu değiştirin veya sınavı silin; ardından form silinebilir."
+            feedback.warning(status)
         } else {
             pendingDelete = document
         }
@@ -172,6 +179,7 @@ fun ActiveTemplateScreen(
             onActionClick = {
                 savedDocuments = documentRepository.list()
                 status = "Form listesi yenilendi."
+                feedback.info(status)
             }
         )
 
@@ -315,6 +323,7 @@ fun ActiveTemplateScreen(
                                 onClick = {
                                     savedDocuments = documentRepository.list()
                                     status = "Kayıtlı formlar yenilendi."
+                                    feedback.info(status)
                                 }
                             ) { Text("Yenile", fontSize = 12.sp) }
                         }
@@ -370,40 +379,33 @@ fun ActiveTemplateScreen(
     }
 
     pendingDelete?.let { document ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Optik Formu Sil") },
-            text = {
-                Text("${document.name} cihazdan silinecek. Bu işlem geri alınamaz.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val selection = documentSelection(document)
-                        val wasSelected = selected == selection
-                        pendingDelete = null
-                        runCatching {
-                            check(documentRepository.delete(document.id, document.version)) {
-                                "Form dosyası silinemedi."
-                            }
-                        }.onSuccess {
-                            savedDocuments = documentRepository.list()
-                            if (wasSelected) {
-                                runCatching { selectionRepository.save(ActiveOmrTemplateDefaults.selection) }
-                                selected = ActiveOmrTemplateDefaults.selection
-                            }
-                            status = "${document.name} silindi."
-                        }.onFailure { error ->
-                            status = "Form silinemedi: ${error.message ?: error.javaClass.simpleName}"
-                        }
+        AppConfirmationDialog(
+            title = "Optik Formu Sil",
+            message = "${document.name} cihazdan silinecek. Bu işlem geri alınamaz.",
+            confirmText = "Sil",
+            destructive = true,
+            onConfirm = {
+                val selection = documentSelection(document)
+                val wasSelected = selected == selection
+                pendingDelete = null
+                runCatching {
+                    check(documentRepository.delete(document.id, document.version)) {
+                        "Form dosyası silinemedi."
                     }
-                ) {
-                    Text("Sil", color = MaterialTheme.colorScheme.error)
+                }.onSuccess {
+                    savedDocuments = documentRepository.list()
+                    if (wasSelected) {
+                        runCatching { selectionRepository.save(ActiveOmrTemplateDefaults.selection) }
+                        selected = ActiveOmrTemplateDefaults.selection
+                    }
+                    status = "${document.name} silindi."
+                    feedback.success("Form silindi.")
+                }.onFailure { error ->
+                    status = "Form silinemedi: ${error.message ?: error.javaClass.simpleName}"
+                    feedback.error(status)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("İptal") }
-            }
+            onDismiss = { pendingDelete = null }
         )
     }
 }
