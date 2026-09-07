@@ -73,7 +73,7 @@ object DesignerAreaCatalog {
         return QuestionGroupComponent(
             id = id,
             startQuestion = 1,
-            questionCount = 20,
+            questionCount = 1,
             choices = parseAnswerPattern("ABCD")!!,
             columns = 1,
             firstChoiceX = start.x,

@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +80,7 @@ internal fun InteractivePaperWorkspace(
     onDocumentChange: (DesignerDocument) -> Unit,
     onDirectDragActiveChange: (Boolean) -> Unit = {}
 ) {
+    val feedback = LocalAppFeedback.current
     val dimensions = DesignerPageGeometry.dimensions(document.formSpec.paperSize)
     val physicalWidthMm = dimensions?.let {
         if (document.formSpec.orientation == DesignerPageOrientation.PORTRAIT) it.widthMm else it.heightMm
@@ -94,8 +96,10 @@ internal fun InteractivePaperWorkspace(
     )
     val editorDisplayPercent = (editorDisplayWidthScale * 100.0).roundToInt()
     val safe = remember(document.space) { DesignerPageGeometry.safeArea(document.space) }
-    val compiled = remember(document) { DesignerTemplateCompiler.compile(document) }
-    val rows = remember(compiled) { compiled.bubbleRows.associateBy { it.id } }
+    val compileResult = remember(document) { runCatching { DesignerTemplateCompiler.compile(document) } }
+    val compiled = compileResult.getOrNull()
+    val compileIssue = compileResult.exceptionOrNull()
+    val rows = remember(compiled) { compiled?.bubbleRows?.associateBy { it.id }.orEmpty() }
     val images = rememberDesignerImageBitmaps(document.visualElements)
     val currentDocument by rememberUpdatedState(document)
     val currentSelection by rememberUpdatedState(selection)
@@ -126,6 +130,14 @@ internal fun InteractivePaperWorkspace(
     val directEditingEnabled = displayMode.directEditingEnabled
     val navigationEnabled = displayMode.viewportNavigationAlwaysEnabled || panMode
     val omrColor = if (displayMode.usesPrintInk) Color.Black else Color(0xFFB54848)
+
+    LaunchedEffect(document.id, document.version, compileIssue?.message) {
+        if (compileIssue != null) {
+            feedback.warning(
+                "Formdaki bir öğe sayfa sınırını aşıyor. Uygulama kapanmadı; öğeyi küçültün veya sayfanın içine taşıyın."
+            )
+        }
+    }
 
     DisposableEffect(document.id) {
         onDispose { currentOnDirectDragActiveChange(false) }
@@ -196,7 +208,13 @@ internal fun InteractivePaperWorkspace(
 
     fun insideSafe(candidate: DesignerDocument, target: StructuredPaperSelection): Boolean {
         val bounds = placementBoundsFor(candidate, target) ?: return false
-        return DesignerEditSafety.isPlacementSafe(candidate, bounds)
+        if (!DesignerEditSafety.isPlacementSafe(candidate, bounds)) return false
+        if (target.kind == StructuredSelectionKind.COMPONENT &&
+            runCatching { DesignerTemplateCompiler.compile(candidate) }.isFailure
+        ) {
+            return false
+        }
+        return true
     }
 
     fun stationaryBounds(candidate: DesignerDocument, target: StructuredPaperSelection): List<TemplateRect> = buildList {
@@ -223,6 +241,13 @@ internal fun InteractivePaperWorkspace(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("${document.formSpec.paperSize.displayName} · $physical", style = MaterialTheme.typography.labelMedium)
                 Text(document.formSpec.orientation.displayName, style = MaterialTheme.typography.labelSmall)
+            }
+            if (compileIssue != null) {
+                Text(
+                    "⚠ Formda sayfa dışına taşan bir OMR alanı var. Taşan öğeyi seçip konumunu veya boyutunu düzeltin.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 if (displayMode == StructuredPaperDisplayMode.EDIT) {
@@ -461,16 +486,18 @@ internal fun InteractivePaperWorkspace(
                             }
                         }
                         drawDesignerVisualElements(document.visualElements, images, sx, sy)
-                        document.components.filterIsInstance<QuestionGroupComponent>().forEach {
-                            drawAnswerGroup(it, rows, document.formSpec.answerAppearance, sx, sy, omrColor)
-                        }
-                        document.components.filterIsInstance<NumericGridComponent>().forEach { component ->
-                            compiled.markGrids.firstOrNull { it.id == component.id }
-                                ?.let { drawNumberGrid(component, it, sx, sy, omrColor) }
-                        }
-                        document.components.filterIsInstance<SingleChoiceComponent>().forEach { component ->
-                            compiled.markGrids.firstOrNull { it.id == component.id }
-                                ?.let { drawSingleChoice(component, it, sx, sy, omrColor) }
+                        if (compiled != null) {
+                            document.components.filterIsInstance<QuestionGroupComponent>().forEach {
+                                drawAnswerGroup(it, rows, document.formSpec.answerAppearance, sx, sy, omrColor)
+                            }
+                            document.components.filterIsInstance<NumericGridComponent>().forEach { component ->
+                                compiled.markGrids.firstOrNull { it.id == component.id }
+                                    ?.let { drawNumberGrid(component, it, sx, sy, omrColor) }
+                            }
+                            document.components.filterIsInstance<SingleChoiceComponent>().forEach { component ->
+                                compiled.markGrids.firstOrNull { it.id == component.id }
+                                    ?.let { drawSingleChoice(component, it, sx, sy, omrColor) }
+                            }
                         }
                         drawComponentDecorations(document, sx, sy)
                         document.fiducials.forEach { marker ->

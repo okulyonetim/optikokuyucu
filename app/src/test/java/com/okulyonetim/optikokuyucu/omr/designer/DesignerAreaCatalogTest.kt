@@ -88,7 +88,7 @@ class DesignerAreaCatalogTest {
         repeat(6) {
             val answer = DesignerAreaCatalog.createAnswerArea(document)
             assertEquals(1, answer.columns)
-            assertEquals(20, answer.questionCount)
+            assertEquals(1, answer.questionCount)
             assertEquals(DesignerEditorLayout.STANDARD_BUBBLE_RADIUS, answer.bubbleRadius, 0.0)
             assertNull(DesignerAreaCatalog.answerAreaIssue(document, answer))
             bounds += DesignerComponentGeometry.bounds(answer)

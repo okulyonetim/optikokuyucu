@@ -122,13 +122,13 @@ fun ProductTopBar(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (resolvedLeadingText != null && resolvedLeadingClick != null) {
                 TextButton(onClick = resolvedLeadingClick) {
-                    Text(resolvedLeadingText, color = MaterialTheme.colorScheme.primary, fontSize = 23.sp)
+                    Text(resolvedLeadingText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
                 }
             } else {
                 Spacer(Modifier.size(42.dp))
@@ -137,7 +137,7 @@ fun ProductTopBar(
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 19.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -145,7 +145,7 @@ fun ProductTopBar(
 
             if (onActionClick != null) {
                 TextButton(onClick = onActionClick) {
-                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 22.sp)
+                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
                 }
             } else {
                 Spacer(Modifier.size(42.dp))
