@@ -506,6 +506,14 @@ fun AnswerKeyScreen(
             }
         }
 
+        AnswerKeyMultiPdfButton(
+            title = activeTemplate.name,
+            matchingKeys = matchingKeys,
+            sections = manualSections,
+            bookletChoices = bookletChoices,
+            onStatus = { status = it }
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
