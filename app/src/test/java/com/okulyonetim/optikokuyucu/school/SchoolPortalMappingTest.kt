@@ -6,6 +6,8 @@ import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswerState
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.results.ScanSource
+import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
+import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.student.StudentGender
@@ -139,6 +141,27 @@ class SchoolPortalMappingTest {
     }
 
     @Test
+    fun lessonResultsConvertCorrectWrongBlankAndNet() {
+        val evaluations = listOf(
+            evaluation("q1", QuestionEvaluationState.CORRECT, 1.0),
+            evaluation("q2", QuestionEvaluationState.CORRECT, 1.0),
+            evaluation("q3", QuestionEvaluationState.WRONG, -0.25),
+            evaluation("q4", QuestionEvaluationState.BLANK, 0.0)
+        )
+        val summary = SchoolLessonResultMapper.summarize(evaluations)
+        val cloud = SchoolLessonResultMapper.toFirestoreMap(summary)
+
+        assertEquals(2, summary.correct)
+        assertEquals(1, summary.wrong)
+        assertEquals(1, summary.blank)
+        assertEquals(1.75, summary.net, 0.000001)
+        assertEquals(2, cloud["dogru"])
+        assertEquals(1, cloud["yanlis"])
+        assertEquals(1, cloud["bos"])
+        assertEquals(1.75, cloud["net"] as Double, 0.000001)
+    }
+
+    @Test
     fun resultModuleViewPermissionMatchesLiveFirestoreWriteRule() {
         val profile = SchoolUserProfile(
             uid = "u1",
@@ -169,6 +192,29 @@ class SchoolPortalMappingTest {
         )
         assertTrue(profile.canView("denemeSonuclari"))
         assertTrue(profile.canEdit("sinavIslemleri"))
+    }
+
+    @Test
+    fun expiredOrNearExpiryIdTokenRequiresRefresh() {
+        val now = 1_000_000L
+        val reusable = SchoolAuthTokens("id-token", "refresh-token", now + 120_000L)
+        val nearExpiry = SchoolAuthTokens("id-token", "refresh-token", now + 60_000L)
+        val expired = SchoolAuthTokens("id-token", "refresh-token", now - 1L)
+
+        assertTrue(SchoolTokenPolicy.canReuseIdToken(reusable, now))
+        assertFalse(SchoolTokenPolicy.mustRefresh(reusable, now))
+        assertTrue(SchoolTokenPolicy.mustRefresh(nearExpiry, now))
+        assertTrue(SchoolTokenPolicy.mustRefresh(expired, now))
+    }
+
+    @Test
+    fun cachedActiveSessionCanOpenOfflineButInactiveCannot() {
+        val active = SchoolPortalSession(profile(active = true), tokens = null)
+        val inactive = SchoolPortalSession(profile(active = false), tokens = null)
+
+        assertTrue(SchoolOfflineSessionPolicy.canOpenCached(active))
+        assertFalse(SchoolOfflineSessionPolicy.canOpenCached(inactive))
+        assertFalse(SchoolOfflineSessionPolicy.canOpenCached(null))
     }
 
     @Test
@@ -206,6 +252,30 @@ class SchoolPortalMappingTest {
         assertEquals(firstFingerprint, repeatedFingerprint)
         assertNotEquals(firstFingerprint, correctedFingerprint)
     }
+
+    private fun evaluation(
+        id: String,
+        state: QuestionEvaluationState,
+        points: Double
+    ): QuestionEvaluation = QuestionEvaluation(
+        questionId = id,
+        state = state,
+        expectedChoice = "A",
+        selectedChoice = if (state == QuestionEvaluationState.BLANK) null else "A",
+        recognitionConfidence = 1.0,
+        points = points
+    )
+
+    private fun profile(active: Boolean): SchoolUserProfile = SchoolUserProfile(
+        uid = "u1",
+        username = "test",
+        displayName = "Test",
+        admin = false,
+        active = active,
+        roleId = "r1",
+        linkedTeacherId = "t1",
+        permissions = emptyMap()
+    )
 
     private fun scanWithChoice(choice: String): ScanRecord = ScanRecord(
         id = "scan-1",
