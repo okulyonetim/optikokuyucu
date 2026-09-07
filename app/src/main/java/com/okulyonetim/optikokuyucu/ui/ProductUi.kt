@@ -55,9 +55,15 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
-private val ProductPrimary = Color(0xFF3159D9)
-private val ProductPrimaryLight = Color(0xFFE1E8FF)
-private val ProductBackground = Color(0xFFF7F8FC)
+// Product palette from the approved visual direction.
+private val ProductPrimary = Color(0xFF0F2D5B)
+private val ProductPrimaryLight = Color(0xFFE6EEF8)
+private val ProductSecondary = Color(0xFF14B8A6)
+private val ProductSecondaryLight = Color(0xFFD7F7F2)
+private val ProductAccent = Color(0xFFF59E0B)
+private val ProductAccentLight = Color(0xFFFFF0CC)
+private val ProductBackground = Color(0xFFF8FAFC)
+
 private val ProductGreen = Color(0xFF1F7A52)
 private val ProductGreenSoft = Color(0xFFE6F5ED)
 private val ProductOrange = Color(0xFFB86100)
@@ -69,36 +75,48 @@ private val LightProductScheme = lightColorScheme(
     primary = ProductPrimary,
     onPrimary = Color.White,
     primaryContainer = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF13285D),
-    secondary = Color(0xFF0F766E),
-    onSecondary = Color.White,
+    onPrimaryContainer = Color(0xFF0A2347),
+    secondary = ProductSecondary,
+    onSecondary = Color(0xFF063C37),
+    secondaryContainer = ProductSecondaryLight,
+    onSecondaryContainer = Color(0xFF063E38),
+    tertiary = ProductAccent,
+    onTertiary = Color(0xFF422A00),
+    tertiaryContainer = ProductAccentLight,
+    onTertiaryContainer = Color(0xFF4A2D00),
     background = ProductBackground,
-    onBackground = Color(0xFF171A20),
+    onBackground = Color(0xFF172033),
     surface = Color.White,
-    onSurface = Color(0xFF171A20),
-    surfaceVariant = Color(0xFFE9EDF4),
-    onSurfaceVariant = Color(0xFF4A5260),
-    outline = Color(0xFF7A8494),
-    outlineVariant = Color(0xFFC8CFDA),
+    onSurface = Color(0xFF172033),
+    surfaceVariant = Color(0xFFEEF3F7),
+    onSurfaceVariant = Color(0xFF526174),
+    outline = Color(0xFF7D8A9A),
+    outlineVariant = Color(0xFFD5DEE8),
     error = Color(0xFFB3261E),
     onError = Color.White
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFFA9BCFF),
-    onPrimary = Color(0xFF0E2453),
-    primaryContainer = Color(0xFF263B78),
-    onPrimaryContainer = Color(0xFFE6EBFF),
-    secondary = Color(0xFF79D9CC),
-    onSecondary = Color(0xFF063C37),
-    background = Color(0xFF0E1116),
-    onBackground = Color(0xFFF0F2F7),
-    surface = Color(0xFF171B22),
-    onSurface = Color(0xFFF0F2F7),
-    surfaceVariant = Color(0xFF252B35),
-    onSurfaceVariant = Color(0xFFC7CED9),
-    outline = Color(0xFF929BAA),
-    outlineVariant = Color(0xFF4B5360),
+    primary = Color(0xFFA7C7FF),
+    onPrimary = Color(0xFF092044),
+    primaryContainer = Color(0xFF173B6C),
+    onPrimaryContainer = Color(0xFFE7EFFB),
+    secondary = Color(0xFF5EEAD4),
+    onSecondary = Color(0xFF053E38),
+    secondaryContainer = Color(0xFF0E4F49),
+    onSecondaryContainer = Color(0xFFC7FFF5),
+    tertiary = Color(0xFFFBBF24),
+    onTertiary = Color(0xFF422A00),
+    tertiaryContainer = Color(0xFF614000),
+    onTertiaryContainer = Color(0xFFFFE7A1),
+    background = Color(0xFF07111F),
+    onBackground = Color(0xFFE8EEF7),
+    surface = Color(0xFF0D1B2A),
+    onSurface = Color(0xFFE8EEF7),
+    surfaceVariant = Color(0xFF172536),
+    onSurfaceVariant = Color(0xFFC4D0DD),
+    outline = Color(0xFF8998AA),
+    outlineVariant = Color(0xFF33475C),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
 )
