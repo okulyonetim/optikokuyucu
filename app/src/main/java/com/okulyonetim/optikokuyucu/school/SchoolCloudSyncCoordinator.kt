@@ -1,40 +1,21 @@
 package com.okulyonetim.optikokuyucu.school
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
+import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
+import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import java.security.MessageDigest
 
-/**
- * Cheap local change detector. The UI can ask for synchronization periodically without repeatedly
- * writing Firestore when no exam, paper identity, raw scan result or answer key has changed.
- */
-class SchoolCloudSyncCoordinator(
-    context: Context,
-    private val client: SchoolPortalClient
-) {
-    private val appContext = context.applicationContext
-    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    fun syncIfChanged(force: Boolean = false): SchoolExamCloudSyncResult? {
-        val fingerprint = localFingerprint()
-        if (!force && fingerprint == prefs.getString(KEY_FINGERPRINT, "")) return null
-        val result = SchoolExamCloudSyncService(appContext, client).syncAll()
-        if (result.failures.isEmpty()) {
-            prefs.edit().putString(KEY_FINGERPRINT, fingerprint).apply()
-        }
-        return result
-    }
-
-    fun invalidate() {
-        prefs.edit().remove(KEY_FINGERPRINT).apply()
-    }
-
-    private fun localFingerprint(): String {
-        val exams = FileExamRepository(appContext).list()
-        val keys = FileAnswerKeyRepository(appContext).list()
-        val records = FileScanRecordRepository(appContext).list()
+/** Pure fingerprint used by the dirty detector and unit tests. */
+object SchoolCloudFingerprint {
+    fun digest(
+        exams: List<Exam>,
+        keys: List<StoredAnswerKey>,
+        records: List<ScanRecord>
+    ): String {
         val identity = buildString {
             exams.sortedBy { it.id }.forEach { exam ->
                 append(exam.id).append('|')
@@ -88,6 +69,38 @@ class SchoolCloudSyncCoordinator(
             .digest(identity.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xFF) }
     }
+}
+
+/**
+ * Cheap local change detector. The UI can ask for synchronization periodically without repeatedly
+ * writing Firestore when no exam, paper identity, raw scan result or answer key has changed.
+ */
+class SchoolCloudSyncCoordinator(
+    context: Context,
+    private val client: SchoolPortalClient
+) {
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun syncIfChanged(force: Boolean = false): SchoolExamCloudSyncResult? {
+        val fingerprint = localFingerprint()
+        if (!force && fingerprint == prefs.getString(KEY_FINGERPRINT, "")) return null
+        val result = SchoolExamCloudSyncService(appContext, client).syncAll()
+        if (result.failures.isEmpty()) {
+            prefs.edit().putString(KEY_FINGERPRINT, fingerprint).apply()
+        }
+        return result
+    }
+
+    fun invalidate() {
+        prefs.edit().remove(KEY_FINGERPRINT).apply()
+    }
+
+    private fun localFingerprint(): String = SchoolCloudFingerprint.digest(
+        exams = FileExamRepository(appContext).list(),
+        keys = FileAnswerKeyRepository(appContext).list(),
+        records = FileScanRecordRepository(appContext).list()
+    )
 
     private companion object {
         const val PREFS_NAME = "school-cloud-sync"
