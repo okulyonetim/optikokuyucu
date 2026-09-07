@@ -90,8 +90,8 @@ private val LightProductScheme = lightColorScheme(
     onSurface = Color(0xFF172033),
     surfaceVariant = Color(0xFFEEF3F7),
     onSurfaceVariant = Color(0xFF526174),
-    outline = Color(0xFF7D8A9A),
-    outlineVariant = Color(0xFFD5DEE8),
+    outline = Color(0xFF5F7084),
+    outlineVariant = Color(0xFFC4CED9),
     error = Color(0xFFB3261E),
     onError = Color.White
 )
@@ -115,8 +115,8 @@ private val DarkProductScheme = darkColorScheme(
     onSurface = Color(0xFFE8EEF7),
     surfaceVariant = Color(0xFF172536),
     onSurfaceVariant = Color(0xFFC4D0DD),
-    outline = Color(0xFF8998AA),
-    outlineVariant = Color(0xFF33475C),
+    outline = Color(0xFFA9B8C9),
+    outlineVariant = Color(0xFF40566C),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
 )
@@ -352,7 +352,7 @@ fun ProductFilterPill(
         OutlinedButton(
             onClick = onClick,
             shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline)
         ) {
             Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }
