@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
+import kotlin.math.max
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -47,10 +48,11 @@ class DesignerEditSafetyTest {
 
     @Test
     fun `placement overlapping fiducial exclusion is rejected with warning`() {
+        val safe = DesignerPageGeometry.safeArea(document.space)
         val exclusion = DesignerEditSafety.fiducialExclusionAreas(document).first()
         val bounds = TemplateRect(
-            left = exclusion.center.x - 2.0,
-            top = exclusion.center.y - 2.0,
+            left = max(safe.left, exclusion.left) + 1.0,
+            top = max(safe.top, exclusion.top) + 1.0,
             width = 4.0,
             height = 4.0
         )
