@@ -59,6 +59,42 @@ class OmrScoringTest {
     }
 
     @Test
+    fun `either accepted choice in multi-answer key scores correct`() {
+        val read = BubbleReadResult(
+            listOf(
+                q("1", QuestionState.MARKED, "A", 0.95),
+                q("2", QuestionState.MARKED, "C", 0.94),
+                q("3", QuestionState.MARKED, "B", 0.93)
+            )
+        )
+        val key = AnswerKey(
+            templateId = "test",
+            templateVersion = 1,
+            answers = mapOf("1" to "A|C", "2" to "A|C", "3" to "A|C")
+        )
+
+        val score = OmrScorer.score(read, key)
+
+        assertEquals(2, score.correctCount)
+        assertEquals(1, score.wrongCount)
+        assertEquals(2.0, score.totalPoints, 0.001)
+        assertEquals("A|C", score.evaluations.first().expectedChoice)
+    }
+
+    @Test
+    fun `student double mark remains double even when key accepts two choices`() {
+        val read = BubbleReadResult(
+            listOf(q("1", QuestionState.DOUBLE_MARK, null, 0.90))
+        )
+        val key = AnswerKey("test", 1, mapOf("1" to "A|C"))
+
+        val score = OmrScorer.score(read, key)
+
+        assertEquals(1, score.doubleMarkCount)
+        assertEquals(0, score.correctCount)
+    }
+
+    @Test
     fun `default policy reports counts without inventing wrong penalty`() {
         val read = BubbleReadResult(
             listOf(
