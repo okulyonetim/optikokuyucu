@@ -28,12 +28,26 @@ class ExamPaperRegistrar(
         val detectedNumber = bindings.studentNumber(record).orEmpty()
         val detectedClass = bindings.classCode(record).orEmpty()
         val detectedBooklet = bindings.booklet(record).orEmpty()
-        val rosterStudent = StudentNumber.normalize(detectedNumber)
+        val normalizedNumber = StudentNumber.normalize(detectedNumber)
+        val rosterStudent = normalizedNumber
             .takeIf { it.isNotBlank() }
             ?.let { studentRepository?.findByNumber(it) }
-        val resolvedNumber = rosterStudent?.studentNumber ?: detectedNumber
-        val resolvedName = rosterStudent?.fullName.orEmpty()
-        val resolvedClass = rosterStudent?.className?.takeIf { it.isNotBlank() } ?: detectedClass
+        val participant = normalizedNumber
+            .takeIf { it.isNotBlank() }
+            ?.let { number ->
+                exam.participants.firstOrNull {
+                    StudentNumber.normalize(it.studentNumber) == number
+                }
+            }
+        val resolvedNumber = rosterStudent?.studentNumber
+            ?: participant?.studentNumber
+            ?: detectedNumber
+        val resolvedName = rosterStudent?.fullName
+            ?: participant?.studentName
+            ?: ""
+        val resolvedClass = rosterStudent?.className?.takeIf { it.isNotBlank() }
+            ?: participant?.className?.takeIf { it.isNotBlank() }
+            ?: detectedClass
 
         val link = if (previous == null) {
             ExamPaperLink(
