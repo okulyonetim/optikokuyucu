@@ -55,6 +55,12 @@ class SchoolDirectorySyncService(
         }
         val studentDocs = client.listDocuments(SchoolPortalConfig.STUDENTS)
 
+        val numberToDocumentId = studentDocs.mapNotNull { doc ->
+            val number = StudentNumber.normalize(doc.fields["ogrenciNo"]?.toString().orEmpty())
+            number.takeIf(String::isNotBlank)?.let { it to doc.id }
+        }.toMap()
+        SchoolStudentIdentityStore(context.applicationContext).replace(numberToDocumentId)
+
         var withoutNumber = 0
         var withoutClass = 0
         val entries = studentDocs.mapNotNull { doc ->
