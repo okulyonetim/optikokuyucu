@@ -35,11 +35,13 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.school.SchoolUserProfile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 data class SchoolAccountUi(
     val profile: SchoolUserProfile,
     val directoryStatus: String,
+    val cloudStatus: String,
     val syncNow: suspend () -> String,
     val signOut: () -> Unit
 )
@@ -61,22 +63,48 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
     var working by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var directoryStatus by remember { mutableStateOf("") }
+    var cloudStatus by remember { mutableStateOf("") }
 
     suspend fun syncDirectory(): String = withContext(Dispatchers.IO) {
         val result = manager.syncDirectory()
         "${result.importedStudents} öğrenci Okul Yönetim ile eşitlendi"
     }
 
+    suspend fun syncCloud(force: Boolean): String = withContext(Dispatchers.IO) {
+        val result = manager.syncExamsAndResults(force)
+            ?: return@withContext cloudStatus.ifBlank { "Sınav verileri güncel" }
+        when {
+            result.failures.isNotEmpty() -> "${result.syncedStudentResults} sonuç gönderildi · ${result.failures.size} hata"
+            result.skippedWithoutPermission > 0 -> "${result.syncedStudentResults} sonuç gönderildi · bazı bulut işlemleri için yetki yok"
+            else -> "${result.syncedStudentResults} öğrenci sonucu Okul Yönetim'e gönderildi"
+        }
+    }
+
     LaunchedEffect(profile?.uid) {
         if (profile == null) return@LaunchedEffect
         runCatching {
-            withContext(Dispatchers.IO) {
-                manager.refreshProfile().also { profile = it.profile }
-            }
+            withContext(Dispatchers.IO) { manager.refreshProfile() }
+        }.onSuccess { refreshed ->
+            profile = refreshed.profile
         }
         runCatching { syncDirectory() }
             .onSuccess { directoryStatus = it }
             .onFailure { directoryStatus = "Çevrimdışı · cihazdaki öğrenci listesi kullanılıyor" }
+        runCatching { syncCloud(force = true) }
+            .onSuccess { cloudStatus = it }
+            .onFailure { cloudStatus = "Bulut senkronu bekliyor · internet geldiğinde tekrar denenecek" }
+    }
+
+    // Local OMR work remains offline-first. This loop computes a local fingerprint every 10 seconds;
+    // Firestore is contacted only when an exam, paper or answer key actually changed.
+    LaunchedEffect(profile?.uid, Unit) {
+        if (profile == null) return@LaunchedEffect
+        while (true) {
+            delay(10_000)
+            runCatching { syncCloud(force = false) }
+                .onSuccess { cloudStatus = it }
+                .onFailure { cloudStatus = "Bulut senkronu bekliyor · çevrimdışı" }
+        }
     }
 
     val signedIn = profile
@@ -84,20 +112,26 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
         val account = SchoolAccountUi(
             profile = signedIn,
             directoryStatus = directoryStatus,
+            cloudStatus = cloudStatus,
             syncNow = {
-                runCatching { syncDirectory() }
+                val directory = runCatching { syncDirectory() }
                     .onSuccess { directoryStatus = it }
                     .getOrElse { error ->
                         val message = error.message ?: "Öğrenciler eşitlenemedi"
                         directoryStatus = message
                         message
                     }
+                runCatching { syncCloud(force = true) }
+                    .onSuccess { cloudStatus = it }
+                    .onFailure { cloudStatus = it.message ?: "Bulut senkronu başarısız" }
+                directory
             },
             signOut = {
                 manager.signOut()
                 profile = null
                 password = ""
                 directoryStatus = ""
+                cloudStatus = ""
             }
         )
         CompositionLocalProvider(LocalSchoolAccount provides account) {
