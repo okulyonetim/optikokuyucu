@@ -8,12 +8,19 @@ import java.security.MessageDigest
 interface StudentRosterRepository {
     fun save(entry: StudentRosterEntry)
     fun findByNumber(studentNumber: String): StudentRosterEntry?
-    fun findByNumberAndGrade(studentNumber: String, gradeLevel: Int): StudentRosterEntry?
-    fun listByNumber(studentNumber: String): List<StudentRosterEntry>
+    fun findByNumberAndGrade(studentNumber: String, gradeLevel: Int): StudentRosterEntry? =
+        listByNumber(studentNumber).firstOrNull {
+            StudentSchoolIdentity.sameInstitution(it.gradeLevel, gradeLevel)
+        }
+    fun listByNumber(studentNumber: String): List<StudentRosterEntry> {
+        val normalized = StudentNumber.normalize(studentNumber)
+        if (normalized.isBlank()) return emptyList()
+        return list().filter { it.studentNumber == normalized }
+    }
     fun list(): List<StudentRosterEntry>
     fun upsertImported(entries: List<StudentRosterEntry>): StudentImportSummary
     fun delete(studentNumber: String): Boolean
-    fun delete(studentNumber: String, gradeLevel: Int): Boolean
+    fun delete(studentNumber: String, gradeLevel: Int): Boolean = delete(studentNumber)
 }
 
 /** App-private student roster. No student/guardian data leaves the device through this repository. */
