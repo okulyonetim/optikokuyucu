@@ -52,16 +52,18 @@ object AnswerKeyPdfExporter {
 
     internal fun buildSheetSequence(entries: List<SheetEntry>): List<SheetEntry> {
         require(entries.isNotEmpty())
-        return if (entries.size >= 2) {
-            val pair = entries.take(2)
-            buildList(COPIES_PER_SHEET) {
-                repeat(ROWS) {
-                    add(pair[0])
-                    add(pair[1])
+        if (entries.size == 1) return List(COPIES_PER_SHEET) { entries.single() }
+        return entries.chunked(COLUMNS).flatMap { pair ->
+            if (pair.size == COLUMNS) {
+                buildList(COPIES_PER_SHEET) {
+                    repeat(ROWS) {
+                        add(pair[0])
+                        add(pair[1])
+                    }
                 }
+            } else {
+                List(COPIES_PER_SHEET) { pair.single() }
             }
-        } else {
-            List(COPIES_PER_SHEET) { entries.single() }
         }
     }
 
@@ -109,7 +111,8 @@ object AnswerKeyPdfExporter {
             section.questionIds.chunked(MAX_QUESTIONS_PER_ROW).mapIndexed { index, questionIds ->
                 SectionBlock(
                     label = if (index == 0) section.label.uppercase() else "${section.label.uppercase()} (DEVAM)",
-                    questionIds = questionIds
+                    questionIds = questionIds,
+                    startNumber = index * MAX_QUESTIONS_PER_ROW + 1
                 )
             }
         }
@@ -165,7 +168,13 @@ object AnswerKeyPdfExporter {
         }
         block.questionIds.forEachIndexed { index, questionId ->
             val centerX = left + cellWidth * (index + 0.5f)
-            drawCenteredText(canvas, (index + 1).toString(), centerX, top + labelHeight + rowHeight / 2f, cellPaint)
+            drawCenteredText(
+                canvas,
+                (block.startNumber + index).toString(),
+                centerX,
+                top + labelHeight + rowHeight / 2f,
+                cellPaint
+            )
             drawCenteredText(
                 canvas,
                 entry.key.answerKey.answers[questionId].orEmpty(),
@@ -212,7 +221,8 @@ object AnswerKeyPdfExporter {
 
     private data class SectionBlock(
         val label: String,
-        val questionIds: List<String>
+        val questionIds: List<String>,
+        val startNumber: Int
     )
 
     private const val MAX_QUESTIONS_PER_ROW = 20
