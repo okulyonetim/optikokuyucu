@@ -24,6 +24,7 @@ data class SchoolExamCloudSyncResult(
     val syncedResultDocuments: Int,
     val syncedStudentResults: Int,
     val skippedWithoutPermission: Int,
+    val skippedWithoutStudentIdentity: Int,
     val failures: List<String>
 )
 
@@ -37,9 +38,15 @@ private data class SubjectCounters(
     var net: Double = 0.0
 )
 
+private data class ResultSyncStats(
+    val uploaded: Int,
+    val skippedWithoutStudentIdentity: Int
+)
+
 /**
  * Publishes local OMR exams into the same Firestore documents already consumed by Okul Yönetim.
- * The student number is the stable cross-app match key requested for this integration.
+ * The student number is the stable cross-app match key requested for this integration. Firestore
+ * document ids are only compatibility pointers resolved from that student number.
  */
 class SchoolExamCloudSyncService(
     context: Context,
@@ -50,6 +57,7 @@ class SchoolExamCloudSyncService(
     private val recordRepository = FileScanRecordRepository(appContext)
     private val keyRepository = FileAnswerKeyRepository(appContext)
     private val documentRepository = FileDesignerDocumentRepository(appContext)
+    private val studentIdentityStore = SchoolStudentIdentityStore(appContext)
 
     fun syncAll(): SchoolExamCloudSyncResult {
         val session = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }
@@ -59,6 +67,7 @@ class SchoolExamCloudSyncService(
         var resultDocs = 0
         var studentResults = 0
         var skippedPermission = 0
+        var skippedIdentity = 0
 
         exams.forEach { exam ->
             if (session.profile.canEdit("sinavIslemleri")) {
@@ -69,11 +78,13 @@ class SchoolExamCloudSyncService(
                 skippedPermission += 1
             }
 
+            // Live firestore.rules allows denemeSonuclari writes for users who can view this module.
             if (session.profile.canView("denemeSonuclari")) {
                 runCatching { syncResults(exam) }
-                    .onSuccess { count ->
+                    .onSuccess { stats ->
                         resultDocs += 1
-                        studentResults += count
+                        studentResults += stats.uploaded
+                        skippedIdentity += stats.skippedWithoutStudentIdentity
                     }
                     .onFailure { failures += "${exam.name} sonuçları: ${it.message ?: "gönderilemedi"}" }
             } else {
@@ -87,6 +98,7 @@ class SchoolExamCloudSyncService(
             syncedResultDocuments = resultDocs,
             syncedStudentResults = studentResults,
             skippedWithoutPermission = skippedPermission,
+            skippedWithoutStudentIdentity = skippedIdentity,
             failures = failures
         )
     }
@@ -110,15 +122,25 @@ class SchoolExamCloudSyncService(
         client.upsertDocument(SchoolPortalConfig.TRIAL_EXAMS, exam.id, payload)
     }
 
-    /** Returns number of student result rows uploaded. */
-    private fun syncResults(exam: Exam): Int {
+    private fun syncResults(exam: Exam): ResultSyncStats {
         val records = recordRepository.list().associateBy { it.id }
         val keys = keyRepository.list()
         val subjectMap = questionSubjectMap(exam)
         val resultByStudentNumber = linkedMapOf<String, Map<String, Any?>>()
-        val resultWithoutNumber = mutableListOf<Map<String, Any?>>()
+        var skippedWithoutStudentIdentity = 0
 
         exam.papers.forEach { link ->
+            val normalizedNumber = StudentNumber.normalize(link.studentNumber)
+            if (normalizedNumber.isBlank()) {
+                skippedWithoutStudentIdentity += 1
+                return@forEach
+            }
+            val schoolDocumentId = studentIdentityStore.documentIdFor(normalizedNumber)
+            if (schoolDocumentId.isNullOrBlank()) {
+                skippedWithoutStudentIdentity += 1
+                return@forEach
+            }
+
             val record = records[link.scanRecordId] ?: return@forEach
             val key = ExamPaperResolution.answerKey(link, record, keys) ?: return@forEach
             val score = runCatching {
@@ -136,8 +158,8 @@ class SchoolExamCloudSyncService(
                 grouped.getOrPut(subject) { SubjectCounters() }.add(evaluation)
             }
             val lessonResults = grouped.mapValues { (_, counters) -> counters.toFirestoreMap() }
-            val normalizedNumber = StudentNumber.normalize(link.studentNumber)
             val result = linkedMapOf<String, Any?>(
+                "ogrenciId" to schoolDocumentId,
                 "ogrenciAdi" to link.studentName,
                 "ogrenciNo" to normalizedNumber,
                 "sinif" to link.className,
@@ -154,15 +176,12 @@ class SchoolExamCloudSyncService(
                 "tarih" to java.time.Instant.ofEpochMilli(record.capturedAtEpochMs).toString(),
                 "kaynak" to "optik-okuyucu"
             )
-            if (normalizedNumber.isBlank()) {
-                resultWithoutNumber += result
-            } else {
-                // A corrected/re-read paper replaces an older cloud row for the same student number.
-                resultByStudentNumber[normalizedNumber] = result
-            }
+
+            // A corrected/re-read paper replaces an older cloud row for the same normalized number.
+            resultByStudentNumber[normalizedNumber] = result
         }
 
-        val results = resultByStudentNumber.values.toList() + resultWithoutNumber
+        val results = resultByStudentNumber.values.toList()
         val payload = linkedMapOf<String, Any?>(
             "sinavId" to exam.id,
             "ad" to exam.name,
@@ -177,7 +196,10 @@ class SchoolExamCloudSyncService(
             "guncellenmeTarihi" to java.time.Instant.now().toString()
         )
         client.upsertDocument(SchoolPortalConfig.TRIAL_RESULTS, exam.id, payload)
-        return results.size
+        return ResultSyncStats(
+            uploaded = results.size,
+            skippedWithoutStudentIdentity = skippedWithoutStudentIdentity
+        )
     }
 
     private fun lessonDefinitions(exam: Exam): List<Map<String, Any?>> {
