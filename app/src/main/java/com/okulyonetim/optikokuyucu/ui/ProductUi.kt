@@ -2,34 +2,52 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
 private val ProductPrimary = Color(0xFF3159D9)
 private val ProductPrimaryLight = Color(0xFFE6ECFF)
@@ -65,6 +83,20 @@ private val DarkProductScheme = darkColorScheme(
     outline = Color(0xFF737B89)
 )
 
+class ProductThemeController internal constructor(
+    val mode: AppThemeMode,
+    val isDark: Boolean,
+    private val changeMode: (AppThemeMode) -> Unit
+) {
+    fun setMode(mode: AppThemeMode) = changeMode(mode)
+
+    fun toggleLightDark() {
+        setMode(if (isDark) AppThemeMode.LIGHT else AppThemeMode.DARK)
+    }
+}
+
+val LocalProductThemeController = staticCompositionLocalOf<ProductThemeController?> { null }
+
 enum class ProductTab {
     HOME,
     EXAMS,
@@ -75,21 +107,42 @@ enum class ProductTab {
 
 @Composable
 fun OptikProductTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkProductScheme else LightProductScheme
-    ) {
-        AppFeedbackProvider {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.onBackground
-            ) {
-                content()
+    val context = LocalContext.current
+    val repository = remember(context) { AppSettingsRepository(context.applicationContext) }
+    var themeMode by remember { mutableStateOf(repository.load().themeMode) }
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (themeMode) {
+        AppThemeMode.SYSTEM -> systemDark
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+    }
+    val controller = remember(themeMode, dark, repository) {
+        ProductThemeController(themeMode, dark) { next ->
+            if (next != themeMode) {
+                runCatching { repository.saveThemeMode(next) }
+                    .onSuccess { themeMode = next }
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalProductThemeController provides controller) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkProductScheme else LightProductScheme
+        ) {
+            AppFeedbackProvider {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ) {
+                    content()
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductTopBar(
     title: String,
@@ -100,6 +153,8 @@ fun ProductTopBar(
     showAutomaticBack: Boolean = true
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val themeController = LocalProductThemeController.current
+    var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
         showAutomaticBack && dispatcher != null -> "‹"
@@ -108,6 +163,17 @@ fun ProductTopBar(
     val resolvedLeadingClick = when {
         onLeadingClick != null -> onLeadingClick
         showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
+        else -> null
+    }
+    val settingsPanelAvailable = title == "Ayarlar" && onActionClick == null && themeController != null
+    val resolvedActionText = when {
+        onActionClick != null -> actionText
+        settingsPanelAvailable -> "◐"
+        else -> null
+    }
+    val resolvedActionClick: (() -> Unit)? = when {
+        onActionClick != null -> onActionClick
+        settingsPanelAvailable -> ({ settingsPanelOpen = true })
         else -> null
     }
 
@@ -122,35 +188,164 @@ fun ProductTopBar(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .height(48.dp)
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (resolvedLeadingText != null && resolvedLeadingClick != null) {
-                TextButton(onClick = resolvedLeadingClick) {
-                    Text(resolvedLeadingText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
-                }
-            } else {
-                Spacer(Modifier.size(42.dp))
-            }
+            HeaderAction(
+                text = resolvedLeadingText,
+                onClick = resolvedLeadingClick
+            )
 
             Text(
+                modifier = Modifier.weight(1f),
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (onActionClick != null) {
-                TextButton(onClick = onActionClick) {
-                    Text(actionText, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
-                }
-            } else {
-                Spacer(Modifier.size(42.dp))
-            }
+            HeaderAction(
+                text = resolvedActionText,
+                onClick = resolvedActionClick
+            )
         }
+    }
+
+    if (settingsPanelOpen && themeController != null) {
+        SettingsAppearanceAndSubjectsSheet(
+            themeController = themeController,
+            onDismiss = { settingsPanelOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
+    if (text != null && onClick != null) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+        }
+    } else {
+        Spacer(Modifier.size(40.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsAppearanceAndSubjectsSheet(
+    themeController: ProductThemeController,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val feedback = LocalAppFeedback.current
+    val repository = remember(context) { AppSettingsRepository(context.applicationContext) }
+    var subjects by remember { mutableStateOf(repository.load().subjects) }
+    var newSubject by remember { mutableStateOf("") }
+
+    fun persistSubjects(updated: List<String>) {
+        runCatching { repository.saveSubjects(updated) }
+            .onSuccess {
+                subjects = repository.load().subjects
+                feedback.success("Dersler güncellendi.")
+            }
+            .onFailure { feedback.error("Dersler kaydedilemedi: ${it.message ?: it.javaClass.simpleName}") }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Görünüm ve Dersler", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text("Görünüm", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                ThemeModeButton(Modifier.weight(1f), "Sistem", AppThemeMode.SYSTEM, themeController)
+                ThemeModeButton(Modifier.weight(1f), "Açık", AppThemeMode.LIGHT, themeController)
+                ThemeModeButton(Modifier.weight(1f), "Koyu", AppThemeMode.DARK, themeController)
+            }
+            Text(
+                "Tema değişikliği anında uygulanır ve cihazda saklanır.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text("Dersler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            subjects.forEach { subject ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(subject, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        TextButton(
+                            enabled = subjects.size > 1,
+                            onClick = { persistSubjects(subjects.filterNot { it == subject }) }
+                        ) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier.weight(1f),
+                    value = newSubject,
+                    onValueChange = { newSubject = it.take(60) },
+                    label = { Text("Yeni ders") },
+                    singleLine = true
+                )
+                FilledTonalButton(
+                    enabled = newSubject.isNotBlank(),
+                    onClick = {
+                        val value = newSubject.trim()
+                        if (subjects.any { it.equals(value, ignoreCase = true) }) {
+                            feedback.warning("Bu ders zaten listede.")
+                        } else {
+                            persistSubjects(subjects + value)
+                            newSubject = ""
+                        }
+                    }
+                ) { Text("Ekle") }
+            }
+            Spacer(Modifier.height(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun ThemeModeButton(
+    modifier: Modifier,
+    label: String,
+    mode: AppThemeMode,
+    controller: ProductThemeController
+) {
+    if (controller.mode == mode) {
+        FilledTonalButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
+    } else {
+        OutlinedButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
     }
 }
 
@@ -185,7 +380,7 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 
 @Composable
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
-    val light = !isSystemInDarkTheme()
+    val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     val background = when (tone) {
         ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF173A2D)
         ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF463015)
