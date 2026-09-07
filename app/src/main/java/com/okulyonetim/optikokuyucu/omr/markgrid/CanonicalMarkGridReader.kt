@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.omr.markgrid
 
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleInkScorer
+import com.okulyonetim.optikokuyucu.omr.bubble.MarkScoreDecisionEngine
+import com.okulyonetim.optikokuyucu.omr.bubble.MarkScoreState
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
@@ -23,66 +25,19 @@ data class MarkDecision(
 /** Pure score decision layer so thresholds are unit-testable without camera/OpenCV input. */
 object MarkGridDecisionEngine {
     fun classify(scores: Map<String, Double>): MarkDecision {
-        val sorted = scores.entries.sortedByDescending { it.value }
-        val best = sorted.getOrNull(0)
-        val second = sorted.getOrNull(1)
-        if (best == null) {
-            return MarkDecision(MarkColumnState.BLANK, null, 0.0, scores)
-        }
-
-        val bestScore = best.value
-        val secondScore = second?.value ?: 0.0
-        val gap = bestScore - secondScore
-        val strongMarkCount = sorted.count { it.value >= STRONG_MARK_SCORE }
-
-        return when {
-            bestScore < MIN_MARK_SCORE ->
-                MarkDecision(
-                    state = MarkColumnState.BLANK,
-                    selectedValue = null,
-                    confidence = (1.0 - bestScore).coerceIn(0.0, 1.0),
-                    scores = scores
-                )
-
-            strongMarkCount >= 2 ->
-                MarkDecision(
-                    state = MarkColumnState.DOUBLE_MARK,
-                    selectedValue = null,
-                    confidence = (secondScore / STRONG_MARK_SCORE).coerceIn(0.0, 1.0),
-                    scores = scores
-                )
-
-            secondScore >= DOUBLE_MARK_SCORE && gap < DOUBLE_GAP ->
-                MarkDecision(
-                    state = MarkColumnState.DOUBLE_MARK,
-                    selectedValue = null,
-                    confidence = (1.0 - gap / DOUBLE_GAP).coerceIn(0.0, 1.0),
-                    scores = scores
-                )
-
-            gap >= CONFIDENT_GAP ->
-                MarkDecision(
-                    state = MarkColumnState.MARKED,
-                    selectedValue = best.key,
-                    confidence = ((bestScore * 0.65) + (gap * 1.8 * 0.35)).coerceIn(0.0, 1.0),
-                    scores = scores
-                )
-
-            else ->
-                MarkDecision(
-                    state = MarkColumnState.SUSPICIOUS,
-                    selectedValue = best.key,
-                    confidence = (bestScore * 0.55).coerceIn(0.0, 1.0),
-                    scores = scores
-                )
-        }
+        val decision = MarkScoreDecisionEngine.classify(scores)
+        return MarkDecision(
+            state = when (decision.state) {
+                MarkScoreState.MARKED -> MarkColumnState.MARKED
+                MarkScoreState.BLANK -> MarkColumnState.BLANK
+                MarkScoreState.DOUBLE_MARK -> MarkColumnState.DOUBLE_MARK
+                MarkScoreState.SUSPICIOUS -> MarkColumnState.SUSPICIOUS
+            },
+            selectedValue = decision.selectedKey,
+            confidence = decision.confidence,
+            scores = decision.scores
+        )
     }
-
-    private const val MIN_MARK_SCORE = 0.12
-    private const val STRONG_MARK_SCORE = 0.20
-    private const val DOUBLE_MARK_SCORE = 0.11
-    private const val DOUBLE_GAP = 0.055
-    private const val CONFIDENT_GAP = 0.045
 }
 
 data class MarkColumnRead(
