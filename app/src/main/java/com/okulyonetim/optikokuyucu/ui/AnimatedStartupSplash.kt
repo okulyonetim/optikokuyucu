@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -26,12 +27,14 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Lightweight vector startup animation inspired by the app's OMR identity.
+ * Lightweight, text-free vector startup animation for the OMR identity.
  *
- * No bitmap/video asset is required: the mark sheet, orbit, scan corners and confirmation badge are
- * rendered by Compose, so the splash remains sharp on every density and does not add decode cost.
+ * The artwork is rendered entirely by Compose: a soft premium background, orbit, answer sheet,
+ * scan corners, sequential marks and a confirmation badge. No bitmap or video decoding is needed.
  */
 @Composable
 fun AnimatedStartupSplash(
@@ -64,13 +67,15 @@ private fun OmrStartupSplash(onFinished: () -> Unit) {
     }
 
     val p = progress.value
-    val exitAlpha = if (p < 0.9f) 1f else ((1f - p) / 0.1f).coerceIn(0f, 1f)
-    val entranceScale = 0.92f + 0.08f * phase(p, 0f, 0.35f)
+    val exit = phase(p, 0.9f, 1f)
+    val exitAlpha = 1f - exit
+    val entrance = phase(p, 0f, 0.34f)
+    val artworkScale = 0.9f + 0.1f * entrance + 0.025f * exit
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SplashBackground)
+            .background(SplashBrush)
             .graphicsLayer {
                 alpha = exitAlpha
             },
@@ -78,19 +83,70 @@ private fun OmrStartupSplash(onFinished: () -> Unit) {
     ) {
         Canvas(
             modifier = Modifier
-                .size(270.dp)
+                .size(286.dp)
                 .graphicsLayer {
-                    scaleX = entranceScale
-                    scaleY = entranceScale
+                    scaleX = artworkScale
+                    scaleY = artworkScale
+                    translationY = -8f * exit
                 }
         ) {
             val unit = size.minDimension
             val center = Offset(size.width / 2f, size.height / 2f)
 
-            val orbitProgress = phase(p, 0.02f, 0.44f)
+            val ambience = phase(p, 0f, 0.34f)
+            drawCircle(
+                color = AmbientGreen.copy(alpha = 0.08f * ambience),
+                radius = unit * 0.38f,
+                center = Offset(center.x - unit * 0.23f, center.y + unit * 0.02f)
+            )
+            drawCircle(
+                color = AmbientGold.copy(alpha = 0.055f * ambience),
+                radius = unit * 0.25f,
+                center = Offset(center.x + unit * 0.3f, center.y - unit * 0.3f)
+            )
+            drawArc(
+                color = OrbitGreen.copy(alpha = 0.13f * ambience),
+                startAngle = 194f,
+                sweepAngle = 132f * ambience,
+                useCenter = false,
+                topLeft = Offset(unit * 0.025f, unit * 0.11f),
+                size = Size(unit * 0.95f, unit * 0.78f),
+                style = Stroke(width = unit * 0.008f, cap = StrokeCap.Round)
+            )
+            drawArc(
+                color = ConfirmGold.copy(alpha = 0.12f * ambience),
+                startAngle = 10f,
+                sweepAngle = 96f * ambience,
+                useCenter = false,
+                topLeft = Offset(unit * 0.1f, unit * 0.08f),
+                size = Size(unit * 0.82f, unit * 0.82f),
+                style = Stroke(width = unit * 0.006f, cap = StrokeCap.Round)
+            )
+
+            drawCircle(
+                color = ConfirmGold.copy(alpha = 0.9f * phase(p, 0.1f, 0.3f)),
+                radius = unit * 0.018f,
+                center = Offset(unit * 0.12f, unit * 0.29f)
+            )
+            drawCircle(
+                color = OrbitGreen.copy(alpha = 0.9f * phase(p, 0.18f, 0.38f)),
+                radius = unit * 0.012f,
+                center = Offset(unit * 0.86f, unit * 0.75f)
+            )
+
+            val orbitProgress = phase(p, 0.02f, 0.45f)
             val orbitWidth = unit * 0.075f
             val orbitRadiusX = unit * 0.39f
             val orbitRadiusY = unit * 0.29f
+            drawArc(
+                color = OrbitGreen.copy(alpha = 0.16f * orbitProgress),
+                startAngle = 205f,
+                sweepAngle = 315f * orbitProgress,
+                useCenter = false,
+                topLeft = Offset(center.x - orbitRadiusX, center.y - orbitRadiusY + unit * 0.012f),
+                size = Size(orbitRadiusX * 2f, orbitRadiusY * 2f),
+                style = Stroke(width = orbitWidth * 1.18f, cap = StrokeCap.Round)
+            )
             drawArc(
                 color = OrbitGreen,
                 startAngle = 205f,
@@ -101,36 +157,66 @@ private fun OmrStartupSplash(onFinished: () -> Unit) {
                 style = Stroke(width = orbitWidth, cap = StrokeCap.Round)
             )
             drawArc(
-                color = OrbitHighlight.copy(alpha = 0.62f * orbitProgress),
+                color = OrbitHighlight.copy(alpha = 0.72f * orbitProgress),
                 startAngle = 205f,
-                sweepAngle = 112f * orbitProgress,
+                sweepAngle = 122f * orbitProgress,
                 useCenter = false,
                 topLeft = Offset(center.x - orbitRadiusX, center.y - orbitRadiusY),
                 size = Size(orbitRadiusX * 2f, orbitRadiusY * 2f),
-                style = Stroke(width = orbitWidth * 0.25f, cap = StrokeCap.Round)
+                style = Stroke(width = orbitWidth * 0.24f, cap = StrokeCap.Round)
             )
 
-            val sheetProgress = phase(p, 0.12f, 0.48f)
+            if (orbitProgress > 0.08f) {
+                val angle = Math.toRadians((205f + 315f * orbitProgress).toDouble())
+                val spark = Offset(
+                    x = center.x + orbitRadiusX * cos(angle).toFloat(),
+                    y = center.y + orbitRadiusY * sin(angle).toFloat()
+                )
+                drawCircle(
+                    color = OrbitHighlight.copy(alpha = 0.18f * orbitProgress),
+                    radius = unit * 0.045f,
+                    center = spark
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.92f * orbitProgress),
+                    radius = unit * 0.011f,
+                    center = spark
+                )
+            }
+
+            val sheetProgress = phase(p, 0.12f, 0.5f)
             val sheetWidth = unit * 0.54f
             val sheetHeight = unit * 0.66f
             val sheetLeft = center.x - sheetWidth * 0.5f
-            val sheetTop = center.y - sheetHeight * 0.52f + (1f - sheetProgress) * unit * 0.12f
+            val sheetTop = center.y - sheetHeight * 0.52f + (1f - sheetProgress) * unit * 0.13f
 
-            rotate(degrees = -5f + 5f * sheetProgress, pivot = center) {
+            rotate(degrees = -6f + 6f * sheetProgress, pivot = center) {
                 drawRoundRect(
-                    color = SheetShadow.copy(alpha = 0.12f * sheetProgress),
+                    color = SheetShadow.copy(alpha = 0.055f * sheetProgress),
+                    topLeft = Offset(sheetLeft + unit * 0.035f, sheetTop + unit * 0.045f),
+                    size = Size(sheetWidth, sheetHeight),
+                    cornerRadius = CornerRadius(unit * 0.058f)
+                )
+                drawRoundRect(
+                    color = SheetShadow.copy(alpha = 0.11f * sheetProgress),
                     topLeft = Offset(sheetLeft + unit * 0.018f, sheetTop + unit * 0.025f),
                     size = Size(sheetWidth, sheetHeight),
-                    cornerRadius = CornerRadius(unit * 0.055f)
+                    cornerRadius = CornerRadius(unit * 0.058f)
                 )
                 drawRoundRect(
                     color = SheetColor.copy(alpha = sheetProgress),
                     topLeft = Offset(sheetLeft, sheetTop),
                     size = Size(sheetWidth, sheetHeight),
-                    cornerRadius = CornerRadius(unit * 0.055f)
+                    cornerRadius = CornerRadius(unit * 0.058f)
+                )
+                drawRoundRect(
+                    color = SheetWarmTint.copy(alpha = 0.34f * sheetProgress),
+                    topLeft = Offset(sheetLeft + unit * 0.008f, sheetTop + unit * 0.008f),
+                    size = Size(sheetWidth - unit * 0.016f, sheetHeight * 0.22f),
+                    cornerRadius = CornerRadius(unit * 0.05f)
                 )
 
-                val bubbleReveal = phase(p, 0.34f, 0.72f)
+                val bubbleReveal = phase(p, 0.34f, 0.73f)
                 val cols = 3
                 val rows = 4
                 val bubbleRadius = unit * 0.028f
@@ -153,30 +239,72 @@ private fun OmrStartupSplash(onFinished: () -> Unit) {
                             y = startY + row * yStep
                         )
                         drawCircle(
-                            color = BubbleOutline.copy(alpha = 0.86f * bubbleProgress),
+                            color = BubbleOutline.copy(alpha = 0.84f * bubbleProgress),
                             radius = bubbleRadius,
                             center = bubbleCenter,
                             style = Stroke(width = unit * 0.009f)
                         )
                         if (index in selected) {
-                            val fillProgress = phase(bubbleReveal, index / 18f + 0.08f, (index + 4f) / 18f)
+                            val fillProgress = phase(
+                                bubbleReveal,
+                                index / 18f + 0.08f,
+                                (index + 4f) / 18f
+                            )
                             drawCircle(
                                 color = BubbleFill.copy(alpha = fillProgress),
                                 radius = bubbleRadius * 0.72f * fillProgress,
                                 center = bubbleCenter
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.16f * fillProgress),
+                                radius = bubbleRadius * 0.22f * fillProgress,
+                                center = Offset(
+                                    bubbleCenter.x - bubbleRadius * 0.2f,
+                                    bubbleCenter.y - bubbleRadius * 0.2f
+                                )
                             )
                         }
                     }
                 }
             }
 
-            val corners = phase(p, 0.24f, 0.58f)
+            val corners = phase(p, 0.23f, 0.59f)
             val cornerColor = ScanOrange.copy(alpha = corners)
+            val cornerGlow = ScanOrange.copy(alpha = 0.12f * corners)
             val cornerStroke = unit * 0.035f
             val cornerLength = unit * 0.115f
             val inset = unit * 0.09f
             val topLeft = Offset(inset, inset)
             val bottomRight = Offset(size.width - inset, size.height - inset)
+
+            drawLine(
+                color = cornerGlow,
+                start = topLeft,
+                end = Offset(topLeft.x + cornerLength * corners, topLeft.y),
+                strokeWidth = cornerStroke * 1.55f,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = cornerGlow,
+                start = topLeft,
+                end = Offset(topLeft.x, topLeft.y + cornerLength * corners),
+                strokeWidth = cornerStroke * 1.55f,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = cornerGlow,
+                start = bottomRight,
+                end = Offset(bottomRight.x - cornerLength * corners, bottomRight.y),
+                strokeWidth = cornerStroke * 1.55f,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = cornerGlow,
+                start = bottomRight,
+                end = Offset(bottomRight.x, bottomRight.y - cornerLength * corners),
+                strokeWidth = cornerStroke * 1.55f,
+                cap = StrokeCap.Round
+            )
 
             drawLine(
                 color = cornerColor,
@@ -207,16 +335,35 @@ private fun OmrStartupSplash(onFinished: () -> Unit) {
                 cap = StrokeCap.Round
             )
 
-            val badgeProgress = phase(p, 0.67f, 0.86f)
+            val badgeProgress = phase(p, 0.66f, 0.87f)
             val badgeCenter = Offset(center.x + unit * 0.255f, center.y + unit * 0.225f)
             val badgeRadius = unit * 0.135f * badgeProgress
             if (badgeProgress > 0f) {
+                drawCircle(
+                    color = ConfirmGold.copy(alpha = 0.12f * badgeProgress),
+                    radius = badgeRadius * 1.34f,
+                    center = badgeCenter
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.9f * badgeProgress),
+                    radius = badgeRadius * 1.08f,
+                    center = badgeCenter
+                )
                 drawCircle(
                     color = ConfirmGold.copy(alpha = badgeProgress),
                     radius = badgeRadius,
                     center = badgeCenter
                 )
-                val checkProgress = phase(p, 0.76f, 0.9f)
+                drawCircle(
+                    color = ConfirmHighlight.copy(alpha = 0.42f * badgeProgress),
+                    radius = badgeRadius * 0.82f,
+                    center = Offset(
+                        badgeCenter.x - badgeRadius * 0.18f,
+                        badgeCenter.y - badgeRadius * 0.2f
+                    )
+                )
+
+                val checkProgress = phase(p, 0.75f, 0.91f)
                 val checkStroke = unit * 0.035f
                 val p1 = Offset(badgeCenter.x - unit * 0.055f, badgeCenter.y)
                 val p2 = Offset(badgeCenter.x - unit * 0.012f, badgeCenter.y + unit * 0.045f)
@@ -254,15 +401,25 @@ private fun phase(value: Float, start: Float, end: Float): Float {
     return ((value - start) / (end - start)).coerceIn(0f, 1f)
 }
 
-private const val SPLASH_ANIMATION_MS = 1450
-private const val SPLASH_HOLD_MS = 90
+private const val SPLASH_ANIMATION_MS = 1480
+private const val SPLASH_HOLD_MS = 80
 
-private val SplashBackground = Color(0xFFFBF9F3)
+private val SplashBrush = Brush.radialGradient(
+    colors = listOf(
+        Color(0xFFFFFFFF),
+        Color(0xFFFCFAF4),
+        Color(0xFFF7F3E9)
+    )
+)
+private val AmbientGreen = Color(0xFF2A9A70)
+private val AmbientGold = Color(0xFFE7B34A)
 private val OrbitGreen = Color(0xFF157A58)
-private val OrbitHighlight = Color(0xFF39A977)
+private val OrbitHighlight = Color(0xFF45C18A)
 private val SheetColor = Color(0xFFFFFDF7)
+private val SheetWarmTint = Color(0xFFFFF2DA)
 private val SheetShadow = Color(0xFF17362C)
 private val BubbleOutline = Color(0xFF173C34)
 private val BubbleFill = Color(0xFF2D9A6A)
 private val ScanOrange = Color(0xFFF0643B)
 private val ConfirmGold = Color(0xFFE3A128)
+private val ConfirmHighlight = Color(0xFFF6C667)
