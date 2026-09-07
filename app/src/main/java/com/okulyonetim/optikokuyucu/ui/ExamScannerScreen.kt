@@ -34,7 +34,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamPaperRegistrar
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
-import com.okulyonetim.optikokuyucu.exam.paperForStudentNumber
+import com.okulyonetim.optikokuyucu.exam.papersForStudentNumber
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
@@ -114,7 +114,7 @@ fun ExamScannerScreen(
 
     fun persistRead(
         result: LiveOmrReadResult,
-        replaceScanRecordId: String? = null
+        replaceScanRecordIds: List<String> = emptyList()
     ): ExamCameraSummary {
         val recordId = UUID.randomUUID().toString()
         val record = scanRecorder.record(
@@ -123,15 +123,25 @@ fun ExamScannerScreen(
             id = recordId
         )
 
-        val updatedExam = try {
+        var updatedExam = try {
             registrar.register(
                 examId = examId,
                 record = record,
-                replaceScanRecordId = replaceScanRecordId
+                replaceScanRecordId = replaceScanRecordIds.firstOrNull()
             )
         } catch (error: Throwable) {
             scanRepository.delete(record.id)
             throw error
+        }
+
+        // Older versions could create more than one paper for the same student. When the user
+        // explicitly chooses Güncelle, consolidate all old duplicate links into this single new scan.
+        val extraOldIds = replaceScanRecordIds.drop(1).toSet()
+        if (extraOldIds.isNotEmpty()) {
+            updatedExam = updatedExam.copy(
+                papers = updatedExam.papers.filterNot { it.scanRecordId in extraOldIds }
+            )
+            examRepository.save(updatedExam)
         }
 
         val canonical = result.canonicalLuma
@@ -148,9 +158,9 @@ fun ExamScannerScreen(
             }
         }
 
-        if (replaceScanRecordId != null) {
-            scanRepository.delete(replaceScanRecordId)
-            imageRepository.delete(replaceScanRecordId)
+        replaceScanRecordIds.forEach { oldId ->
+            scanRepository.delete(oldId)
+            imageRepository.delete(oldId)
         }
 
         val link = requireNotNull(updatedExam.paperForScan(record.id)) {
@@ -198,9 +208,9 @@ fun ExamScannerScreen(
             onAcceptedRead = { result ->
                 val detectedNumber = recognitionBindings.studentNumber(result.markGridResult).orEmpty()
                 val latestExam = examRepository.load(examId)
-                val existing = latestExam?.paperForStudentNumber(detectedNumber)
+                val existing = latestExam?.papersForStudentNumber(detectedNumber).orEmpty()
 
-                if (existing != null) {
+                if (existing.isNotEmpty()) {
                     mainExecutor.execute {
                         pendingDuplicate = PendingDuplicateScan(
                             result = result,
@@ -232,21 +242,27 @@ fun ExamScannerScreen(
     }
 
     pendingDuplicate?.let { pending ->
+        val firstExisting = pending.existing.first()
         AlertDialog(
             onDismissRequest = {
                 if (!updatingDuplicate) pendingDuplicate = null
             },
             title = { Text("Öğrenci zaten kayıtlı") },
             text = {
-                val identity = pending.existing.studentName.ifBlank {
+                val identity = firstExisting.studentName.ifBlank {
                     "Öğrenci no ${pending.detectedStudentNumber}"
                 }
-                val classText = pending.existing.className.takeIf { it.isNotBlank() }
+                val classText = firstExisting.className.takeIf { it.isNotBlank() }
                     ?.let { " · $it" }
                     .orEmpty()
+                val duplicateText = if (pending.existing.size > 1) {
+                    " Bu öğrenci için ${pending.existing.size} eski kayıt bulundu; güncelleme bunları tek kayda indirecek."
+                } else {
+                    ""
+                }
                 Text(
                     "$identity$classText için bu sınavda zaten bir kağıt kayıtlı. " +
-                        "Yeni okuma eski kağıdın yerine güncellensin mi?"
+                        "Yeni okuma eski kağıdın yerine güncellensin mi?$duplicateText"
                 )
             },
             dismissButton = {
@@ -264,7 +280,7 @@ fun ExamScannerScreen(
                             val outcome = runCatching {
                                 persistRead(
                                     result = pending.result,
-                                    replaceScanRecordId = pending.existing.scanRecordId
+                                    replaceScanRecordIds = pending.existing.map { it.scanRecordId }
                                 )
                             }
                             mainExecutor.execute {
@@ -343,7 +359,7 @@ private fun ExamCameraSummaryPopup(
 
 private data class PendingDuplicateScan(
     val result: LiveOmrReadResult,
-    val existing: ExamPaperLink,
+    val existing: List<ExamPaperLink>,
     val detectedStudentNumber: String
 )
 
