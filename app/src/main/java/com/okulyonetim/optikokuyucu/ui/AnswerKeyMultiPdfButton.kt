@@ -2,8 +2,11 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +44,9 @@ fun AnswerKeyMultiPdfButton(
     } else {
         requiredKeys.size == bookletChoices.size
     }
+    val missingBooklets = remember(requiredKeys, bookletChoices) {
+        bookletChoices.filter { choice -> requiredKeys.none { it.variantValue == choice } }
+    }
     var pendingEntries by remember {
         mutableStateOf<List<AnswerKeyPdfExporter.SheetEntry>?>(null)
     }
@@ -59,8 +65,10 @@ fun AnswerKeyMultiPdfButton(
             onStatus(
                 if (bookletChoices.isEmpty()) {
                     "A4 çoklu cevap anahtarı PDF oluşturuldu · 6 kopya"
-                } else {
+                } else if (bookletChoices.size == 2) {
                     "A4 çoklu cevap anahtarı PDF oluşturuldu · ${bookletChoices.joinToString("+")} · 3 takım"
+                } else {
+                    "A4 çoklu cevap anahtarı PDF oluşturuldu · ${bookletChoices.size} kitapçık"
                 }
             )
         }.onFailure { error ->
@@ -68,32 +76,45 @@ fun AnswerKeyMultiPdfButton(
         }
     }
 
-    OutlinedButton(
-        modifier = Modifier.fillMaxWidth(),
-        enabled = ready,
-        shape = RoundedCornerShape(16.dp),
-        onClick = {
-            if (!ready) {
-                val missing = bookletChoices.filter { choice -> requiredKeys.none { it.variantValue == choice } }
-                onStatus("PDF için önce eksik kitapçık anahtarlarını kaydedin: ${missing.joinToString(", ")}")
-                return@OutlinedButton
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = ready,
+            shape = RoundedCornerShape(16.dp),
+            onClick = {
+                pendingEntries = requiredKeys.map { key ->
+                    AnswerKeyPdfExporter.SheetEntry(
+                        key = key,
+                        title = title,
+                        sections = sections
+                    )
+                }
+                launcher.launch(answerKeyPdfFileName(title, bookletChoices))
             }
-            pendingEntries = requiredKeys.map { key ->
-                AnswerKeyPdfExporter.SheetEntry(
-                    key = key,
-                    title = title,
-                    sections = sections
-                )
-            }
-            launcher.launch(answerKeyPdfFileName(title, bookletChoices))
+        ) {
+            Text(
+                if (bookletChoices.isEmpty()) {
+                    "A4 Çoklu Cevap Anahtarı PDF · 6 Kopya"
+                } else {
+                    "A4 Çoklu Cevap Anahtarı PDF · ${bookletChoices.joinToString(" + ")}"
+                }
+            )
         }
-    ) {
         Text(
-            if (bookletChoices.isEmpty()) {
-                "A4 Çoklu Cevap Anahtarı PDF · 6 Kopya"
-            } else {
-                "A4 Çoklu Cevap Anahtarı PDF · ${bookletChoices.joinToString(" + ")}"
-            }
+            when {
+                ready && bookletChoices.size == 2 ->
+                    "A solda, B sağda olacak şekilde A4 üzerinde 3 takım oluşturulur."
+                ready && bookletChoices.isEmpty() ->
+                    "Genel cevap anahtarı A4 üzerinde 6 kopya oluşturulur."
+                ready ->
+                    "Kitapçıklar ikili gruplar halinde A4 sayfalara yerleştirilir."
+                missingBooklets.isNotEmpty() ->
+                    "PDF için önce eksik kitapçık anahtarlarını kaydedin: ${missingBooklets.joinToString(", ")}"
+                else ->
+                    "PDF için önce cevap anahtarını kaydedin."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (ready) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
         )
     }
 }
