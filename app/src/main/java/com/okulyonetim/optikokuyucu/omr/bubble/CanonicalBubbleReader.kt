@@ -15,7 +15,8 @@ import kotlin.math.hypot
  * This makes bubble geometry independent of A4/A5, printer scale, margins and camera perspective.
  */
 class CanonicalBubbleReader(
-    private val template: OmrTemplate
+    private val template: OmrTemplate,
+    private val sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) {
     /** Preferred path after CanonicalImageRectifier. */
     fun readCanonical(gray: Mat): BubbleReadResult {
@@ -80,6 +81,7 @@ class CanonicalBubbleReader(
         questionId: String,
         scores: Map<String, Double>
     ): QuestionRead {
+        val thresholds = OmrSensitivityPolicy.thresholds(sensitivity)
         val sorted = scores.entries.sortedByDescending { it.value }
         val best = sorted.getOrNull(0)
         val second = sorted.getOrNull(1)
@@ -90,10 +92,10 @@ class CanonicalBubbleReader(
         val bestScore = best.value
         val secondScore = second?.value ?: 0.0
         val gap = bestScore - secondScore
-        val strongMarkCount = sorted.count { it.value >= STRONG_MARK_SCORE }
+        val strongMarkCount = sorted.count { it.value >= thresholds.strongMarkScore }
 
         return when {
-            bestScore < MIN_MARK_SCORE ->
+            bestScore < thresholds.minMarkScore ->
                 QuestionRead(questionId, QuestionState.BLANK, null, 1.0 - bestScore, scores)
 
             // Two independently strong fills are a double mark even if glare/shadow makes one
@@ -104,22 +106,22 @@ class CanonicalBubbleReader(
                     questionId,
                     QuestionState.DOUBLE_MARK,
                     null,
-                    (secondScore / STRONG_MARK_SCORE).coerceIn(0.0, 1.0),
+                    (secondScore / thresholds.strongMarkScore).coerceIn(0.0, 1.0),
                     scores
                 )
 
             // A weaker second candidate is accepted as double only when it is close to the winner.
             // This preserves rejection of erase residue, print dirt and other weak secondary traces.
-            secondScore >= DOUBLE_MARK_SCORE && gap < DOUBLE_GAP ->
+            secondScore >= thresholds.doubleMarkScore && gap < thresholds.doubleGap ->
                 QuestionRead(
                     questionId,
                     QuestionState.DOUBLE_MARK,
                     null,
-                    (1.0 - gap / DOUBLE_GAP).coerceIn(0.0, 1.0),
+                    (1.0 - gap / thresholds.doubleGap).coerceIn(0.0, 1.0),
                     scores
                 )
 
-            gap >= CONFIDENT_GAP ->
+            gap >= thresholds.confidentGap ->
                 QuestionRead(
                     questionId,
                     QuestionState.MARKED,
@@ -137,14 +139,6 @@ class CanonicalBubbleReader(
                     scores
                 )
         }
-    }
-
-    companion object {
-        private const val MIN_MARK_SCORE = 0.12
-        private const val STRONG_MARK_SCORE = 0.20
-        private const val DOUBLE_MARK_SCORE = 0.11
-        private const val DOUBLE_GAP = 0.055
-        private const val CONFIDENT_GAP = 0.045
     }
 }
 
