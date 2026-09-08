@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.exam.ExamLessonScore
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
@@ -39,6 +40,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamReportRowStatus
 import com.okulyonetim.optikokuyucu.exam.ExamReportXlsxExporter
 import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.exam.examLessonDisplayName
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import java.text.SimpleDateFormat
@@ -401,6 +403,9 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
                 )
+                if (row.lessons.isNotEmpty()) {
+                    ExamLessonBreakdown(row.lessons)
+                }
                 if ((row.doubleMark ?: 0) > 0 || (row.suspicious ?: 0) > 0 || (row.noKey ?: 0) > 0) {
                     Text(
                         "Çift ${row.doubleMark ?: 0} · Şüpheli ${row.suspicious ?: 0} · Anahtarsız ${row.noKey ?: 0}",
@@ -423,6 +428,61 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                 Text(
                     "Tarama · ${formatReportDate(it)}",
                     fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamLessonBreakdown(lessons: List<ExamLessonScore>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            "Ders sonuçları",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        lessons.forEach { lesson ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    examLessonDisplayName(lesson.lessonId),
+                    modifier = Modifier.weight(1f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    buildString {
+                        append("D ").append(lesson.correct)
+                        append(" · Y ").append(lesson.wrong)
+                        append(" · B ").append(lesson.blank)
+                        append(" · N ").append(formatReportNumber(lesson.net))
+                    },
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (lesson.standardScore != null || lesson.weightedStandardScore != null) {
+                Text(
+                    buildString {
+                        lesson.standardScore?.let { append("SP ").append(formatReportNumber(it)) }
+                        lesson.weightedStandardScore?.let {
+                            if (isNotEmpty()) append(" · ")
+                            append("ASP ").append(formatReportNumber(it))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 8.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
