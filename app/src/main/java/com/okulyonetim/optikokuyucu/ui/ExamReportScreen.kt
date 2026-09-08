@@ -37,6 +37,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamReportPdfExporter
 import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamReportRowStatus
 import com.okulyonetim.optikokuyucu.exam.ExamReportXlsxExporter
+import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
@@ -288,12 +289,21 @@ private fun ExamReportSummary(report: ExamReport, status: String) {
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             ProductStatusBadge("Puanlandı ${report.scoredCount}", ProductBadgeTone.GREEN)
+            ProductStatusBadge(scoringTypeLabel(report.scoringType), ProductBadgeTone.NEUTRAL)
             if (report.reviewRequiredCount > 0) {
                 ProductStatusBadge("Kontrol ${report.reviewRequiredCount}", ProductBadgeTone.ORANGE)
             }
+        }
+        if (report.scoringType == ExamScoringType.LGS || report.scoringType == ExamScoringType.IOKBS) {
+            Text(
+                "MEB yöntemi yerel sınav grubunun istatistikleriyle uygulanır; gösterilen puan resmî ulusal MEB sonucu değildir.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp
+            )
         }
         if (status.isNotBlank()) {
             Text(
@@ -362,7 +372,7 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                 ProductStatusBadge(statusText, tone)
             }
 
-            if (row.points != null) {
+            if (row.net != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -374,17 +384,37 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "${formatReportNumber(row.points)}${row.maximumPoints?.let { " / ${formatReportNumber(it)}" } ?: ""}",
+                        row.points?.let { score ->
+                            "${formatReportNumber(score)}${row.maximumPoints?.let { " / ${formatReportNumber(it)}" } ?: ""}"
+                        } ?: "Puan —",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+                Text(
+                    buildString {
+                        append("Net ").append(formatReportNumber(row.net))
+                        row.overallRank?.let { append(" · Genel ").append(it).append(".") }
+                        row.classRank?.let { append(" · Sınıf ").append(it).append(".") }
+                    },
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
                 if ((row.doubleMark ?: 0) > 0 || (row.suspicious ?: 0) > 0 || (row.noKey ?: 0) > 0) {
                     Text(
                         "Çift ${row.doubleMark ?: 0} · Şüpheli ${row.suspicious ?: 0} · Anahtarsız ${row.noKey ?: 0}",
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (row.scoreNote.isNotBlank()) {
+                    Text(
+                        row.scoreNote,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -398,6 +428,14 @@ private fun ExamReportRowCard(row: ExamReportRow) {
             }
         }
     }
+}
+
+private fun scoringTypeLabel(type: ExamScoringType): String = when (type) {
+    ExamScoringType.NORMAL -> "NORMAL"
+    ExamScoringType.SINGLE_SUBJECT -> "TEK DERS"
+    ExamScoringType.LGS -> "LGS"
+    ExamScoringType.IOKBS -> "İOKBS"
+    ExamScoringType.CUSTOM -> "ÖZEL"
 }
 
 private fun reportFileName(examName: String, extension: String): String {
