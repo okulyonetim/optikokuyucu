@@ -747,110 +747,87 @@ private fun RootSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { Spacer(Modifier.height(4.dp)) }
+            item { Spacer(Modifier.height(2.dp)) }
+
             item { SchoolAccountSettingsCard() }
+
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ProductSettingsSection(
+                    title = "Kurum Bilgileri",
+                    description = "Okul adı yeni sınav oluştururken otomatik doldurulur."
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("Kurum Bilgileri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = schoolName,
+                        onValueChange = {
+                            schoolName = it
+                            schoolStatus = ""
+                        },
+                        label = { Text("Okul Adı") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(13.dp)
+                    )
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            runCatching {
+                                settingsRepository.save(AppSettings(schoolName))
+                            }.onSuccess {
+                                schoolName = schoolName.trim()
+                                schoolStatus = "Okul adı kaydedildi."
+                            }.onFailure { error ->
+                                schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Kaydet", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (schoolStatus.isNotBlank()) {
                         Text(
-                            "Buradaki okul adı yeni sınav oluştururken otomatik doldurulur.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            schoolStatus,
+                            fontSize = 9.sp,
+                            color = if (schoolStatus.startsWith("Kaydedilemedi")) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
                         )
-                        OutlinedTextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = schoolName,
-                            onValueChange = {
-                                schoolName = it
-                                schoolStatus = ""
-                            },
-                            label = { Text("Okul Adı") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp)
-                        )
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                runCatching {
-                                    settingsRepository.save(AppSettings(schoolName))
-                                }.onSuccess {
-                                    schoolName = schoolName.trim()
-                                    schoolStatus = "Okul adı kaydedildi."
-                                }.onFailure { error ->
-                                    schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                                }
-                            },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Kurum Bilgisini Kaydet")
-                        }
-                        if (schoolStatus.isNotBlank()) {
-                            Text(
-                                schoolStatus,
-                                fontSize = 11.sp,
-                                color = if (schoolStatus.startsWith("Kaydedilemedi")) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
-                            )
-                        }
                     }
                 }
             }
+
+            item { SettingsSubjectsCard(settingsRepository) }
+
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("Optik Formlar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Aktif formu seçin, hazır şablonları görüntüleyin veya yeni form oluşturun.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = onOpenForms,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Optik Formları Yönet")
-                        }
-                    }
-                }
+                ProductSettingsLink(
+                    symbol = "◎",
+                    title = "Optik Formlar",
+                    description = "Aktif form, hazır şablonlar ve kurum formlarını yönetin.",
+                    onClick = onOpenForms
+                )
             }
+
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("Gelişmiş Araçlar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Cevap anahtarı, test ve gelişmiş OMR araçlarına erişin.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = onOpenTools,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Gelişmiş Optik Araçları")
-                        }
-                    }
-                }
+                ProductSettingsLink(
+                    symbol = "⌁",
+                    title = "Gelişmiş Araçlar",
+                    description = "Cevap anahtarı, test ve gelişmiş OMR araçlarına erişin.",
+                    onClick = onOpenTools
+                )
             }
+
+            item {
+                Text(
+                    "Tema seçimi için sağ üstteki ◐ simgesini kullanın.",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
