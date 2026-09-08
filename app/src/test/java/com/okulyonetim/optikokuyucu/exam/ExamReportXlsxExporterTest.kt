@@ -8,7 +8,7 @@ import org.junit.Test
 
 class ExamReportXlsxExporterTest {
     @Test
-    fun `xlsx contains score net rankings note and exam rows`() {
+    fun `xlsx contains lesson score net rankings note and exam rows`() {
         val report = ExamReport(
             examId = "exam-1",
             examName = "Deneme",
@@ -33,6 +33,21 @@ class ExamReportXlsxExporterTest {
                     maximumPoints = 500.0,
                     status = ExamReportRowStatus.REVIEW_REQUIRED,
                     net = 10.0,
+                    lessons = listOf(
+                        ExamLessonScore(
+                            lessonId = "turkce",
+                            correct = 12,
+                            wrong = 8,
+                            blank = 0,
+                            doubleMark = 0,
+                            suspicious = 0,
+                            noKey = 0,
+                            net = 9.333333,
+                            weight = 4.0,
+                            standardScore = 55.25,
+                            weightedStandardScore = 221.0
+                        )
+                    ),
                     overallRank = 3,
                     classRank = 2,
                     scoreNote = "Yerel <grup> & MEB yöntemi"
@@ -79,7 +94,8 @@ class ExamReportXlsxExporterTest {
         val sheet = requireNotNull(entries["xl/worksheets/sheet1.xml"])
 
         assertTrue(workbook.contains("sheet name=\"Sonuçlar\""))
-        assertTrue(sheet.contains("<autoFilter ref=\"A1:T3\"/>"))
+        assertTrue(sheet.contains("<autoFilter ref=\"A1:U3\"/>"))
+        assertTrue(sheet.contains("Ders Sonuçları"))
         assertTrue(sheet.contains("Ali &lt;İmran&gt;"))
         assertTrue(sheet.contains("scan&amp;1"))
         assertTrue(sheet.contains("<c r=\"M2\"><v>10</v></c>"))
@@ -87,6 +103,7 @@ class ExamReportXlsxExporterTest {
         assertTrue(sheet.contains("<c r=\"O2\"><v>500</v></c>"))
         assertTrue(sheet.contains("<c r=\"P2\"><v>3</v></c>"))
         assertTrue(sheet.contains("<c r=\"Q2\"><v>2</v></c>"))
+        assertTrue(sheet.contains("turkce: D 12 Y 8 B 0 Net 9,33 SP 55,25 ASP 221,00"))
         assertTrue(sheet.contains("Yerel &lt;grup&gt; &amp; MEB yöntemi"))
         assertTrue(sheet.contains("KONTROL GEREKLİ"))
         assertTrue(sheet.contains("TARAMA YOK"))
@@ -108,6 +125,7 @@ class ExamReportXlsxExporterTest {
 
         assertTrue(sheet.contains("<row r=\"1\">"))
         assertTrue(sheet.contains("Sıra"))
+        assertTrue(sheet.contains("Ders Sonuçları"))
         assertTrue(sheet.contains("Genel Sıra"))
         assertTrue(!sheet.contains("<autoFilter"))
     }
