@@ -13,14 +13,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -81,16 +81,13 @@ fun AnswerKeyScreen(
     }
 
     if (activeTemplate == null) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "Seçili optik form sürümü bulunamadı. Cevap anahtarı oluşturulmadı.",
-                color = MaterialTheme.colorScheme.error
+        Column(modifier = Modifier.fillMaxSize()) {
+            ProductTopBar(title = "Cevap Anahtarları", leadingText = "‹", onLeadingClick = onBack)
+            ProductEmptyState(
+                title = "Optik form bulunamadı",
+                body = "Seçili optik form sürümü bulunamadığı için cevap anahtarı oluşturulamadı.",
+                modifier = Modifier.padding(14.dp)
             )
-            OutlinedButton(onClick = onBack) { Text("Geri dön") }
         }
         return
     }
@@ -373,85 +370,118 @@ fun AnswerKeyScreen(
             }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = onBack) { Text("← Geri") }
-            Text("Cevap Anahtarları", style = MaterialTheme.typography.titleLarge)
-        }
+    Column(modifier = Modifier.fillMaxSize()) {
+        ProductTopBar(
+            title = "Cevap Anahtarları",
+            leadingText = "‹",
+            onLeadingClick = onBack
+        )
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(activeTemplate.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text("${template.bubbleRows.size} soru · v${template.version}")
-                Text("Cevap anahtarı manuel, Excel (.xls/.xlsx), galeri veya kamera ile oluşturulabilir.")
-                if (bookletChoices.isNotEmpty()) {
-                    Text(
-                        "Her kitapçık ayrı cevap anahtarıdır. Seçili kitapçığın manuel ve Excel işlemleri " +
-                            "diğer kitapçıkları değiştirmez."
+            ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProductInitialBadge("✓")
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        Text(
+                            activeTemplate.name,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            "${template.bubbleRows.size} soru · v${template.version}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            status,
+                            fontSize = 10.sp,
+                            color = if (openCvReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    ProductStatusBadge(
+                        text = when {
+                            busy -> "İŞLENİYOR"
+                            openCvReady -> "HAZIR"
+                            else -> "CV HATA"
+                        },
+                        tone = when {
+                            busy -> ProductBadgeTone.ORANGE
+                            openCvReady -> ProductBadgeTone.GREEN
+                            else -> ProductBadgeTone.RED
+                        }
                     )
                 }
-                Text(status, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
             }
-        }
 
-        if (bookletChoices.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { bookletMenuOpen = true }
+            ProductMetricStrip(
+                metrics = listOf(
+                    "Soru" to template.bubbleRows.size.toString(),
+                    "Anahtar" to matchingKeys.size.toString(),
+                    "Kitapçık" to bookletChoices.size.coerceAtLeast(1).toString(),
+                    "Yöntem" to "4"
+                )
+            )
+
+            if (bookletChoices.isNotEmpty()) {
+                ProductSettingsSection(
+                    title = "Kitapçık",
+                    description = "Manuel ve Excel işlemleri yalnız seçili kitapçığı günceller."
                 ) {
-                    Text("Düzenlenen Kitapçık: ${bookletSelection ?: "Seçiniz"}")
-                }
-                DropdownMenu(
-                    expanded = bookletMenuOpen,
-                    onDismissRequest = { bookletMenuOpen = false }
-                ) {
-                    bookletChoices.forEach { value ->
-                        DropdownMenuItem(
-                            text = { Text("Kitapçık $value") },
-                            onClick = {
-                                bookletSelection = value
-                                bookletMenuOpen = false
-                                val hasSaved = matchingKeys.any {
-                                    it.variantGridId == bookletGridId && it.variantValue == value
-                                }
-                                status = if (hasSaved) {
-                                    "Kitapçık $value kayıtlı anahtarı düzenlemeye yüklendi."
-                                } else {
-                                    "Kitapçık $value için yeni cevap anahtarı giriliyor."
-                                }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { bookletMenuOpen = true },
+                            shape = RoundedCornerShape(13.dp)
+                        ) {
+                            Text("Düzenlenen: Kitapçık ${bookletSelection ?: "Seçiniz"}", fontSize = 12.sp)
+                        }
+                        DropdownMenu(
+                            expanded = bookletMenuOpen,
+                            onDismissRequest = { bookletMenuOpen = false }
+                        ) {
+                            bookletChoices.forEach { value ->
+                                DropdownMenuItem(
+                                    text = { Text("Kitapçık $value") },
+                                    onClick = {
+                                        bookletSelection = value
+                                        bookletMenuOpen = false
+                                        val hasSaved = matchingKeys.any {
+                                            it.variantGridId == bookletGridId && it.variantValue == value
+                                        }
+                                        status = if (hasSaved) {
+                                            "Kitapçık $value kayıtlı anahtarı düzenlemeye yüklendi."
+                                        } else {
+                                            "Kitapçık $value için yeni cevap anahtarı giriliyor."
+                                        }
+                                    }
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
-        }
 
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text(
-                    bookletSelection?.let { "Kitapçık $it · Manuel Cevap Girişi" } ?: "Manuel Cevap Girişi",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    "Her ders için cevapları sırayla girin. ABCD… şeklinde veya virgülle ayırarak girebilirsiniz. " +
-                        "Daha önce kaydedilmiş seçili kitapçık varsa cevapları otomatik yüklenir ve düzenlenebilir.",
-                    style = MaterialTheme.typography.bodySmall
-                )
+            ProductSettingsSection(
+                title = bookletSelection?.let { "Kitapçık $it · Manuel Giriş" } ?: "Manuel Cevap Girişi",
+                description = "Cevapları ABCD… biçiminde veya virgülle ayırarak girin."
+            ) {
                 manualSections.forEach { section ->
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
@@ -463,93 +493,121 @@ fun AnswerKeyScreen(
                         label = { Text("${section.label} · ${section.questionIds.size} soru") },
                         supportingText = { Text("Seçenekler: ${section.allowedChoices.joinToString("/")}") },
                         minLines = 1,
-                        maxLines = 3
+                        maxLines = 3,
+                        shape = RoundedCornerShape(13.dp)
                     )
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !busy,
-                    onClick = ::saveManual
-                ) {
-                    Text(bookletSelection?.let { "Kitapçık $it Anahtarını Kaydet" } ?: "Manuel Anahtarı Kaydet")
-                }
-            }
-        }
-
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Dosyadan / Formdan Aktar", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !busy,
-                    onClick = {
-                        spreadsheetPicker.launch(
-                            arrayOf(XLS_MIME_TYPE, XLSX_MIME_TYPE, "application/octet-stream")
-                        )
-                    }
+                    onClick = ::saveManual,
+                    shape = RoundedCornerShape(13.dp)
                 ) {
                     Text(
-                        bookletSelection?.let { "Kitapçık $it için Excel (.xls / .xlsx) İçe Aktar" }
-                            ?: "Excel (.xls / .xlsx) İçe Aktar"
+                        bookletSelection?.let { "Kitapçık $it Anahtarını Kaydet" } ?: "Manuel Anahtarı Kaydet",
+                        fontSize = 12.sp
                     )
                 }
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = openCvReady && !busy,
-                    onClick = { imagePicker.launch("image/*") }
-                ) { Text("Galeriden Optik Anahtar Oku") }
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = openCvReady && !busy,
-                    onClick = ::requestCamera
-                ) { Text("Kamerayla Optik Anahtar Oku") }
             }
-        }
 
-        AnswerKeyMultiPdfButton(
-            title = activeTemplate.name,
-            matchingKeys = matchingKeys,
-            sections = manualSections,
-            bookletChoices = bookletChoices,
-            onStatus = { status = it }
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Kayıtlı Anahtarlar · ${matchingKeys.size}", style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = {
-                keys = repository.list()
-                status = "Anahtarlar yenilendi"
-            }) { Text("Yenile") }
-        }
-
-        if (matchingKeys.isEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text("Henüz bu forma ait cevap anahtarı yok.", modifier = Modifier.padding(16.dp))
-            }
-        } else {
-            matchingKeys
-                .sortedBy { it.variantValue ?: "" }
-                .forEach { key ->
-                    AnswerKeyCard(
-                        key = key,
-                        onExportXlsx = { exportXlsx(key) },
-                        onDelete = {
-                            repository.delete(
-                                key.templateId,
-                                key.templateVersion,
-                                key.variantGridId,
-                                key.variantValue
+            ProductSettingsSection(
+                title = "Anahtar Al",
+                description = "Excel, galeri veya kameradan cevap anahtarı ekleyin."
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy,
+                        onClick = {
+                            spreadsheetPicker.launch(
+                                arrayOf(XLS_MIME_TYPE, XLSX_MIME_TYPE, "application/octet-stream")
                             )
-                            keys = repository.list()
-                            status = key.variantValue?.let { "Kitapçık $it cevap anahtarı silindi" }
-                                ?: "Cevap anahtarı silindi"
-                        }
-                    )
+                        },
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text("Excel", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = openCvReady && !busy,
+                        onClick = { imagePicker.launch("image/*") },
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text("Galeri", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = openCvReady && !busy,
+                        onClick = ::requestCamera,
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text("Kamera", fontSize = 11.sp)
+                    }
                 }
+            }
+
+            ProductSettingsSection(
+                title = "A4 Çoklu PDF",
+                description = "Kayıtlı anahtarları yazdırmaya uygun A4 düzeninde dışa aktarın."
+            ) {
+                AnswerKeyMultiPdfButton(
+                    title = activeTemplate.name,
+                    matchingKeys = matchingKeys,
+                    sections = manualSections,
+                    bookletChoices = bookletChoices,
+                    onStatus = { status = it }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Kayıtlı Anahtarlar · ${matchingKeys.size}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(
+                    onClick = {
+                        keys = repository.list()
+                        status = "Anahtarlar yenilendi"
+                    }
+                ) {
+                    Text("Yenile", fontSize = 11.sp)
+                }
+            }
+
+            if (matchingKeys.isEmpty()) {
+                ProductEmptyState(
+                    title = "Henüz cevap anahtarı yok",
+                    body = "Bu forma manuel, Excel, galeri veya kamera ile cevap anahtarı ekleyebilirsiniz."
+                )
+            } else {
+                matchingKeys
+                    .sortedBy { it.variantValue ?: "" }
+                    .forEach { key ->
+                        AnswerKeyCard(
+                            key = key,
+                            onExportXlsx = { exportXlsx(key) },
+                            onDelete = {
+                                repository.delete(
+                                    key.templateId,
+                                    key.templateVersion,
+                                    key.variantGridId,
+                                    key.variantValue
+                                )
+                                keys = repository.list()
+                                status = key.variantValue?.let { "Kitapçık $it cevap anahtarı silindi" }
+                                    ?: "Cevap anahtarı silindi"
+                            }
+                        )
+                    }
+            }
         }
     }
 }
@@ -560,40 +618,56 @@ private fun AnswerKeyCard(
     onExportXlsx: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val title = key.variantValue?.let { "Kitapçık $it" } ?: "Genel Anahtar"
+    val answerPreview = key.answerKey.answers.entries.joinToString("  ") { (question, answer) -> "$question:$answer" }
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    key.variantValue?.let { "Kitapçık $it" } ?: "Genel anahtar",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("tr", "TR"))
-                        .format(Date(key.createdAtEpochMs)),
-                    style = MaterialTheme.typography.labelMedium
-                )
+                ProductInitialBadge(key.variantValue ?: "✓")
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${key.answerKey.answers.size} soru · ${SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("tr", "TR")).format(Date(key.createdAtEpochMs))}",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                ProductStatusBadge(answerKeySourceLabel(key.source).uppercase(Locale("tr", "TR")), ProductBadgeTone.NEUTRAL)
             }
+
             Text(
-                "${key.answerKey.answers.size} soru · Kaynak: ${answerKeySourceLabel(key.source)}",
-                style = MaterialTheme.typography.bodySmall
+                answerPreview,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
             )
-            Text(
-                key.answerKey.answers.entries
-                    .chunked(10)
-                    .joinToString("\n") { chunk ->
-                        chunk.joinToString("  ") { (question, answer) -> "$question:$answer" }
-                    },
-                style = MaterialTheme.typography.bodySmall
-            )
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onExportXlsx) {
-                Text(key.variantValue?.let { "Kitapçık $it XLSX olarak dışa aktar" } ?: "XLSX olarak dışa aktar")
-            }
-            TextButton(onClick = onDelete) {
-                Text(key.variantValue?.let { "Kitapçık $it anahtarını sil" } ?: "Bu anahtarı sil")
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onExportXlsx,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("XLSX Dışa Aktar", fontSize = 10.sp)
+                }
+                TextButton(onClick = onDelete) {
+                    Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                }
             }
         }
     }
