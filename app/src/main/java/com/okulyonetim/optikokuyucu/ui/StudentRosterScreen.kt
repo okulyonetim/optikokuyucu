@@ -3,7 +3,6 @@ package com.okulyonetim.optikokuyucu.ui
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,11 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -672,32 +668,36 @@ fun StudentRosterScreen(
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { Spacer(Modifier.height(4.dp)) }
             item {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                ProductSearchField(
                     value = query,
                     onValueChange = { query = it },
-                    singleLine = true,
-                    label = { Text("Öğrenci, numara, okul, sınıf veya veli ara") },
-                    leadingIcon = { Text("⌕", fontSize = 22.sp) },
-                    shape = RoundedCornerShape(18.dp)
+                    placeholder = "Öğrenci, numara, sınıf veya veli ara"
                 )
             }
             if (busy) {
-                item { Text("$importSourceLabel okunuyor…", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary) }
-            }
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    RosterStatCard(Modifier.weight(1f), "Öğrenci", overviews.size.toString())
-                    RosterStatCard(Modifier.weight(1f), "Sınıf", classes.size.toString())
-                    RosterStatCard(Modifier.weight(1f), "Kağıt", overviews.sumOf { it.scanCount }.toString())
+                item {
+                    Text(
+                        "$importSourceLabel okunuyor…",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                ProductMetricStrip(
+                    metrics = listOf(
+                        "Öğrenci" to overviews.size.toString(),
+                        "Sınıf" to classes.size.toString(),
+                        "Kağıt" to overviews.sumOf { it.scanCount }.toString()
+                    )
+                )
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     item {
                         ProductFilterPill(
                             label = "Tümü",
@@ -718,22 +718,12 @@ fun StudentRosterScreen(
             }
             if (filtered.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(if (overviews.isEmpty()) "Henüz öğrenci yok" else "Öğrenci bulunamadı", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (overviews.isEmpty())
-                                    "Sağ üstteki seçeneklerden PDF içe aktarabilir veya manuel öğrenci ekleyebilirsiniz."
-                                else "Arama metnini veya sınıf filtresini değiştirin.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    ProductEmptyState(
+                        title = if (overviews.isEmpty()) "Henüz öğrenci yok" else "Öğrenci bulunamadı",
+                        body = if (overviews.isEmpty())
+                            "Sağ üstteki seçeneklerden PDF içe aktarabilir veya manuel öğrenci ekleyebilirsiniz."
+                        else "Arama metnini veya sınıf filtresini değiştirin."
+                    )
                 }
             } else {
                 items(filtered, key = { it.key }) { student ->
@@ -754,7 +744,7 @@ fun StudentRosterScreen(
                     )
                 }
             }
-            item { Spacer(Modifier.height(10.dp)) }
+            item { Spacer(Modifier.height(6.dp)) }
         }
     }
 
@@ -762,7 +752,7 @@ fun StudentRosterScreen(
         ModalBottomSheet(onDismissRequest = { optionsExpanded = false }) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text("Öğrenci Seçenekleri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 StudentOptionRow("⇩", "e-Okul PDF İçe Aktar", enabled = !busy) {
@@ -802,27 +792,12 @@ private fun StudentOptionRow(
         onClick = onClick
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(symbol, fontSize = 19.sp)
-            Text(label, fontSize = 15.sp)
-        }
-    }
-}
-
-@Composable
-private fun RosterStatCard(modifier: Modifier, label: String, value: String) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 9.dp)) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(symbol, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+            Text(label, fontSize = 14.sp)
         }
     }
 }
@@ -832,18 +807,18 @@ private fun StudentRosterOverviewCard(
     student: StudentRosterOverview,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val initial = student.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "•"
+    ProductCompactCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            ProductInitialBadge(initial)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     student.name.ifBlank { "Öğrenci bilgisi bekliyor" },
                     fontSize = 13.sp,
@@ -853,12 +828,14 @@ private fun StudentRosterOverviewCard(
                 )
                 Text(
                     buildString {
-                        if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
                         append(student.className.ifBlank { "Sınıf —" })
                         append(" · No: ").append(student.number.ifBlank { "—" })
+                        if (student.schoolName.isNotBlank()) append(" · ").append(student.schoolName)
                     },
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     when {
@@ -868,7 +845,7 @@ private fun StudentRosterOverviewCard(
                         student.guardianPhone.isNotBlank() -> "Veli telefonu: ${student.guardianPhone}"
                         else -> "Veli bilgisi eklenmedi"
                     },
-                    fontSize = 10.sp,
+                    fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
