@@ -7,6 +7,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.round
 
 enum class ExamReportRowStatus {
     SCORED,
@@ -177,16 +178,32 @@ object ExamReportBuilder {
         )
     }
 
+    /**
+     * Uses standard competition ranking (1, 2, 2, 4) and the same two-decimal precision shown in
+     * reports. Students whose displayed score is equal therefore never receive contradictory ranks.
+     */
     private fun rankByScore(rows: List<ExamReportRow>): Map<String, Int> {
-        val eligible = rows.filter {
-            it.status == ExamReportRowStatus.SCORED && it.points != null
+        val eligible = rows
+            .filter { it.status == ExamReportRowStatus.SCORED && it.points != null }
+            .sortedWith(
+                compareByDescending<ExamReportRow> { rankingScore(requireNotNull(it.points)) }
+                    .thenBy { it.ordinal }
+            )
+        val result = linkedMapOf<String, Int>()
+        var previousScore: Double? = null
+        var currentRank = 0
+        eligible.forEachIndexed { index, row ->
+            val score = rankingScore(requireNotNull(row.points))
+            if (previousScore == null || score != previousScore) {
+                currentRank = index + 1
+                previousScore = score
+            }
+            result[row.scanRecordId] = currentRank
         }
-        val orderedScores = eligible.mapNotNull { it.points }.distinct().sortedDescending()
-        val rankByValue = orderedScores.mapIndexed { index, value -> value to index + 1 }.toMap()
-        return eligible.associate { row ->
-            row.scanRecordId to requireNotNull(rankByValue[requireNotNull(row.points)])
-        }
+        return result
     }
+
+    private fun rankingScore(value: Double): Double = round(value * 100.0) / 100.0
 }
 
 fun examLessonDisplayName(lessonId: String): String {
