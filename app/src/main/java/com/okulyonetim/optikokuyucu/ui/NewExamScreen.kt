@@ -33,9 +33,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.ExamFactory
 import com.okulyonetim.optikokuyucu.exam.ExamParticipant
+import com.okulyonetim.optikokuyucu.exam.ExamScoreMode
+import com.okulyonetim.optikokuyucu.exam.ExamScoringConfiguration
+import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamPreset
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
@@ -53,7 +57,8 @@ import java.util.Locale
 private data class ExamTemplateOption(
     val name: String,
     val selection: ActiveTemplateSelection,
-    val examMode: DesignerExamMode = DesignerExamMode.UNSPECIFIED
+    val examMode: DesignerExamMode = DesignerExamMode.UNSPECIFIED,
+    val examPreset: DesignerExamPreset = DesignerExamPreset.CUSTOM
 )
 
 @Composable
@@ -86,17 +91,57 @@ fun NewExamScreen(
                 ?: options.first()
         )
     }
-    var wrongPolicy by remember { mutableStateOf(WrongAnswerPolicy.KEEP_AS_IS) }
+    val initialScoringType = remember { defaultScoringType(selectedTemplate) }
+    var scoringType by remember { mutableStateOf(initialScoringType) }
+    var scoreMode by remember { mutableStateOf(ExamScoreMode.SCALED) }
+    var minimumScoreText by remember {
+        mutableStateOf(if (isOfficialMebType(initialScoringType)) "100" else "0")
+    }
+    var maximumScoreText by remember {
+        mutableStateOf(if (isOfficialMebType(initialScoringType)) "500" else "100")
+    }
+    var customWrongDivisorText by remember { mutableStateOf("") }
+    var wrongPolicy by remember {
+        mutableStateOf(
+            if (isOfficialMebType(initialScoringType)) {
+                WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT
+            } else {
+                WrongAnswerPolicy.KEEP_AS_IS
+            }
+        )
+    }
     var selectedClasses by remember { mutableStateOf(emptySet<String>()) }
     var selectedStudentKeys by remember { mutableStateOf(emptySet<String>()) }
     var bookletCount by remember { mutableStateOf(1) }
     var personalizedFormsEnabled by remember { mutableStateOf(false) }
     var templateMenuOpen by remember { mutableStateOf(false) }
+    var scoringTypeMenuOpen by remember { mutableStateOf(false) }
+    var scoreModeMenuOpen by remember { mutableStateOf(false) }
     var wrongMenuOpen by remember { mutableStateOf(false) }
     var classMenuOpen by remember { mutableStateOf(false) }
     var studentMenuOpen by remember { mutableStateOf(false) }
     var bookletMenuOpen by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+
+    fun applyScoringType(nextType: ExamScoringType) {
+        val previousWasOfficial = isOfficialMebType(scoringType)
+        scoringType = nextType
+        if (isOfficialMebType(nextType)) {
+            scoreMode = ExamScoreMode.SCALED
+            minimumScoreText = "100"
+            maximumScoreText = "500"
+            wrongPolicy = WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT
+            customWrongDivisorText = ""
+        } else {
+            if (previousWasOfficial) {
+                scoreMode = ExamScoreMode.SCALED
+                minimumScoreText = "0"
+                maximumScoreText = "100"
+                wrongPolicy = WrongAnswerPolicy.KEEP_AS_IS
+            }
+            if (nextType != ExamScoringType.CUSTOM) customWrongDivisorText = ""
+        }
+    }
 
     fun refreshTemplateOptions() {
         val refreshed = loadExamTemplateOptions(appContext)
@@ -115,7 +160,9 @@ fun NewExamScreen(
         student.className in selectedClasses || student.identityKey in selectedStudentKeys
     }
     val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
-    val singleLessonExam = selectedTemplate.examMode == DesignerExamMode.SINGLE_LESSON
+    val singleSubjectExam = selectedTemplate.examMode == DesignerExamMode.SINGLE_LESSON ||
+        scoringType == ExamScoringType.SINGLE_SUBJECT
+    val officialMebScoring = isOfficialMebType(scoringType)
 
     fun warn(message: String) {
         status = message
@@ -124,24 +171,59 @@ fun NewExamScreen(
 
     val saveExam = {
         val parsedDate = parseExamDate(dateText)
+        val minimumScore = if (officialMebScoring) 100.0 else parseScoreNumber(minimumScoreText)
+        val maximumScore = if (officialMebScoring) 500.0 else parseScoreNumber(maximumScoreText)
+        val customDivisor = customWrongDivisorText
+            .takeIf { it.isNotBlank() }
+            ?.let(::parseScoreNumber)
+        val scaledScore = scoreMode == ExamScoreMode.SCALED
         when {
             examName.isBlank() -> warn("Sınav adı zorunludur.")
             schoolName.isBlank() -> warn("Okul alanı zorunludur. Ayarlar bölümünden okul adını kaydedebilirsiniz.")
-            singleLessonExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders adı zorunludur.")
+            singleSubjectExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders adı zorunludur.")
             parsedDate == null -> warn("Tarih GG.AA.YYYY biçiminde olmalıdır.")
+            scaledScore && !officialMebScoring && minimumScore == null ->
+                warn("Taban puan geçerli bir sayı olmalıdır.")
+            scaledScore && !officialMebScoring && maximumScore == null ->
+                warn("Tavan puan geçerli bir sayı olmalıdır.")
+            scaledScore && !officialMebScoring &&
+                minimumScore != null && maximumScore != null && maximumScore <= minimumScore ->
+                warn("Tavan puan taban puandan büyük olmalıdır.")
+            scoringType == ExamScoringType.CUSTOM && customWrongDivisorText.isNotBlank() &&
+                (customDivisor == null || customDivisor <= 0.0) ->
+                warn("Özel yanlış oranı sıfırdan büyük bir sayı olmalıdır.")
             personalizedFormsEnabled && selectedParticipants.isEmpty() ->
                 warn("Öğrenciye özel form için en az bir sınıf veya öğrenci seçin.")
             personalizedFormsEnabled && !designerBackedForm ->
                 warn("Öğrenciye özel form için Form Editörü ile oluşturulmuş bir optik form seçin.")
             else -> {
                 runCatching {
+                    val scoringConfiguration = if (officialMebScoring) {
+                        ExamScoringConfiguration.forType(scoringType)
+                    } else {
+                        ExamScoringConfiguration(
+                            type = scoringType,
+                            scoreMode = scoreMode,
+                            minimumScore = if (scaledScore) requireNotNull(minimumScore) else 0.0,
+                            maximumScore = if (scaledScore) requireNotNull(maximumScore) else 100.0,
+                            customWrongAnswerDivisor = if (scoringType == ExamScoringType.CUSTOM) {
+                                customDivisor
+                            } else {
+                                null
+                            }
+                        )
+                    }
                     ExamFactory.create(
                         name = examName,
                         schoolName = schoolName,
                         templateSelection = selectedTemplate.selection,
                         examDateEpochDay = parsedDate.toEpochDay(),
-                        subjectName = if (singleLessonExam) subjectName else "",
-                        wrongAnswerPolicy = wrongPolicy,
+                        subjectName = if (singleSubjectExam) subjectName else "",
+                        wrongAnswerPolicy = if (officialMebScoring) {
+                            WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT
+                        } else {
+                            wrongPolicy
+                        },
                         folderName = folderName,
                         participants = selectedParticipants.map { student ->
                             ExamParticipant(
@@ -151,7 +233,8 @@ fun NewExamScreen(
                             )
                         },
                         bookletCount = bookletCount,
-                        personalizedFormsEnabled = personalizedFormsEnabled
+                        personalizedFormsEnabled = personalizedFormsEnabled,
+                        scoringConfiguration = scoringConfiguration
                     ).also(repository::save)
                 }.onSuccess { exam ->
                     feedback.success("Sınav kaydedildi.")
@@ -230,7 +313,13 @@ fun NewExamScreen(
                                 },
                                 onClick = {
                                     selectedTemplate = option
-                                    if (option.examMode != DesignerExamMode.SINGLE_LESSON) subjectName = ""
+                                    val suggestedType = defaultScoringType(option)
+                                    applyScoringType(suggestedType)
+                                    if (suggestedType != ExamScoringType.SINGLE_SUBJECT &&
+                                        option.examMode != DesignerExamMode.SINGLE_LESSON
+                                    ) {
+                                        subjectName = ""
+                                    }
                                     if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
                                         personalizedFormsEnabled = false
                                     }
@@ -241,7 +330,7 @@ fun NewExamScreen(
                     }
                 }
 
-                if (singleLessonExam) {
+                if (singleSubjectExam) {
                     RoundedExamField(
                         value = subjectName,
                         onValueChange = {
@@ -255,24 +344,151 @@ fun NewExamScreen(
 
                 Box(modifier = Modifier.fillMaxWidth()) {
                     ExamSelectField(
-                        label = "Yanlış Cevaplar",
-                        value = wrongPolicyLabel(wrongPolicy),
-                        symbol = "✓",
-                        onClick = { wrongMenuOpen = true }
+                        label = "Puanlama Türü",
+                        value = scoringTypeLabel(scoringType),
+                        symbol = "P",
+                        onClick = { scoringTypeMenuOpen = true }
                     )
                     DropdownMenu(
-                        expanded = wrongMenuOpen,
-                        onDismissRequest = { wrongMenuOpen = false },
+                        expanded = scoringTypeMenuOpen,
+                        onDismissRequest = { scoringTypeMenuOpen = false },
                         containerColor = MaterialTheme.colorScheme.surface
                     ) {
-                        WrongAnswerPolicy.entries.forEach { policy ->
+                        ExamScoringType.entries.forEach { type ->
                             DropdownMenuItem(
-                                text = { Text(wrongPolicyLabel(policy), style = MaterialTheme.typography.bodySmall) },
+                                text = {
+                                    Column {
+                                        Text(scoringTypeLabel(type), style = MaterialTheme.typography.bodySmall)
+                                        Text(
+                                            scoringTypeDescription(type),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
                                 onClick = {
-                                    wrongPolicy = policy
-                                    wrongMenuOpen = false
+                                    applyScoringType(type)
+                                    scoringTypeMenuOpen = false
                                 }
                             )
+                        }
+                    }
+                }
+
+                if (officialMebScoring) {
+                    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "MEB puanlama kuralı",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                ProductStatusBadge("MEB 2026", ProductBadgeTone.GREEN)
+                            }
+                            Text(
+                                "3 yanlış 1 doğruyu götürür · 100–500 ölçeği · standart puan ve ders katsayıları otomatik uygulanır.",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "Uygulamadaki sonuç yerel sınav grubunun istatistikleriyle MEB yöntemi kullanılarak hesaplanır; resmî ulusal sonuç değildir.",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        ExamSelectField(
+                            label = "Sonuç Gösterimi",
+                            value = scoreModeLabel(scoreMode),
+                            symbol = "#",
+                            onClick = { scoreModeMenuOpen = true }
+                        )
+                        DropdownMenu(
+                            expanded = scoreModeMenuOpen,
+                            onDismissRequest = { scoreModeMenuOpen = false },
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ) {
+                            ExamScoreMode.entries.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(scoreModeLabel(mode), style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        scoreMode = mode
+                                        scoreModeMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        ExamSelectField(
+                            label = "Yanlış Cevaplar",
+                            value = wrongPolicyLabel(wrongPolicy),
+                            symbol = "✓",
+                            onClick = { wrongMenuOpen = true }
+                        )
+                        DropdownMenu(
+                            expanded = wrongMenuOpen,
+                            onDismissRequest = { wrongMenuOpen = false },
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ) {
+                            WrongAnswerPolicy.entries.forEach { policy ->
+                                DropdownMenuItem(
+                                    text = { Text(wrongPolicyLabel(policy), style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        wrongPolicy = policy
+                                        wrongMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (scoringType == ExamScoringType.CUSTOM) {
+                        RoundedExamField(
+                            value = customWrongDivisorText,
+                            onValueChange = { customWrongDivisorText = it },
+                            label = "Özel Yanlış Oranı (isteğe bağlı)",
+                            prefix = "÷"
+                        )
+                        Text(
+                            "Örnek: 5 yazılırsa 5 yanlış 1 doğruyu götürür. Boş bırakılırsa yukarıdaki yanlış kuralı kullanılır.",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (scoreMode == ExamScoreMode.SCALED) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                RoundedExamField(
+                                    value = minimumScoreText,
+                                    onValueChange = { minimumScoreText = it },
+                                    label = "Taban Puan",
+                                    prefix = "↓"
+                                )
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                RoundedExamField(
+                                    value = maximumScoreText,
+                                    onValueChange = { maximumScoreText = it },
+                                    label = "Tavan Puan",
+                                    prefix = "↑"
+                                )
+                            }
                         }
                     }
                 }
@@ -576,7 +792,8 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
                 templateId = document.id,
                 templateVersion = document.version
             ),
-            examMode = document.formSpec.examMode
+            examMode = document.formSpec.examMode,
+            examPreset = document.formSpec.examPreset
         )
     }
 
@@ -605,6 +822,40 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
     }
 }
 
+private fun defaultScoringType(option: ExamTemplateOption): ExamScoringType = when (option.examPreset) {
+    DesignerExamPreset.LGS -> ExamScoringType.LGS
+    DesignerExamPreset.SCHOLARSHIP -> ExamScoringType.IOKBS
+    else -> if (option.examMode == DesignerExamMode.SINGLE_LESSON) {
+        ExamScoringType.SINGLE_SUBJECT
+    } else {
+        ExamScoringType.NORMAL
+    }
+}
+
+private fun isOfficialMebType(type: ExamScoringType): Boolean =
+    type == ExamScoringType.LGS || type == ExamScoringType.IOKBS
+
+private fun scoringTypeLabel(type: ExamScoringType): String = when (type) {
+    ExamScoringType.NORMAL -> "Normal Deneme"
+    ExamScoringType.SINGLE_SUBJECT -> "Tek Ders Sınavı"
+    ExamScoringType.LGS -> "LGS"
+    ExamScoringType.IOKBS -> "İOKBS / Bursluluk"
+    ExamScoringType.CUSTOM -> "Özel Puanlama"
+}
+
+private fun scoringTypeDescription(type: ExamScoringType): String = when (type) {
+    ExamScoringType.NORMAL -> "Net veya seçilen puan aralığı"
+    ExamScoringType.SINGLE_SUBJECT -> "Tek ders için net / puan"
+    ExamScoringType.LGS -> "MEB yöntemi · 3 yanlış · 100–500"
+    ExamScoringType.IOKBS -> "MEB yöntemi · 4 test · 100–500"
+    ExamScoringType.CUSTOM -> "Özel yanlış oranı ve puan aralığı"
+}
+
+private fun scoreModeLabel(mode: ExamScoreMode): String = when (mode) {
+    ExamScoreMode.RAW_NET -> "Net olarak göster"
+    ExamScoreMode.SCALED -> "Puan aralığına dönüştür"
+}
+
 private val ExamDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.forLanguageTag("tr-TR"))
 
 private fun todayText(): String = LocalDate.now().format(ExamDateFormatter)
@@ -614,6 +865,9 @@ private fun parseExamDate(value: String): LocalDate? = try {
 } catch (_: DateTimeParseException) {
     null
 }
+
+private fun parseScoreNumber(value: String): Double? =
+    value.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
 
 private fun wrongPolicyLabel(policy: WrongAnswerPolicy): String = when (policy) {
     WrongAnswerPolicy.KEEP_AS_IS -> "Olduğu gibi bırak"
