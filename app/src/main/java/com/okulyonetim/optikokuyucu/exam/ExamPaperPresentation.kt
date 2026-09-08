@@ -95,6 +95,7 @@ data class ExamPaperMetrics(
 enum class ExamCalculatedScoreScope {
     RAW_NET,
     SCALED,
+    LGS_2026_REFERENCE_ESTIMATE,
     LOCAL_COHORT_MEB_METHOD,
     UNAVAILABLE
 }
@@ -135,17 +136,21 @@ data class ExamPaperCalculatedScore(
 /**
  * Exam-level scoring layer built above OMR recognition/evaluation.
  *
- * NORMAL/SINGLE_SUBJECT/CUSTOM are deterministic from one paper. LGS and IOKBS follow the current
- * MEB standard-score/TASP method, which needs cohort statistics. Because national MEB cohort
- * statistics are not available to this offline app, these values are explicitly marked as local-cohort
- * MEB-method scores and must not be presented as official national result scores.
+ * NORMAL/SINGLE_SUBJECT/CUSTOM are deterministic from one paper. LGS uses a deterministic 2026
+ * reference model derived from published reverse-calculations of real 2026 LGS results. This avoids
+ * stretching a small local cohort to 100–500, but it is still an estimate because MEB does not publish
+ * the national mean, standard deviation and TASP bounds needed to reproduce the official result.
+ * IOKBS continues to use the official MEB standard-score/TASP method on the local cohort because a
+ * trustworthy national 2026 calibration set is not available to this offline app.
  */
 object ExamScoreEngine {
     fun calculate(
         exam: Exam,
         papers: List<ExamPaperScoreInput>
     ): Map<String, ExamPaperCalculatedScore> = when (exam.scoringConfiguration.type) {
-        ExamScoringType.LGS -> calculateMebCohort(exam, papers, LGS_RULES)
+        ExamScoringType.LGS -> papers.associate { input ->
+            input.paperId to calculateLgs2026Reference(input)
+        }
         ExamScoringType.IOKBS -> calculateMebCohort(exam, papers, IOKBS_RULES)
         ExamScoringType.NORMAL,
         ExamScoringType.SINGLE_SUBJECT,
@@ -220,6 +225,27 @@ object ExamScoreEngine {
             maximumScore = configuration.maximumScore,
             scope = ExamCalculatedScoreScope.SCALED,
             lessons = lessons
+        )
+    }
+
+    private fun calculateLgs2026Reference(input: ExamPaperScoreInput): ExamPaperCalculatedScore {
+        val prepared = prepareMebPaper(input, LGS_RULES)
+        prepared.unavailableReason?.let { reason ->
+            return unavailableMebScore(prepared, reason)
+        }
+
+        val lessons = LGS_RULES.map { rule -> requireNotNull(prepared.lessons[rule.lessonId]) }
+        val estimatedScore = LGS_2026_REFERENCE_BASE_SCORE + LGS_2026_REFERENCE_RULES.sumOf { reference ->
+            requireNotNull(prepared.lessons[reference.lessonId]).net * reference.pointsPerNet
+        }
+        return ExamPaperCalculatedScore(
+            paperId = input.paperId,
+            net = lessons.sumOf { it.net },
+            calculatedScore = estimatedScore.coerceIn(100.0, 500.0),
+            maximumScore = 500.0,
+            scope = ExamCalculatedScoreScope.LGS_2026_REFERENCE_ESTIMATE,
+            lessons = lessons,
+            note = "2026 LGS sonuçlarından geriye doğru türetilmiş ders bazlı referans katsayılarla hesaplanan tahmini puandır; resmî MEB sonucu değildir."
         )
     }
 
@@ -414,6 +440,12 @@ object ExamScoreEngine {
         val weight: Double
     )
 
+    private data class LgsReferenceRule(
+        val lessonId: String,
+        val questionCount: Int,
+        val pointsPerNet: Double
+    )
+
     private val LGS_RULES = listOf(
         MebLessonRule("turkce", "Türkçe", 4.0),
         MebLessonRule("matematik", "Matematik", 4.0),
@@ -422,6 +454,19 @@ object ExamScoreEngine {
         MebLessonRule("din", "Din Kültürü ve Ahlak Bilgisi", 1.0),
         MebLessonRule("yabanci", "Yabancı Dil", 1.0)
     )
+
+    private val LGS_2026_REFERENCE_RULES = listOf(
+        LgsReferenceRule("turkce", 20, 4.19),
+        LgsReferenceRule("matematik", 20, 4.99),
+        LgsReferenceRule("fen", 20, 3.83),
+        LgsReferenceRule("inkilap", 10, 1.70),
+        LgsReferenceRule("din", 10, 1.92),
+        LgsReferenceRule("yabanci", 10, 1.62)
+    )
+
+    private val LGS_2026_REFERENCE_BASE_SCORE = 500.0 - LGS_2026_REFERENCE_RULES.sumOf { rule ->
+        rule.questionCount * rule.pointsPerNet
+    }
 
     private val IOKBS_RULES = listOf(
         MebLessonRule("turkce", "Türkçe/Türk Dili ve Edebiyatı", 3.0),
