@@ -245,6 +245,7 @@ fun ActiveTemplateScreen(
             leadingText = "‹",
             onLeadingClick = onBack,
             actionText = "↻",
+            includeStatusBarPadding = false,
             onActionClick = {
                 scope.launch {
                     runCatching { withContext(Dispatchers.IO) { manager.syncTemplates() } }
@@ -605,7 +606,7 @@ private fun TemplateLibraryCard(
     ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -650,20 +651,29 @@ private fun TemplateLibraryCard(
             if (onPreview != null || onEdit != null || !selected) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onPreview != null) {
-                        TextButton(onClick = onPreview) { Text("Önizle", fontSize = 10.sp) }
+                        OutlinedButton(
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            onClick = onPreview
+                        ) { Text("Önizle", fontSize = 10.sp) }
                     }
                     if (onEdit != null) {
-                        TextButton(onClick = onEdit) { Text("Düzenle", fontSize = 10.sp) }
+                        OutlinedButton(
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            onClick = onEdit
+                        ) { Text("Düzenle", fontSize = 10.sp) }
                     }
                     Spacer(Modifier.weight(1f))
                     if (!selected) {
                         Button(
+                            modifier = Modifier.height(34.dp),
                             onClick = onSelect,
-                            shape = RoundedCornerShape(11.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Seç", fontSize = 10.sp)
                         }
@@ -674,20 +684,32 @@ private fun TemplateLibraryCard(
             if (onExport != null || onDelete != null || onTogglePublic != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onExport != null) {
-                        TextButton(onClick = onExport) { Text("Dışa Aktar", fontSize = 10.sp) }
+                        OutlinedButton(
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            onClick = onExport
+                        ) { Text("Dışa Aktar", fontSize = 10.sp) }
                     }
                     if (onTogglePublic != null) {
-                        TextButton(onClick = onTogglePublic) {
+                        OutlinedButton(
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            onClick = onTogglePublic
+                        ) {
                             Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = 10.sp)
                         }
                     }
                     Spacer(Modifier.weight(1f))
                     if (onDelete != null) {
-                        TextButton(onClick = onDelete) {
+                        OutlinedButton(
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            onClick = onDelete
+                        ) {
                             Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
                         }
                     }
