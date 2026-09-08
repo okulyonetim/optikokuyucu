@@ -298,13 +298,7 @@ private fun ExamReportSummary(report: ExamReport, status: String) {
                 ProductStatusBadge("Kontrol ${report.reviewRequiredCount}", ProductBadgeTone.ORANGE)
             }
         }
-        if (report.scoringType == ExamScoringType.LGS) {
-            Text(
-                "2026 LGS sonuçlarından türetilmiş referans katsayılarla tahmini puan hesaplanır; resmî MEB sonucu değildir.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 9.sp
-            )
-        } else if (report.scoringType == ExamScoringType.IOKBS) {
+        if (report.scoringType == ExamScoringType.LGS || report.scoringType == ExamScoringType.IOKBS) {
             Text(
                 "MEB yöntemi yerel sınav grubunun istatistikleriyle uygulanır; gösterilen puan resmî ulusal MEB sonucu değildir.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

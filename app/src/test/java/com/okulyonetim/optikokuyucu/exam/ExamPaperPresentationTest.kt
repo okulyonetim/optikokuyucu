@@ -139,38 +139,26 @@ class ExamPaperPresentationTest {
     }
 
     @Test
-    fun lgsUsesDeterministic2026ReferenceInsteadOfLocalCohortStretching() {
+    fun lgsUsesOfficialLessonWeightsAndLocalCohortMebMethod() {
         val exam = scoringExam(
             configuration = ExamScoringConfiguration.forType(ExamScoringType.LGS)
         )
-
-        val blank = lgsReferencePaper("blank", allCorrect = false)
-        val full = lgsReferencePaper("full", allCorrect = true)
-        val results = ExamScoreEngine.calculate(exam, listOf(blank, full))
-
-        assertEquals(187.40, requireNotNull(results.getValue("blank").calculatedScore), 0.0001)
-        assertEquals(500.0, requireNotNull(results.getValue("full").calculatedScore), 0.0001)
-        assertEquals(ExamCalculatedScoreScope.LGS_2026_REFERENCE_ESTIMATE, results.getValue("blank").scope)
-        assertEquals(4.0, results.getValue("full").lessons.first { it.lessonId == "turkce" }.weight, 0.0)
-        assertEquals(4.0, results.getValue("full").lessons.first { it.lessonId == "matematik" }.weight, 0.0)
-        assertEquals(1.0, results.getValue("full").lessons.first { it.lessonId == "din" }.weight, 0.0)
-        assertTrue(results.getValue("blank").note.contains("2026 LGS"))
-        assertTrue(results.getValue("blank").note.contains("resmî MEB sonucu değildir"))
-    }
-
-    @Test
-    fun lgsReferenceScoreDoesNotRequireMultipleStudents() {
-        val exam = scoringExam(
-            configuration = ExamScoringConfiguration.forType(ExamScoringType.LGS)
+        val papers = listOf(
+            mebPaper("low", LGS_LESSONS, correctPerLesson = 1),
+            mebPaper("mid", LGS_LESSONS, correctPerLesson = 2),
+            mebPaper("high", LGS_LESSONS, correctPerLesson = 3)
         )
 
-        val result = ExamScoreEngine.calculate(
-            exam,
-            listOf(lgsReferencePaper("single", allCorrect = true))
-        ).getValue("single")
+        val results = ExamScoreEngine.calculate(exam, papers)
 
-        assertEquals(500.0, requireNotNull(result.calculatedScore), 0.0001)
-        assertEquals(ExamCalculatedScoreScope.LGS_2026_REFERENCE_ESTIMATE, result.scope)
+        assertEquals(100.0, requireNotNull(results.getValue("low").calculatedScore), 0.0001)
+        assertEquals(300.0, requireNotNull(results.getValue("mid").calculatedScore), 0.0001)
+        assertEquals(500.0, requireNotNull(results.getValue("high").calculatedScore), 0.0001)
+        assertEquals(4.0, results.getValue("mid").lessons.first { it.lessonId == "turkce" }.weight, 0.0)
+        assertEquals(4.0, results.getValue("mid").lessons.first { it.lessonId == "matematik" }.weight, 0.0)
+        assertEquals(1.0, results.getValue("mid").lessons.first { it.lessonId == "din" }.weight, 0.0)
+        assertEquals(ExamCalculatedScoreScope.LOCAL_COHORT_MEB_METHOD, results.getValue("mid").scope)
+        assertTrue(results.getValue("mid").note.contains("resmî ulusal sonuç değildir"))
     }
 
     @Test
@@ -188,7 +176,6 @@ class ExamPaperPresentationTest {
 
         assertEquals(300.0, requireNotNull(mid.calculatedScore), 0.0001)
         assertTrue(mid.lessons.all { it.weight == 3.0 })
-        assertEquals(ExamCalculatedScoreScope.LOCAL_COHORT_MEB_METHOD, mid.scope)
     }
 
     @Test
@@ -247,31 +234,6 @@ class ExamPaperPresentationTest {
                             } else {
                                 QuestionEvaluationState.BLANK
                             },
-                            0.0
-                        )
-                    )
-                }
-            }
-        }
-        return ExamPaperScoreInput(id, ExamScore(evaluations))
-    }
-
-    private fun lgsReferencePaper(id: String, allCorrect: Boolean): ExamPaperScoreInput {
-        val questionCounts = linkedMapOf(
-            "turkce" to 20,
-            "matematik" to 20,
-            "fen" to 20,
-            "inkilap" to 10,
-            "din" to 10,
-            "yabanci" to 10
-        )
-        val evaluations = buildList {
-            questionCounts.forEach { (lesson, count) ->
-                repeat(count) { index ->
-                    add(
-                        eval(
-                            "$lesson:${index + 1}",
-                            if (allCorrect) QuestionEvaluationState.CORRECT else QuestionEvaluationState.BLANK,
                             0.0
                         )
                     )
