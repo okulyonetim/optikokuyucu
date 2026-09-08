@@ -3,7 +3,6 @@ package com.okulyonetim.optikokuyucu.exam
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import java.io.OutputStream
@@ -19,12 +18,12 @@ object ExamReportPdfExporter {
     private const val PAGE_HEIGHT = 842
     private const val LEFT = 32f
     private const val RIGHT = 563f
-    private const val TABLE_TOP = 118f
+    private const val TABLE_TOP = 134f
     private const val HEADER_HEIGHT = 24f
     private const val ROW_HEIGHT = 24f
 
     private val columns = floatArrayOf(
-        32f, 54f, 190f, 230f, 280f, 316f, 344f, 372f, 400f, 460f, 563f
+        32f, 54f, 170f, 210f, 254f, 284f, 309f, 334f, 359f, 404f, 454f, 489f, 524f, 563f
     )
 
     fun export(report: ExamReport, output: OutputStream) {
@@ -96,11 +95,23 @@ object ExamReportPdfExporter {
             summaryPaint
         )
         canvas.drawText(
-            "Oluşturma: ${formatDate(report.generatedAtEpochMs)}",
+            "Puanlama: ${scoringTypeLabel(report.scoringType)}   •   Oluşturma: ${formatDate(report.generatedAtEpochMs)}",
             LEFT,
             108f,
             bodyPaint
         )
+        if (report.scoringType == ExamScoringType.LGS || report.scoringType == ExamScoringType.IOKBS) {
+            canvas.drawText(
+                fittedText(
+                    "MEB yöntemi yerel sınav grubu istatistikleriyle uygulanır; resmî ulusal MEB sonucu değildir.",
+                    bodyPaint,
+                    RIGHT - LEFT
+                ),
+                LEFT,
+                121f,
+                bodyPaint
+            )
+        }
 
         drawTableHeader(canvas)
 
@@ -145,10 +156,12 @@ object ExamReportPdfExporter {
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
-            textSize = 8f
+            textSize = 7.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val headers = listOf("#", "Öğrenci", "Sınıf", "Numara", "Kit.", "D", "Y", "B", "Puan", "Durum")
+        val headers = listOf(
+            "#", "Öğrenci", "Sınıf", "No", "Kit.", "D", "Y", "B", "Net", "Puan", "Gen.", "Sın.", "Durum"
+        )
         headers.forEachIndexed { index, text ->
             drawCellText(
                 canvas = canvas,
@@ -174,7 +187,7 @@ object ExamReportPdfExporter {
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
-            textSize = 7.8f
+            textSize = 7.2f
         }
         val baseline = top + 15.5f
         val name = row.studentName.ifBlank {
@@ -189,8 +202,11 @@ object ExamReportPdfExporter {
             row.correct?.toString().orEmpty(),
             row.wrong?.toString().orEmpty(),
             row.blank?.toString().orEmpty(),
+            row.net?.let(::formatNumber).orEmpty(),
             row.points?.let(::formatNumber).orEmpty(),
-            statusLabel(row.status)
+            row.overallRank?.toString().orEmpty(),
+            row.classRank?.toString().orEmpty(),
+            displayStatus(row)
         )
         values.forEachIndexed { index, text ->
             drawCellText(
@@ -235,11 +251,26 @@ object ExamReportPdfExporter {
         return if (end == 0) ellipsis else text.substring(0, end).trimEnd() + ellipsis
     }
 
+    private fun displayStatus(row: ExamReportRow): String =
+        if (row.status == ExamReportRowStatus.SCORED && row.points == null && row.scoreNote.isNotBlank()) {
+            "Puan yok"
+        } else {
+            statusLabel(row.status)
+        }
+
     private fun statusLabel(status: ExamReportRowStatus): String = when (status) {
         ExamReportRowStatus.SCORED -> "Puanlandı"
         ExamReportRowStatus.REVIEW_REQUIRED -> "Kontrol"
         ExamReportRowStatus.NO_ANSWER_KEY -> "Anahtar yok"
         ExamReportRowStatus.SCAN_MISSING -> "Kayıt yok"
+    }
+
+    private fun scoringTypeLabel(type: ExamScoringType): String = when (type) {
+        ExamScoringType.NORMAL -> "Normal"
+        ExamScoringType.SINGLE_SUBJECT -> "Tek Ders"
+        ExamScoringType.LGS -> "LGS"
+        ExamScoringType.IOKBS -> "İOKBS"
+        ExamScoringType.CUSTOM -> "Özel"
     }
 
     private fun formatNumber(value: Double): String =
