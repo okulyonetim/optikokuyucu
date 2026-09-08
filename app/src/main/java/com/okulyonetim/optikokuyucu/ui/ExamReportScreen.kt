@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,7 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
@@ -84,7 +84,7 @@ fun ExamReportScreen(
             }
         }.onSuccess {
             lastSavedReport = SavedExamReport(uri, "text/csv")
-            status = "Sınav CSV raporu kaydedildi · paylaşmaya hazır"
+            status = "CSV raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "CSV kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -105,7 +105,7 @@ fun ExamReportScreen(
             }
         }.onSuccess {
             lastSavedReport = SavedExamReport(uri, ExamReportXlsxExporter.MIME_TYPE)
-            status = "Sınav Excel raporu kaydedildi · paylaşmaya hazır"
+            status = "Excel raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "Excel kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -125,7 +125,7 @@ fun ExamReportScreen(
             }
         }.onSuccess {
             lastSavedReport = SavedExamReport(uri, ExamReportPdfExporter.MIME_TYPE)
-            status = "Sınav PDF raporu kaydedildi · paylaşmaya hazır"
+            status = "PDF raporu kaydedildi · paylaşmaya hazır"
         }.onFailure { error ->
             status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
         }
@@ -138,8 +138,11 @@ fun ExamReportScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Sınav kaydı bulunamadı.", color = MaterialTheme.colorScheme.error)
-            OutlinedButton(onClick = onBack) { Text("Sınava dön") }
+            ProductEmptyState(
+                title = "Sınav kaydı bulunamadı",
+                body = "Raporu açmak için geçerli bir sınav kaydı gerekir."
+            )
+            TextButton(onClick = onBack) { Text("Sınava dön") }
         }
         return
     }
@@ -188,81 +191,85 @@ fun ExamReportScreen(
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
                 ExamReportSummary(report = report, status = status)
             }
 
             item {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                    enabled = report.rows.isNotEmpty(),
-                    onClick = {
-                        pendingCsv = ExamReportCsvExporter.export(report)
-                        csvLauncher.launch(reportFileName(current.name, "csv"))
-                    }
-                ) {
-                    Text("CSV Sonuç Raporunu Dışa Aktar")
-                }
+                ProductMetricStrip(
+                    metrics = listOf(
+                        "Puanlandı" to report.scoredCount.toString(),
+                        "Kontrol" to report.reviewRequiredCount.toString(),
+                        "Anahtar yok" to report.noAnswerKeyCount.toString(),
+                        "Kayıt yok" to report.missingScanCount.toString()
+                    )
+                )
             }
 
             item {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                    enabled = report.rows.isNotEmpty(),
-                    onClick = {
-                        pendingXlsx = ExamReportXlsxExporter.export(report)
-                        xlsxLauncher.launch(reportFileName(current.name, "xlsx"))
-                    }
+                ProductSettingsSection(
+                    title = "Raporu Dışa Aktar",
+                    description = "Sonuçları CSV, Excel veya PDF olarak kaydedin."
                 ) {
-                    Text("Excel (.xlsx) Sonuç Raporunu Dışa Aktar")
-                }
-            }
-
-            item {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                    enabled = report.rows.isNotEmpty(),
-                    onClick = {
-                        pendingPdf = report
-                        pdfLauncher.launch(reportFileName(current.name, "pdf"))
-                    }
-                ) {
-                    Text("PDF Sonuç Raporunu Dışa Aktar")
-                }
-            }
-
-            lastSavedReport?.let {
-                item {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                        onClick = ::shareLastSavedReport
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Son Kaydedilen Raporu Paylaş")
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = report.rows.isNotEmpty(),
+                            onClick = {
+                                pendingCsv = ExamReportCsvExporter.export(report)
+                                csvLauncher.launch(reportFileName(current.name, "csv"))
+                            }
+                        ) {
+                            Text("CSV", fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = report.rows.isNotEmpty(),
+                            onClick = {
+                                pendingXlsx = ExamReportXlsxExporter.export(report)
+                                xlsxLauncher.launch(reportFileName(current.name, "xlsx"))
+                            }
+                        ) {
+                            Text("Excel", fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = report.rows.isNotEmpty(),
+                            onClick = {
+                                pendingPdf = report
+                                pdfLauncher.launch(reportFileName(current.name, "pdf"))
+                            }
+                        ) {
+                            Text("PDF", fontSize = 11.sp)
+                        }
+                    }
+
+                    if (lastSavedReport != null) {
+                        TextButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = ::shareLastSavedReport
+                        ) {
+                            Text("Son kaydedilen raporu paylaş", fontSize = 11.sp)
+                        }
                     }
                 }
             }
 
             if (report.rows.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text("Henüz raporlanacak kağıt yok", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Öğrenci kağıtları bu sınava bağlandıkça sonuçlar burada otomatik oluşur.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    ProductEmptyState(
+                        title = "Henüz raporlanacak kağıt yok",
+                        body = "Öğrenci kağıtları bu sınava bağlandıkça sonuçlar burada otomatik oluşur."
+                    )
                 }
             } else {
                 items(report.rows, key = { it.scanRecordId }) { row ->
@@ -275,39 +282,27 @@ fun ExamReportScreen(
 
 @Composable
 private fun ExamReportSummary(report: ExamReport, status: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ProductSettingsSection(
+        title = "Sınav Özeti",
+        description = "${report.schoolName} · ${report.paperCount} kağıt"
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text("Sınav Özeti", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "${report.schoolName} · ${report.paperCount} kağıt",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ProductStatusBadge("Puanlandı ${report.scoredCount}", ProductBadgeTone.GREEN)
+            ProductStatusBadge("Puanlandı ${report.scoredCount}", ProductBadgeTone.GREEN)
+            if (report.reviewRequiredCount > 0) {
                 ProductStatusBadge("Kontrol ${report.reviewRequiredCount}", ProductBadgeTone.ORANGE)
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ProductStatusBadge("Anahtar yok ${report.noAnswerKeyCount}", ProductBadgeTone.ORANGE)
-                ProductStatusBadge("Kayıt yok ${report.missingScanCount}", ProductBadgeTone.RED)
-            }
-
-            if (status.isNotBlank()) {
-                Text(status, color = MaterialTheme.colorScheme.primary)
-            }
+        }
+        if (status.isNotBlank()) {
+            Text(
+                text = status,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 10.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -325,52 +320,70 @@ private fun ExamReportRowCard(row: ExamReportRow) {
     }
     val statusText = when (row.status) {
         ExamReportRowStatus.SCORED -> "PUANLANDI"
-        ExamReportRowStatus.REVIEW_REQUIRED -> "KONTROL GEREKLİ"
+        ExamReportRowStatus.REVIEW_REQUIRED -> "KONTROL"
         ExamReportRowStatus.NO_ANSWER_KEY -> "ANAHTAR YOK"
         ExamReportRowStatus.SCAN_MISSING -> "KAYIT YOK"
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "${row.ordinal}. $title",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                ProductInitialBadge(row.ordinal.toString())
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = listOf(
+                            row.className.takeIf { it.isNotBlank() },
+                            row.studentNumber.takeIf { it.isNotBlank() }?.let { "No $it" },
+                            row.bookletCode.takeIf { it.isNotBlank() }?.let { "Kitapçık $it" }
+                        ).filterNotNull().joinToString(" · ").ifBlank { "Öğrenci bilgisi girilmedi" },
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 ProductStatusBadge(statusText, tone)
             }
 
-            Text(
-                listOf(
-                    row.className.takeIf { it.isNotBlank() },
-                    row.studentNumber.takeIf { it.isNotBlank() }?.let { "No $it" },
-                    row.bookletCode.takeIf { it.isNotBlank() }?.let { "Kitapçık $it" }
-                ).filterNotNull().joinToString(" · ").ifBlank { "Öğrenci bilgisi girilmedi" },
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
             if (row.points != null) {
-                Text(
-                    "D ${row.correct ?: 0} · Y ${row.wrong ?: 0} · B ${row.blank ?: 0} · " +
-                        "Net/Puan ${formatReportNumber(row.points)}" +
-                        (row.maximumPoints?.let { " / ${formatReportNumber(it)}" } ?: ""),
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "D ${row.correct ?: 0} · Y ${row.wrong ?: 0} · B ${row.blank ?: 0}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${formatReportNumber(row.points)}${row.maximumPoints?.let { " / ${formatReportNumber(it)}" } ?: ""}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 if ((row.doubleMark ?: 0) > 0 || (row.suspicious ?: 0) > 0 || (row.noKey ?: 0) > 0) {
                     Text(
                         "Çift ${row.doubleMark ?: 0} · Şüpheli ${row.suspicious ?: 0} · Anahtarsız ${row.noKey ?: 0}",
+                        fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -378,8 +391,8 @@ private fun ExamReportRowCard(row: ExamReportRow) {
 
             row.capturedAtEpochMs?.let {
                 Text(
-                    "Tarama: ${formatReportDate(it)}",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Tarama · ${formatReportDate(it)}",
+                    fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
