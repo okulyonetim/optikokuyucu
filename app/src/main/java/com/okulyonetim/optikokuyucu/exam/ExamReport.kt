@@ -34,6 +34,7 @@ data class ExamReportRow(
     val maximumPoints: Double?,
     val status: ExamReportRowStatus,
     val net: Double? = null,
+    val lessons: List<ExamLessonScore> = emptyList(),
     val overallRank: Int? = null,
     val classRank: Int? = null,
     val scoreScope: ExamCalculatedScoreScope? = null,
@@ -146,6 +147,7 @@ object ExamReportBuilder {
                 maximumPoints = calculated?.maximumScore,
                 status = draft.status,
                 net = calculated?.net ?: score?.totalPoints,
+                lessons = calculated?.lessons.orEmpty(),
                 scoreScope = calculated?.scope,
                 scoreNote = calculated?.note.orEmpty()
             )
@@ -211,6 +213,7 @@ object ExamReportCsvExporter {
                 "Genel Sıra",
                 "Sınıf Sırası",
                 "Durum",
+                "Ders Sonuçları",
                 "Puan Notu",
                 "Kayıt ID"
             ).joinToString(";") { escape(it) }
@@ -236,6 +239,7 @@ object ExamReportCsvExporter {
                 row.overallRank?.toString().orEmpty(),
                 row.classRank?.toString().orEmpty(),
                 statusLabel(row.status),
+                formatLessonResults(row.lessons),
                 row.scoreNote,
                 row.scanRecordId
             )
@@ -249,6 +253,19 @@ object ExamReportCsvExporter {
         ExamReportRowStatus.NO_ANSWER_KEY -> "ANAHTAR_YOK"
         ExamReportRowStatus.SCAN_MISSING -> "TARAMA_YOK"
     }
+
+    private fun formatLessonResults(lessons: List<ExamLessonScore>): String =
+        lessons.joinToString(" | ") { lesson ->
+            buildString {
+                append(lesson.lessonId)
+                append(": D ").append(lesson.correct)
+                append(" Y ").append(lesson.wrong)
+                append(" B ").append(lesson.blank)
+                append(" Net ").append(formatNumber(lesson.net))
+                lesson.standardScore?.let { append(" SP ").append(formatNumber(it)) }
+                lesson.weightedStandardScore?.let { append(" ASP ").append(formatNumber(it)) }
+            }
+        }
 
     private fun formatDate(epochMs: Long): String =
         SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale("tr", "TR")).format(Date(epochMs))
