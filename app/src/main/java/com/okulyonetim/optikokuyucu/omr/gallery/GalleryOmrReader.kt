@@ -136,6 +136,7 @@ object GalleryOmrReader {
             } else if (allowFullFrameFallback) {
                 threeMarkerFallback(gray, template, best)
                     ?: GalleryPageRegistrationFallback.recover(gray, template, best)
+                    ?: GalleryBrightPaperRegistrationFallback.recover(gray, template, best)
                     ?: fullFrameFallback(gray, template)
                     ?: best
             } else {
