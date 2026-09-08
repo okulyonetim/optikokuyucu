@@ -403,10 +403,10 @@ private fun ProductHomeScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Spacer(Modifier.height(5.dp)) }
+        item { Spacer(Modifier.height(10.dp)) }
 
         item {
             Row(
@@ -414,15 +414,18 @@ private fun ProductHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("Optik Okuyucu", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text("Optik Okuyucu", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Text(
                         when {
-                            profile?.admin == true -> "Admin ana sayfası · tüm kullanıcı sınavları"
-                            profile != null -> "${profile.displayName} · kişisel sınavlar ve herkese açık sınavlar"
-                            else -> "Optik değerlendirme merkezi"
+                            profile?.admin == true -> "Tüm kullanıcı sınavları"
+                            profile != null -> "${profile.displayName} · sınav ve tarama merkezi"
+                            else -> "Sınav ve tarama merkezi"
                         },
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -431,12 +434,12 @@ private fun ProductHomeScreen(
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                         text = if (profile?.admin == true) "ADMIN" else "OMR",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -446,66 +449,96 @@ private fun ProductHomeScreen(
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("Yeni Tarama", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("Yeni Tarama", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "Sınavı seç, kamerayı aç ve kağıdı oku",
+                            "Sınavı seçin ve kağıdı kamerayla okuyun",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.84f)
                         )
                         Text(
                             "$linkedPapers bağlı kağıt",
                             fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.62f)
                         )
                     }
-                    Button(
-                        onClick = onStartScan,
-                        shape = RoundedCornerShape(13.dp)
+                    Surface(
+                        modifier = Modifier.clickable(onClick = onStartScan),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        contentColor = MaterialTheme.colorScheme.onTertiary,
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Başlat", fontWeight = FontWeight.Bold)
+                        Text(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            text = "Başlat",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
 
         item {
-            Row(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                HomeStatCard(Modifier.weight(1f), "Sınav", examItems.size.toString())
-                HomeStatCard(Modifier.weight(1f), "Taranan", scannedPapers.toString())
-                HomeStatCard(Modifier.weight(1f), "Okunan", readExams.toString())
-                HomeStatCard(Modifier.weight(1f), "Bekleyen", waitingExams.toString())
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HomeStatCell(Modifier.weight(1f), "Sınav", examItems.size.toString())
+                    HomeStatCell(Modifier.weight(1f), "Taranan", scannedPapers.toString())
+                    HomeStatCell(Modifier.weight(1f), "Okunan", readExams.toString())
+                    HomeStatCell(Modifier.weight(1f), "Bekleyen", waitingExams.toString())
+                }
             }
         }
 
         item {
-            Text("Hızlı İşlemler", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Hızlı İşlemler", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { HomeActionCard(Modifier.width(106.dp), "＋", "Yeni Sınav", onNewExam) }
-                item { HomeActionCard(Modifier.width(106.dp), "▤", "Sınavlar", onOpenExams) }
-                item { HomeActionCard(Modifier.width(112.dp), "◎", "Optik Formlar", onOpenForms) }
-                item { HomeActionCard(Modifier.width(106.dp), "●", "Öğrenciler", onOpenStudents) }
-                item { HomeActionCard(Modifier.width(106.dp), "▥", "Sonuçlar", onOpenResults) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HomeActionCard(Modifier.weight(1f), "＋", "Yeni Sınav", onNewExam)
+                    HomeActionCard(Modifier.weight(1f), "▤", "Sınavlar", onOpenExams)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HomeActionCard(Modifier.weight(1f), "◎", "Formlar", onOpenForms)
+                    HomeActionCard(Modifier.weight(1f), "●", "Öğrenciler", onOpenStudents)
+                    HomeActionCard(Modifier.weight(1f), "▥", "Sonuçlar", onOpenResults)
+                }
             }
         }
 
@@ -515,9 +548,9 @@ private fun ProductHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Son Sınavlar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Son Sınavlar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 TextButton(onClick = onOpenExams) {
-                    Text("Tümü", fontSize = 12.sp)
+                    Text("Tümünü Gör", fontSize = 11.sp)
                 }
             }
         }
@@ -526,27 +559,27 @@ private fun ProductHomeScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(13.dp),
+                            .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Henüz görünür sınav yok", fontWeight = FontWeight.SemiBold)
+                            Text("Henüz görünür sınav yok", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "İlk sınavınızı oluşturun.",
-                                fontSize = 11.sp,
+                                "İlk sınavınızı oluşturarak başlayın.",
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        OutlinedButton(onClick = onNewExam, shape = RoundedCornerShape(12.dp)) {
-                            Text("Yeni Sınav", fontSize = 11.sp)
+                        OutlinedButton(onClick = onNewExam, shape = RoundedCornerShape(11.dp)) {
+                            Text("Yeni Sınav", fontSize = 10.sp)
                         }
                     }
                 }
@@ -568,33 +601,24 @@ private fun ProductHomeScreen(
 }
 
 @Composable
-private fun HomeStatCard(modifier: Modifier, label: String, value: String) {
-    Card(
+private fun HomeStatCell(modifier: Modifier, label: String, value: String) {
+    Column(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                value,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                label,
-                fontSize = 9.sp,
-                maxLines = 1,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            value,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            label,
+            fontSize = 9.sp,
+            maxLines = 1,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -606,31 +630,40 @@ private fun HomeActionCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(15.dp),
+        modifier = modifier
+            .height(58.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 9.dp, vertical = 11.dp),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .fillMaxSize()
+                .padding(horizontal = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(9.dp)
             ) {
                 Text(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                     text = symbol,
-                    fontSize = 17.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                label,
+                modifier = Modifier.weight(1f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -643,9 +676,9 @@ private fun HomeExamCard(item: SchoolExamListItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(15.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
