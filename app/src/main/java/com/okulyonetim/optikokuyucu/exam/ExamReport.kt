@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.omr.scoring.ExamScore
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
 import java.text.SimpleDateFormat
@@ -28,9 +29,15 @@ data class ExamReportRow(
     val doubleMark: Int?,
     val suspicious: Int?,
     val noKey: Int?,
+    /** User-facing result: raw net or configured/scaled score depending on the exam scoring setup. */
     val points: Double?,
     val maximumPoints: Double?,
-    val status: ExamReportRowStatus
+    val status: ExamReportRowStatus,
+    val net: Double? = null,
+    val overallRank: Int? = null,
+    val classRank: Int? = null,
+    val scoreScope: ExamCalculatedScoreScope? = null,
+    val scoreNote: String = ""
 )
 
 data class ExamReport(
@@ -38,7 +45,8 @@ data class ExamReport(
     val examName: String,
     val schoolName: String,
     val generatedAtEpochMs: Long,
-    val rows: List<ExamReportRow>
+    val rows: List<ExamReportRow>,
+    val scoringType: ExamScoringType = ExamScoringType.NORMAL
 ) {
     val paperCount: Int get() = rows.size
     val scoredCount: Int get() = rows.count { it.status == ExamReportRowStatus.SCORED }
@@ -46,6 +54,18 @@ data class ExamReport(
     val noAnswerKeyCount: Int get() = rows.count { it.status == ExamReportRowStatus.NO_ANSWER_KEY }
     val missingScanCount: Int get() = rows.count { it.status == ExamReportRowStatus.SCAN_MISSING }
 }
+
+private data class ReportDraft(
+    val ordinal: Int,
+    val scanRecordId: String,
+    val studentName: String,
+    val className: String,
+    val studentNumber: String,
+    val bookletCode: String,
+    val capturedAtEpochMs: Long?,
+    val score: ExamScore?,
+    val status: ExamReportRowStatus
+)
 
 object ExamReportBuilder {
     fun build(
@@ -55,12 +75,12 @@ object ExamReportBuilder {
         generatedAtEpochMs: Long = System.currentTimeMillis()
     ): ExamReport {
         val recordsById = records.associateBy { it.id }
-        val scoringPolicy = ExamScoringPolicyResolver.resolve(exam.wrongAnswerPolicy)
+        val scoringPolicy = ExamScoringPolicyResolver.resolve(exam)
 
-        val rows = exam.papers.mapIndexed { index, link ->
+        val drafts = exam.papers.mapIndexed { index, link ->
             val record = recordsById[link.scanRecordId]
             if (record == null) {
-                return@mapIndexed ExamReportRow(
+                ReportDraft(
                     ordinal = index + 1,
                     scanRecordId = link.scanRecordId,
                     studentName = link.studentName,
@@ -68,48 +88,80 @@ object ExamReportBuilder {
                     studentNumber = link.studentNumber,
                     bookletCode = link.bookletCode,
                     capturedAtEpochMs = null,
-                    correct = null,
-                    wrong = null,
-                    blank = null,
-                    doubleMark = null,
-                    suspicious = null,
-                    noKey = null,
-                    points = null,
-                    maximumPoints = null,
+                    score = null,
                     status = ExamReportRowStatus.SCAN_MISSING
                 )
+            } else {
+                val metadata = ExamPaperResolution.metadata(link, record)
+                val key = ExamPaperResolution.answerKey(link, record, answerKeys)
+                val score = key?.let { stored ->
+                    runCatching {
+                        OmrScorer.score(record, stored.answerKey, scoringPolicy)
+                    }.getOrNull()
+                }
+                val status = when {
+                    score == null -> ExamReportRowStatus.NO_ANSWER_KEY
+                    score.confidentlyEvaluated -> ExamReportRowStatus.SCORED
+                    else -> ExamReportRowStatus.REVIEW_REQUIRED
+                }
+                ReportDraft(
+                    ordinal = index + 1,
+                    scanRecordId = record.id,
+                    studentName = link.studentName,
+                    className = metadata.className,
+                    studentNumber = metadata.studentNumber,
+                    bookletCode = metadata.bookletCode,
+                    capturedAtEpochMs = record.capturedAtEpochMs,
+                    score = score,
+                    status = status
+                )
             }
+        }
 
-            val metadata = ExamPaperResolution.metadata(link, record)
-            val key = ExamPaperResolution.answerKey(link, record, answerKeys)
-            val score = key?.let { stored ->
-                runCatching {
-                    OmrScorer.score(record, stored.answerKey, scoringPolicy)
-                }.getOrNull()
+        val calculatedScores = ExamScoreEngine.calculate(
+            exam = exam,
+            papers = drafts.mapNotNull { draft ->
+                draft.score?.let { score -> ExamPaperScoreInput(draft.scanRecordId, score) }
             }
-            val status = when {
-                score == null -> ExamReportRowStatus.NO_ANSWER_KEY
-                score.confidentlyEvaluated -> ExamReportRowStatus.SCORED
-                else -> ExamReportRowStatus.REVIEW_REQUIRED
-            }
+        )
 
+        val baseRows = drafts.map { draft ->
+            val score = draft.score
+            val calculated = calculatedScores[draft.scanRecordId]
             ExamReportRow(
-                ordinal = index + 1,
-                scanRecordId = record.id,
-                studentName = link.studentName,
-                className = metadata.className,
-                studentNumber = metadata.studentNumber,
-                bookletCode = metadata.bookletCode,
-                capturedAtEpochMs = record.capturedAtEpochMs,
+                ordinal = draft.ordinal,
+                scanRecordId = draft.scanRecordId,
+                studentName = draft.studentName,
+                className = draft.className,
+                studentNumber = draft.studentNumber,
+                bookletCode = draft.bookletCode,
+                capturedAtEpochMs = draft.capturedAtEpochMs,
                 correct = score?.correctCount,
                 wrong = score?.wrongCount,
                 blank = score?.blankCount,
                 doubleMark = score?.doubleMarkCount,
                 suspicious = score?.suspiciousCount,
                 noKey = score?.noKeyCount,
-                points = score?.totalPoints,
-                maximumPoints = key?.answerKey?.answers?.size?.times(scoringPolicy.correctPoints),
-                status = status
+                points = calculated?.calculatedScore,
+                maximumPoints = calculated?.maximumScore,
+                status = draft.status,
+                net = calculated?.net ?: score?.totalPoints,
+                scoreScope = calculated?.scope,
+                scoreNote = calculated?.note.orEmpty()
+            )
+        }
+
+        val overallRanks = rankByScore(baseRows)
+        val classRanks = baseRows
+            .filter { it.className.isNotBlank() }
+            .groupBy { it.className }
+            .values
+            .flatMap { classRows -> rankByScore(classRows).entries }
+            .associate { it.key to it.value }
+        val rows = baseRows.map { row ->
+            row.copy(
+                overallRank = overallRanks[row.scanRecordId],
+                classRank = classRanks[row.scanRecordId]
             )
         }
 
@@ -118,8 +170,20 @@ object ExamReportBuilder {
             examName = exam.name,
             schoolName = exam.schoolName,
             generatedAtEpochMs = generatedAtEpochMs,
-            rows = rows
+            rows = rows,
+            scoringType = exam.scoringConfiguration.type
         )
+    }
+
+    private fun rankByScore(rows: List<ExamReportRow>): Map<String, Int> {
+        val eligible = rows.filter {
+            it.status == ExamReportRowStatus.SCORED && it.points != null
+        }
+        val orderedScores = eligible.mapNotNull { it.points }.distinct().sortedDescending()
+        val rankByValue = orderedScores.mapIndexed { index, value -> value to index + 1 }.toMap()
+        return eligible.associate { row ->
+            row.scanRecordId to requireNotNull(rankByValue[requireNotNull(row.points)])
+        }
     }
 }
 
@@ -141,9 +205,13 @@ object ExamReportCsvExporter {
                 "Çift İşaret",
                 "Şüpheli",
                 "Anahtarsız",
-                "Net / Puan",
+                "Net",
+                "Puan",
                 "Maksimum",
+                "Genel Sıra",
+                "Sınıf Sırası",
                 "Durum",
+                "Puan Notu",
                 "Kayıt ID"
             ).joinToString(";") { escape(it) }
         )
@@ -162,9 +230,13 @@ object ExamReportCsvExporter {
                 row.doubleMark?.toString().orEmpty(),
                 row.suspicious?.toString().orEmpty(),
                 row.noKey?.toString().orEmpty(),
+                row.net?.let(::formatNumber).orEmpty(),
                 row.points?.let(::formatNumber).orEmpty(),
                 row.maximumPoints?.let(::formatNumber).orEmpty(),
+                row.overallRank?.toString().orEmpty(),
+                row.classRank?.toString().orEmpty(),
                 statusLabel(row.status),
+                row.scoreNote,
                 row.scanRecordId
             )
             appendLine(fields.joinToString(";") { escape(it) })
