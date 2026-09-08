@@ -145,7 +145,6 @@ data class Exam(
     val templateSelection: ActiveTemplateSelection,
     val subjectName: String = "",
     val wrongAnswerPolicy: WrongAnswerPolicy = WrongAnswerPolicy.KEEP_AS_IS,
-    val scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration(),
     val folderName: String = "",
     val examDateEpochDay: Long,
     val createdAtEpochMs: Long,
@@ -155,7 +154,8 @@ data class Exam(
     val personalizedFormsEnabled: Boolean = false,
     val ownerUid: String = "",
     val ownerDisplayName: String = "",
-    val isPublic: Boolean = false
+    val isPublic: Boolean = false,
+    val scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration()
 ) {
     init {
         require(id.isNotBlank())
@@ -197,7 +197,6 @@ object ExamFactory {
         examDateEpochDay: Long,
         subjectName: String = "",
         wrongAnswerPolicy: WrongAnswerPolicy = WrongAnswerPolicy.KEEP_AS_IS,
-        scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration(),
         folderName: String = "",
         participants: List<ExamParticipant> = emptyList(),
         bookletCount: Int = 1,
@@ -206,7 +205,8 @@ object ExamFactory {
         ownerDisplayName: String = "",
         isPublic: Boolean = false,
         id: String = UUID.randomUUID().toString(),
-        createdAtEpochMs: Long = System.currentTimeMillis()
+        createdAtEpochMs: Long = System.currentTimeMillis(),
+        scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration()
     ): Exam {
         val normalizedParticipants = participants.map(ExamParticipant::normalized)
             .distinctBy { it.identityKey }
@@ -217,7 +217,6 @@ object ExamFactory {
             templateSelection = templateSelection,
             subjectName = subjectName.trim(),
             wrongAnswerPolicy = wrongAnswerPolicy,
-            scoringConfiguration = scoringConfiguration,
             folderName = folderName.trim(),
             examDateEpochDay = examDateEpochDay,
             createdAtEpochMs = createdAtEpochMs,
@@ -226,7 +225,8 @@ object ExamFactory {
             personalizedFormsEnabled = personalizedFormsEnabled,
             ownerUid = ownerUid.trim(),
             ownerDisplayName = ownerDisplayName.trim(),
-            isPublic = isPublic
+            isPublic = isPublic,
+            scoringConfiguration = scoringConfiguration
         )
     }
 }
