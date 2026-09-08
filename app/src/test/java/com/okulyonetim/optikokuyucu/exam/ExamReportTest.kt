@@ -24,7 +24,7 @@ class ExamReportTest {
     )
 
     @Test
-    fun `builder uses exam metadata fallbacks answer key variant and wrong penalty`() {
+    fun `builder uses configured score while preserving net metadata and booklet resolution`() {
         val exam = Exam(
             id = "exam-1",
             name = "Deneme; 1",
@@ -85,6 +85,7 @@ class ExamReportTest {
         assertEquals(1, report.noAnswerKeyCount)
         assertEquals(1, report.missingScanCount)
         assertEquals(0, report.reviewRequiredCount)
+        assertEquals(ExamScoringType.NORMAL, report.scoringType)
 
         val first = report.rows[0]
         assertEquals("Ali; İmran", first.studentName)
@@ -94,8 +95,12 @@ class ExamReportTest {
         assertEquals(1, first.correct)
         assertEquals(1, first.wrong)
         assertEquals(1, first.blank)
-        assertEquals(0.75, requireNotNull(first.points), 0.0001)
-        assertEquals(3.0, requireNotNull(first.maximumPoints), 0.0001)
+        assertEquals(0.75, requireNotNull(first.net), 0.0001)
+        assertEquals(25.0, requireNotNull(first.points), 0.0001)
+        assertEquals(100.0, requireNotNull(first.maximumPoints), 0.0001)
+        assertEquals(1, first.overallRank)
+        assertEquals(1, first.classRank)
+        assertEquals(ExamCalculatedScoreScope.SCALED, first.scoreScope)
         assertEquals(ExamReportRowStatus.SCORED, first.status)
 
         assertEquals(ExamReportRowStatus.NO_ANSWER_KEY, report.rows[1].status)
@@ -140,6 +145,7 @@ class ExamReportTest {
         assertEquals("B", row.bookletCode)
         assertEquals(1, row.correct)
         assertEquals(0, row.wrong)
+        assertEquals(100.0, requireNotNull(row.points), 0.0001)
         assertEquals(ExamReportRowStatus.SCORED, row.status)
     }
 
@@ -158,11 +164,39 @@ class ExamReportTest {
 
         assertEquals(ExamReportRowStatus.REVIEW_REQUIRED, row.status)
         assertEquals(1, row.suspicious)
+        assertEquals(0.0, requireNotNull(row.net), 0.0001)
         assertEquals(0.0, requireNotNull(row.points), 0.0001)
+        assertEquals(null, row.overallRank)
     }
 
     @Test
-    fun `csv is bom prefixed excel friendly and quotes delimiters`() {
+    fun `scored rows receive overall and class ranking`() {
+        val exam = basicExam("scan-a").copy(
+            papers = listOf(
+                ExamPaperLink("scan-a", studentName = "A", className = "8-A", linkedAtEpochMs = 2L),
+                ExamPaperLink("scan-b", studentName = "B", className = "8-A", linkedAtEpochMs = 3L)
+            )
+        )
+        val records = listOf(
+            record("scan-a", "A", "1", listOf(answer("1", RecordedAnswerState.MARKED, "A"))),
+            record("scan-b", "A", "2", listOf(answer("1", RecordedAnswerState.MARKED, "B")))
+        )
+        val rows = ExamReportBuilder.build(
+            exam,
+            records,
+            listOf(generalKey(mapOf("1" to "A")))
+        ).rows
+
+        assertEquals(100.0, requireNotNull(rows[0].points), 0.0001)
+        assertEquals(0.0, requireNotNull(rows[1].points), 0.0001)
+        assertEquals(1, rows[0].overallRank)
+        assertEquals(2, rows[1].overallRank)
+        assertEquals(1, rows[0].classRank)
+        assertEquals(2, rows[1].classRank)
+    }
+
+    @Test
+    fun `csv is bom prefixed excel friendly and includes net score and ranking`() {
         val report = ExamReportBuilder.build(
             exam = basicExam("scan-a", studentName = "Ali; İmran"),
             records = listOf(
@@ -182,7 +216,7 @@ class ExamReportTest {
         assertTrue(csv.startsWith("\uFEFFSıra;Öğrenci;"))
         assertTrue(csv.contains("\"Ali; İmran\""))
         assertTrue(csv.contains("123;A;"))
-        assertTrue(csv.contains(";1;0;0;0;0;0;1,00;1,00;PUANLANDI;scan-a"))
+        assertTrue(csv.contains(";1;0;0;0;0;0;1,00;100,00;100,00;1;;PUANLANDI;;scan-a"))
     }
 
     private fun basicExam(scanId: String, studentName: String = ""): Exam = Exam(
