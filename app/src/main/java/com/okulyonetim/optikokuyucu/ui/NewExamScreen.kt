@@ -387,19 +387,30 @@ fun NewExamScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "MEB puanlama kuralı",
+                                    if (scoringType == ExamScoringType.LGS) "LGS referans puanlama" else "MEB puanlama kuralı",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                ProductStatusBadge("MEB 2026", ProductBadgeTone.GREEN)
+                                ProductStatusBadge(
+                                    if (scoringType == ExamScoringType.LGS) "2026 REFERANS" else "MEB 2026",
+                                    ProductBadgeTone.GREEN
+                                )
                             }
                             Text(
-                                "3 yanlış 1 doğruyu götürür · 100–500 ölçeği · standart puan ve ders katsayıları otomatik uygulanır.",
+                                if (scoringType == ExamScoringType.LGS) {
+                                    "3 yanlış 1 doğruyu götürür · 2026 ders etkileri · 100–500 ölçeği."
+                                } else {
+                                    "3 yanlış 1 doğruyu götürür · 100–500 ölçeği · standart puan ve dört test katsayısı otomatik uygulanır."
+                                },
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "Uygulamadaki sonuç yerel sınav grubunun istatistikleriyle MEB yöntemi kullanılarak hesaplanır; resmî ulusal sonuç değildir.",
+                                if (scoringType == ExamScoringType.LGS) {
+                                    "Tahmini puan, 2026 LGS sonuçlarından türetilmiş ders bazlı net katsayılarıyla hesaplanır; resmî MEB sonucu değildir."
+                                } else {
+                                    "İOKBS sonucu yerel sınav grubunun istatistikleriyle MEB yöntemi kullanılarak hesaplanır; resmî ulusal sonuç değildir."
+                                },
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -846,7 +857,7 @@ private fun scoringTypeLabel(type: ExamScoringType): String = when (type) {
 private fun scoringTypeDescription(type: ExamScoringType): String = when (type) {
     ExamScoringType.NORMAL -> "Net veya seçilen puan aralığı"
     ExamScoringType.SINGLE_SUBJECT -> "Tek ders için net / puan"
-    ExamScoringType.LGS -> "MEB yöntemi · 3 yanlış · 100–500"
+    ExamScoringType.LGS -> "2026 referans tahmini · 3 yanlış · 100–500"
     ExamScoringType.IOKBS -> "MEB yöntemi · 4 test · 100–500"
     ExamScoringType.CUSTOM -> "Özel yanlış oranı ve puan aralığı"
 }

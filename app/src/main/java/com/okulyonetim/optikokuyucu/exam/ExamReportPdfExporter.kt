@@ -100,7 +100,18 @@ object ExamReportPdfExporter {
             108f,
             bodyPaint
         )
-        if (report.scoringType == ExamScoringType.LGS || report.scoringType == ExamScoringType.IOKBS) {
+        if (report.scoringType == ExamScoringType.LGS) {
+            canvas.drawText(
+                fittedText(
+                    "2026 LGS referans katsayılarıyla tahmini puandır; resmî MEB sonucu değildir.",
+                    bodyPaint,
+                    RIGHT - LEFT
+                ),
+                LEFT,
+                121f,
+                bodyPaint
+            )
+        } else if (report.scoringType == ExamScoringType.IOKBS) {
             canvas.drawText(
                 fittedText(
                     "MEB yöntemi yerel sınav grubu istatistikleriyle uygulanır; resmî ulusal MEB sonucu değildir.",
