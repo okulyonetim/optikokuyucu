@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -396,8 +395,8 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState(), enabled = !workspaceDirectDragActive)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             FormInformationCard(
                 formName,
@@ -447,16 +446,12 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 SelectionActions(it, ::editSelected, ::duplicateSelected, ::deleteSelected)
             }
             if (status.isNotBlank()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                ) {
+                ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         status,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -464,7 +459,7 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                 document = document.copy(name = formName.trim().ifBlank { document.name }),
                 openCvReady = openCvReady
             )
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(4.dp))
         }
     }
 
@@ -536,28 +531,29 @@ private fun SelectionActions(
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Seçili öğe", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    selection.id,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                FilledTonalButton(modifier = Modifier.weight(1f), onClick = onEdit) { Text("Düzenle") }
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onDuplicate) { Text("Kopyala") }
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("Seçili öğe", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        selection.id,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 TextButton(
-                    modifier = Modifier.weight(1f),
                     onClick = onDelete,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Sil") }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                ProductFilterPill(label = "Düzenle", selected = true, onClick = onEdit)
+                ProductFilterPill(label = "Kopyala", selected = false, onClick = onDuplicate)
             }
         }
     }
@@ -565,38 +561,14 @@ private fun SelectionActions(
 
 @Composable
 private fun EditorTopBar(title: String, onBack: () -> Unit, onSave: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        shadowElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextButton(
-                onClick = onBack,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
-            ) { Text("‹", style = MaterialTheme.typography.titleLarge) }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text("Form Editörü", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    title,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            FilledTonalButton(onClick = onSave, shape = RoundedCornerShape(14.dp)) {
-                Text("Kaydet", fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
+    ProductTopBar(
+        title = title,
+        leadingText = "‹",
+        onLeadingClick = onBack,
+        actionText = "Kaydet",
+        onActionClick = onSave,
+        showAutomaticBack = false
+    )
 }
 
 @Composable
@@ -609,81 +581,69 @@ private fun FormInformationCard(
     onPaperSizeChange: (DesignerPaperSize) -> Unit,
     onOrientationChange: (DesignerPageOrientation) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        shadowElevation = 1.dp
+    ProductSettingsSection(
+        title = "Form Ayarları",
+        description = "Form adı, sınav türü ve sayfa düzenini belirleyin.",
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Form Ayarları", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Form adı, sınav türü ve sayfa düzenini belirleyin.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            OutlinedTextField(
-                value = formName,
-                onValueChange = onFormNameChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Form adı *") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+        OutlinedTextField(
+            value = formName,
+            onValueChange = onFormNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Form adı *") },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp)
+        )
+        DropdownField(
+            "Sınav Türü",
+            if (formSpec.examMode == DesignerExamMode.UNSPECIFIED) "Seçiniz" else formSpec.examMode.displayName,
+            listOf(DesignerExamMode.SINGLE_LESSON, DesignerExamMode.MULTI_LESSON),
+            { it.displayName },
+            onExamModeChange
+        )
+        if (formSpec.examMode != DesignerExamMode.UNSPECIFIED) {
+            DropdownField(
+                "Deneme Türü",
+                formSpec.examPreset.displayName,
+                listOf(
+                    DesignerExamPreset.CUSTOM,
+                    DesignerExamPreset.LGS,
+                    DesignerExamPreset.TYT,
+                    DesignerExamPreset.AYT,
+                    DesignerExamPreset.YDT,
+                    DesignerExamPreset.ALES,
+                    DesignerExamPreset.DGS,
+                    DesignerExamPreset.KPSS,
+                    DesignerExamPreset.TUS,
+                    DesignerExamPreset.SCHOLARSHIP
+                ),
+                { it.displayName },
+                onExamPresetChange
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DropdownField(
+                "Kağıt",
+                formSpec.paperSize.displayName,
+                listOf(
+                    DesignerPaperSize.A3,
+                    DesignerPaperSize.A4,
+                    DesignerPaperSize.A5,
+                    DesignerPaperSize.A6,
+                    DesignerPaperSize.A7
+                ),
+                { it.displayName },
+                onPaperSizeChange,
+                Modifier.weight(1f)
             )
             DropdownField(
-                "Sınav Türü",
-                if (formSpec.examMode == DesignerExamMode.UNSPECIFIED) "Seçiniz" else formSpec.examMode.displayName,
-                listOf(DesignerExamMode.SINGLE_LESSON, DesignerExamMode.MULTI_LESSON),
+                "Yön",
+                formSpec.orientation.displayName,
+                listOf(DesignerPageOrientation.PORTRAIT, DesignerPageOrientation.LANDSCAPE),
                 { it.displayName },
-                onExamModeChange
+                onOrientationChange,
+                Modifier.weight(1f)
             )
-            if (formSpec.examMode != DesignerExamMode.UNSPECIFIED) {
-                DropdownField(
-                    "Deneme Türü",
-                    formSpec.examPreset.displayName,
-                    listOf(
-                        DesignerExamPreset.CUSTOM,
-                        DesignerExamPreset.LGS,
-                        DesignerExamPreset.TYT,
-                        DesignerExamPreset.AYT,
-                        DesignerExamPreset.YDT,
-                        DesignerExamPreset.ALES,
-                        DesignerExamPreset.DGS,
-                        DesignerExamPreset.KPSS,
-                        DesignerExamPreset.TUS,
-                        DesignerExamPreset.SCHOLARSHIP
-                    ),
-                    { it.displayName },
-                    onExamPresetChange
-                )
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DropdownField(
-                    "Kağıt",
-                    formSpec.paperSize.displayName,
-                    listOf(
-                        DesignerPaperSize.A3,
-                        DesignerPaperSize.A4,
-                        DesignerPaperSize.A5,
-                        DesignerPaperSize.A6,
-                        DesignerPaperSize.A7
-                    ),
-                    { it.displayName },
-                    onPaperSizeChange,
-                    Modifier.weight(1f)
-                )
-                DropdownField(
-                    "Yön",
-                    formSpec.orientation.displayName,
-                    listOf(DesignerPageOrientation.PORTRAIT, DesignerPageOrientation.LANDSCAPE),
-                    { it.displayName },
-                    onOrientationChange,
-                    Modifier.weight(1f)
-                )
-            }
         }
     }
 }
@@ -706,14 +666,12 @@ private fun <T> DropdownField(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = true },
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ProductCompactCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { expanded = true }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(value, modifier = Modifier.weight(1f), maxLines = 1)
@@ -737,27 +695,21 @@ private fun <T> DropdownField(
 
 @Composable
 private fun OpticalFormAreaHeader(onAdd: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
-    ) {
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text("Tasarım Alanı", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Alan ekleyin, seçin ve sayfa üzerinde taşıyın.",
+                    "Alan ekleyin, seçin ve taşıyın.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            FilledTonalButton(onClick = onAdd, shape = RoundedCornerShape(14.dp)) {
-                Text("＋ Alan Ekle", fontWeight = FontWeight.SemiBold)
-            }
+            ProductFilterPill(label = "Alan Ekle", selected = true, onClick = onAdd)
         }
     }
 }
@@ -768,7 +720,7 @@ private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAr
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Alan Ekle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -787,18 +739,17 @@ private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAr
                     color = MaterialTheme.colorScheme.primary
                 )
                 section.kinds.forEach { kind ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelected(kind) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                    ProductCompactCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onSelected(kind) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Surface(
-                                modifier = Modifier.size(40.dp),
+                                modifier = Modifier.size(36.dp),
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.primary
@@ -813,7 +764,7 @@ private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAr
                     }
                 }
             }
-            Spacer(Modifier.size(18.dp))
+            Spacer(Modifier.size(14.dp))
         }
     }
 }
