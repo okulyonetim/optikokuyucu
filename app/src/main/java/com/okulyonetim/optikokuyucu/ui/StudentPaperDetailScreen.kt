@@ -526,48 +526,90 @@ private fun LessonScoreSummary(
     lessonNames: Map<String, String>
 ) {
     if (lessons.isEmpty()) return
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 "Ders Bazlı Sonuçlar",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                "Her dersin doğru, yanlış, boş ve net dağılımı",
+                fontSize = 9.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
             lessons.forEach { lesson ->
-                Row(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
-                    Text(
-                        lessonNames[lesson.lessonId] ?: humanizeLesson(lesson.lessonId),
-                        modifier = Modifier.weight(1f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        buildString {
-                            append("D ").append(lesson.correct)
-                            append(" · Y ").append(lesson.wrong)
-                            append(" · B ").append(lesson.blank)
-                            append(" · N ").append(formatNet(lesson.net))
-                            lesson.standardScore?.let { append(" · SP ").append(formatNet(it)) }
-                            lesson.weightedStandardScore?.let { append(" · ASP ").append(formatNet(it)) }
-                        },
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Text(
+                            lessonNames[lesson.lessonId] ?: humanizeLesson(lesson.lessonId),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LessonMetricChip("D", lesson.correct.toString(), CorrectGreen)
+                            LessonMetricChip("Y", lesson.wrong.toString(), WrongRed)
+                            LessonMetricChip("B", lesson.blank.toString(), MaterialTheme.colorScheme.onSurfaceVariant)
+                            LessonMetricChip("N", formatNet(lesson.net), MaterialTheme.colorScheme.primary)
+                        }
+                        if (lesson.standardScore != null || lesson.weightedStandardScore != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                lesson.standardScore?.let {
+                                    LessonMetricChip("SP", formatNet(it), MaterialTheme.colorScheme.secondary)
+                                }
+                                lesson.weightedStandardScore?.let {
+                                    LessonMetricChip("ASP", formatNet(it), MaterialTheme.colorScheme.tertiary)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LessonMetricChip(label: String, value: String, tone: Color) {
+    Surface(
+        color = tone.copy(alpha = 0.12f),
+        contentColor = tone,
+        shape = RoundedCornerShape(9.dp)
+    ) {
+        Text(
+            text = "$label $value",
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

@@ -14,6 +14,7 @@ import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalHomographySolver
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
+import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQualityEvaluator
 import com.okulyonetim.optikokuyucu.omr.markgrid.CanonicalMarkGridReader
 import com.okulyonetim.optikokuyucu.omr.markgrid.MarkGridReadResult
 import com.okulyonetim.optikokuyucu.omr.template.FiducialCorner
@@ -133,7 +134,9 @@ object GalleryOmrReader {
             if (best.canonicalRegistration != null) {
                 best
             } else if (allowFullFrameFallback) {
-                fullFrameFallback(gray, template) ?: best
+                threeMarkerFallback(gray, template, best)
+                    ?: fullFrameFallback(gray, template)
+                    ?: best
             } else {
                 best
             }
@@ -143,11 +146,52 @@ object GalleryOmrReader {
     }
 
     /**
+     * Gallery imports can lose one ArUco marker because of JPEG compression, resizing or a slight
+     * crop even when the rest of the form is clean. If exactly three expected marker IDs survive,
+     * infer only the missing corner and keep the real detected markers unchanged. This recovery is
+     * deliberately restricted to the gallery path and never weakens live CameraX marker gating.
+     */
+    private fun threeMarkerFallback(
+        gray: Mat,
+        template: OmrTemplate,
+        detection: FiducialDetectionResult
+    ): FiducialDetectionResult? {
+        val expectedIdByCorner = template.fiducials.associate { it.corner to it.markerId }
+        val centers = buildMap<FiducialCorner, ImagePoint> {
+            expectedIdByCorner.forEach { (corner, markerId) ->
+                detection.detectedMarkers[markerId]?.center?.let { put(corner, it) }
+            }
+        }
+        val quad = GalleryRegistrationFallback.inferAnchorQuadrilateral(centers) ?: return null
+
+        val marginX = gray.cols() * INFERRED_CORNER_MARGIN_RATIO
+        val marginY = gray.rows() * INFERRED_CORNER_MARGIN_RATIO
+        if (quad.points.any { point ->
+                point.x < -marginX || point.x > gray.cols() + marginX ||
+                    point.y < -marginY || point.y > gray.rows() + marginY
+            }
+        ) {
+            return null
+        }
+
+        val quality = QuadrilateralQualityEvaluator.evaluate(quad, gray.cols(), gray.rows())
+        if (quality.areaRatio < MIN_INFERRED_AREA_RATIO || quality.totalScore < MIN_INFERRED_QUALITY) {
+            return null
+        }
+        val registration = CanonicalHomographySolver.solve(quad, template) ?: return null
+        return detection.copy(
+            pageQuadrilateral = quad,
+            quality = quality,
+            canonicalRegistration = registration
+        )
+    }
+
+    /**
      * Answer-key imports are often screenshots or image exports of the complete form. When the
-     * image aspect ratio already matches the canonical form very closely, the full image itself is
-     * a safe registration frame even if compression/downscaling prevents ArUco detection.
-     * Camera photos with surrounding background normally fail this strict ratio gate and therefore
-     * still require the four real markers.
+     * image aspect ratio already matches the canonical form closely, the full image itself is a
+     * safe registration frame even if compression/downscaling prevents ArUco detection.
+     * Camera photos with surrounding background normally fail this ratio gate and therefore still
+     * require real markers (or the guarded three-marker recovery above).
      */
     private fun fullFrameFallback(gray: Mat, template: OmrTemplate): FiducialDetectionResult? {
         if (gray.cols() < MIN_FULL_FRAME_EDGE || gray.rows() < MIN_FULL_FRAME_EDGE) return null
@@ -207,7 +251,10 @@ object GalleryOmrReader {
 
     private const val MAX_DECODE_EDGE = 2400
     private const val MIN_FULL_FRAME_EDGE = 600
-    private const val MAX_FULL_FRAME_RATIO_ERROR = 0.03
+    private const val MAX_FULL_FRAME_RATIO_ERROR = 0.06
+    private const val INFERRED_CORNER_MARGIN_RATIO = 0.06
+    private const val MIN_INFERRED_AREA_RATIO = 0.08
+    private const val MIN_INFERRED_QUALITY = 0.70
 }
 
 data class GalleryOmrResult(
