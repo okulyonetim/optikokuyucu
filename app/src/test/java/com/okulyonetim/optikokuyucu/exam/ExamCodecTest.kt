@@ -24,6 +24,13 @@ class ExamCodecTest {
             schoolName = "TEST ORTAOKULU",
             templateSelection = selection,
             wrongAnswerPolicy = WrongAnswerPolicy.FOUR_WRONG_ONE_CORRECT,
+            scoringConfiguration = ExamScoringConfiguration(
+                type = ExamScoringType.CUSTOM,
+                minimumScore = 10.0,
+                maximumScore = 120.0,
+                customWrongAnswerDivisor = 5.0,
+                lessonWeights = linkedMapOf("turkce" to 2.0, "matematik" to 3.0)
+            ),
             folderName = "8A",
             examDateEpochDay = 21000L,
             createdAtEpochMs = 123456L,
@@ -74,6 +81,8 @@ class ExamCodecTest {
         assertEquals(1, decoded.bookletCount)
         assertFalse(decoded.personalizedFormsEnabled)
         assertEquals(emptyList<ExamParticipant>(), decoded.participants)
+        assertEquals(ExamScoringType.NORMAL, decoded.scoringConfiguration.type)
+        assertEquals(100.0, decoded.scoringConfiguration.maximumScore, 0.0)
     }
 
     @Test
@@ -122,5 +131,24 @@ class ExamCodecTest {
                 createdAtEpochMs = 1L
             )
         }
+    }
+
+    @Test
+    fun officialScoringRangesCannotBeAccidentallyChanged() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ExamScoringConfiguration(
+                type = ExamScoringType.LGS,
+                minimumScore = 0.0,
+                maximumScore = 100.0
+            )
+        }
+        assertEquals(
+            ExamScoringConfiguration(
+                type = ExamScoringType.IOKBS,
+                minimumScore = 100.0,
+                maximumScore = 500.0
+            ),
+            ExamScoringConfiguration.forType(ExamScoringType.IOKBS)
+        )
     }
 }

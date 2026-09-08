@@ -11,6 +11,79 @@ enum class WrongAnswerPolicy {
     THREE_WRONG_ONE_CORRECT
 }
 
+/** High-level scoring family. OMR recognition stays independent from this selection. */
+enum class ExamScoringType {
+    NORMAL,
+    SINGLE_SUBJECT,
+    LGS,
+    IOKBS,
+    CUSTOM
+}
+
+enum class ExamScoreMode {
+    RAW_NET,
+    SCALED
+}
+
+/**
+ * Persisted scoring settings for one exam.
+ *
+ * LGS/IOKBS deliberately keep the official 100–500 range fixed. Their final score is cohort based;
+ * the scoring engine therefore labels locally calculated values as local-cohort MEB-method scores,
+ * never as the student's official national MEB result.
+ */
+data class ExamScoringConfiguration(
+    val type: ExamScoringType = ExamScoringType.NORMAL,
+    val scoreMode: ExamScoreMode = ExamScoreMode.SCALED,
+    val minimumScore: Double = 0.0,
+    val maximumScore: Double = 100.0,
+    val customWrongAnswerDivisor: Double? = null,
+    val lessonWeights: Map<String, Double> = emptyMap()
+) {
+    init {
+        require(minimumScore.isFinite()) { "Taban puan sonlu bir sayı olmalıdır." }
+        require(maximumScore.isFinite()) { "Tavan puan sonlu bir sayı olmalıdır." }
+        require(maximumScore > minimumScore) { "Tavan puan taban puandan büyük olmalıdır." }
+        require(customWrongAnswerDivisor == null ||
+            (customWrongAnswerDivisor.isFinite() && customWrongAnswerDivisor > 0.0)) {
+            "Özel yanlış götürme oranı sıfırdan büyük olmalıdır."
+        }
+        require(lessonWeights.keys.all { it.isNotBlank() }) { "Ders ağırlığı anahtarı boş olamaz." }
+        require(lessonWeights.values.all { it.isFinite() && it > 0.0 }) {
+            "Ders ağırlıkları sıfırdan büyük sonlu sayılar olmalıdır."
+        }
+        if (type != ExamScoringType.CUSTOM) {
+            require(customWrongAnswerDivisor == null) {
+                "Özel yanlış götürme oranı yalnız özel puanlamada kullanılabilir."
+            }
+            require(lessonWeights.isEmpty()) {
+                "Ders ağırlıkları yalnız özel puanlamada değiştirilebilir."
+            }
+        }
+        if (type == ExamScoringType.LGS || type == ExamScoringType.IOKBS) {
+            require(scoreMode == ExamScoreMode.SCALED) { "LGS/İOKBS puanı 100–500 ölçeğinde hesaplanır." }
+            require(minimumScore == 100.0 && maximumScore == 500.0) {
+                "LGS/İOKBS puan aralığı 100–500 olmalıdır."
+            }
+        }
+    }
+
+    companion object {
+        fun forType(type: ExamScoringType): ExamScoringConfiguration = when (type) {
+            ExamScoringType.LGS,
+            ExamScoringType.IOKBS -> ExamScoringConfiguration(
+                type = type,
+                scoreMode = ExamScoreMode.SCALED,
+                minimumScore = 100.0,
+                maximumScore = 500.0
+            )
+            ExamScoringType.SINGLE_SUBJECT -> ExamScoringConfiguration(type = type)
+            ExamScoringType.CUSTOM -> ExamScoringConfiguration(type = type)
+            ExamScoringType.NORMAL -> ExamScoringConfiguration()
+        }
+    }
+}
+
 enum class ExamStatus {
     WAITING,
     READ
@@ -81,7 +154,8 @@ data class Exam(
     val personalizedFormsEnabled: Boolean = false,
     val ownerUid: String = "",
     val ownerDisplayName: String = "",
-    val isPublic: Boolean = false
+    val isPublic: Boolean = false,
+    val scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration()
 ) {
     init {
         require(id.isNotBlank())
@@ -131,7 +205,8 @@ object ExamFactory {
         ownerDisplayName: String = "",
         isPublic: Boolean = false,
         id: String = UUID.randomUUID().toString(),
-        createdAtEpochMs: Long = System.currentTimeMillis()
+        createdAtEpochMs: Long = System.currentTimeMillis(),
+        scoringConfiguration: ExamScoringConfiguration = ExamScoringConfiguration()
     ): Exam {
         val normalizedParticipants = participants.map(ExamParticipant::normalized)
             .distinctBy { it.identityKey }
@@ -150,7 +225,8 @@ object ExamFactory {
             personalizedFormsEnabled = personalizedFormsEnabled,
             ownerUid = ownerUid.trim(),
             ownerDisplayName = ownerDisplayName.trim(),
-            isPublic = isPublic
+            isPublic = isPublic,
+            scoringConfiguration = scoringConfiguration
         )
     }
 }

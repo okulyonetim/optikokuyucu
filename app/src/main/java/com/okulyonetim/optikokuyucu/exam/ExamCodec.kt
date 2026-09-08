@@ -47,6 +47,7 @@ object ExamCodec {
             out.writeUTF(exam.ownerUid)
             out.writeUTF(exam.ownerDisplayName)
             out.writeBoolean(exam.isPublic)
+            writeScoringConfiguration(out, exam.scoringConfiguration)
         }
         return bytes.toByteArray()
     }
@@ -111,6 +112,13 @@ object ExamCodec {
                 ownerDisplayName = ""
                 isPublic = false
             }
+            val scoringConfiguration = if (schema >= 5) {
+                readScoringConfiguration(input)
+            } else {
+                ExamScoringConfiguration.forType(
+                    if (subjectName.isNotBlank()) ExamScoringType.SINGLE_SUBJECT else ExamScoringType.NORMAL
+                )
+            }
             val exam = Exam(
                 id = id,
                 name = name,
@@ -118,6 +126,7 @@ object ExamCodec {
                 templateSelection = templateSelection,
                 subjectName = subjectName,
                 wrongAnswerPolicy = wrongAnswerPolicy,
+                scoringConfiguration = scoringConfiguration,
                 folderName = folderName,
                 examDateEpochDay = examDateEpochDay,
                 createdAtEpochMs = createdAtEpochMs,
@@ -134,6 +143,43 @@ object ExamCodec {
         }
     }
 
+    private fun writeScoringConfiguration(out: DataOutputStream, configuration: ExamScoringConfiguration) {
+        out.writeUTF(configuration.type.name)
+        out.writeUTF(configuration.scoreMode.name)
+        out.writeDouble(configuration.minimumScore)
+        out.writeDouble(configuration.maximumScore)
+        out.writeBoolean(configuration.customWrongAnswerDivisor != null)
+        configuration.customWrongAnswerDivisor?.let(out::writeDouble)
+        require(configuration.lessonWeights.size <= MAX_SCORING_WEIGHTS)
+        out.writeInt(configuration.lessonWeights.size)
+        configuration.lessonWeights.toSortedMap().forEach { (lessonId, weight) ->
+            out.writeUTF(lessonId)
+            out.writeDouble(weight)
+        }
+    }
+
+    private fun readScoringConfiguration(input: DataInputStream): ExamScoringConfiguration {
+        val type = ExamScoringType.valueOf(input.readUTF())
+        val scoreMode = ExamScoreMode.valueOf(input.readUTF())
+        val minimumScore = input.readDouble()
+        val maximumScore = input.readDouble()
+        val customWrongAnswerDivisor = if (input.readBoolean()) input.readDouble() else null
+        val weights = linkedMapOf<String, Double>()
+        repeat(readSafeCount(input, MAX_SCORING_WEIGHTS, "ders ağırlığı")) {
+            val lessonId = input.readUTF()
+            require(lessonId !in weights) { "Sınav dosyasında yinelenen ders ağırlığı: $lessonId" }
+            weights[lessonId] = input.readDouble()
+        }
+        return ExamScoringConfiguration(
+            type = type,
+            scoreMode = scoreMode,
+            minimumScore = minimumScore,
+            maximumScore = maximumScore,
+            customWrongAnswerDivisor = customWrongAnswerDivisor,
+            lessonWeights = weights
+        )
+    }
+
     private fun readSafeCount(input: DataInputStream, maximum: Int, label: String): Int {
         val count = input.readInt()
         require(count in 0..maximum) { "Sınav dosyasında geçersiz $label sayısı: $count" }
@@ -142,7 +188,8 @@ object ExamCodec {
 
     private const val MAGIC = 0x4F4D4558 // OMEX
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 4
+    private const val SCHEMA_VERSION = 5
     private const val MAX_PAPERS = 10000
     private const val MAX_PARTICIPANTS = 10000
+    private const val MAX_SCORING_WEIGHTS = 64
 }
