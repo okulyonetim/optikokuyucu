@@ -3,4 +3,7 @@
     <cache-path
         name="answer_key_camera"
         path="answer-key-camera/" />
+    <cache-path
+        name="exam_answer_key_camera"
+        path="exam-answer-key-camera/" />
 </paths>
