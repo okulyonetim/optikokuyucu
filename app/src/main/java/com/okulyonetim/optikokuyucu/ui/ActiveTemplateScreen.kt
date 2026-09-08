@@ -15,11 +15,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -259,19 +256,22 @@ fun ActiveTemplateScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { Spacer(Modifier.height(1.dp)) }
+            item { Spacer(Modifier.height(2.dp)) }
+
             if (profile != null) {
                 item {
                     Text(
-                        if (profile.admin) "Admin · tüm kurum formları" else "${profile.displayName} · kendi formlarınız ve herkese açık formlar",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                        if (profile.admin) "Admin · tüm kurum formları" else "${profile.displayName} · kendi ve ortak formlar",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
             item {
                 ActiveFormSummary(
                     name = resolved.name,
@@ -281,60 +281,85 @@ fun ActiveTemplateScreen(
                     fellBackToDefault = resolved.fellBackToDefault
                 )
             }
+
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    FormStatCard(Modifier.weight(1f), totalCount.toString(), "Toplam")
-                    FormStatCard(Modifier.weight(1f), readyCount.toString(), "Hazır")
-                    FormStatCard(Modifier.weight(1f), savedDocuments.size.toString(), "Kayıtlı")
-                }
+                ProductMetricStrip(
+                    metrics = listOf(
+                        "Toplam" to totalCount.toString(),
+                        "Hazır" to readyCount.toString(),
+                        "Kayıtlı" to savedDocuments.size.toString()
+                    )
+                )
             }
+
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Button(modifier = Modifier.weight(1f), onClick = onCreateForm, shape = RoundedCornerShape(15.dp)) {
-                        Text("＋ Yeni Form", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = onCreateForm,
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text("＋ Yeni Form", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
                         onClick = { importLauncher.launch(arrayOf(DesignerFormTransfer.MIME_TYPE, "application/*")) },
-                        shape = RoundedCornerShape(15.dp)
-                    ) { Text("⇩ İçe Aktar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text("⇩ İçe Aktar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
+
             item {
-                Text(
-                    "Kendi formlarınızı düzenleyip silebilirsiniz. Herkese açık başka kullanıcı formları salt okunur ve silinemez.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            item {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                ProductSearchField(
                     value = query,
                     onValueChange = { query = it },
-                    singleLine = true,
-                    label = { Text("Form veya sahibi ara") },
-                    leadingIcon = { Text("⌕", fontSize = 20.sp) },
-                    shape = RoundedCornerShape(18.dp)
+                    placeholder = "Form veya sahibi ara"
                 )
             }
+
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    item { ProductFilterPill("Tümü", totalCount, filter == FormLibraryFilter.ALL) { filter = FormLibraryFilter.ALL } }
-                    item { ProductFilterPill("Hazır", readyCount, filter == FormLibraryFilter.READY) { filter = FormLibraryFilter.READY } }
-                    item { ProductFilterPill("Kurum", savedDocuments.size, filter == FormLibraryFilter.SAVED) { filter = FormLibraryFilter.SAVED } }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item {
+                        ProductFilterPill("Tümü", totalCount, filter == FormLibraryFilter.ALL) {
+                            filter = FormLibraryFilter.ALL
+                        }
+                    }
+                    item {
+                        ProductFilterPill("Hazır", readyCount, filter == FormLibraryFilter.READY) {
+                            filter = FormLibraryFilter.READY
+                        }
+                    }
+                    item {
+                        ProductFilterPill("Kurum", savedDocuments.size, filter == FormLibraryFilter.SAVED) {
+                            filter = FormLibraryFilter.SAVED
+                        }
+                    }
                 }
             }
+
             if (hiddenReadyKeys.isNotEmpty() && filter != FormLibraryFilter.SAVED) {
                 item {
-                    TextButton(onClick = {
-                        visibilityRepository.restoreAll()
-                        hiddenReadyKeys = emptySet()
-                        status = "Silinen hazır formlar geri getirildi."
-                    }) { Text("Silinen hazır formları geri getir") }
+                    TextButton(
+                        onClick = {
+                            visibilityRepository.restoreAll()
+                            hiddenReadyKeys = emptySet()
+                            status = "Silinen hazır formlar geri getirildi."
+                        }
+                    ) {
+                        Text("Silinen hazır formları geri getir", fontSize = 11.sp)
+                    }
                 }
             }
-            if (defaultVisible || visibleStarters.isNotEmpty()) item { FormSectionTitle("Hazır Şablonlar") }
+
+            if (defaultVisible || visibleStarters.isNotEmpty()) {
+                item { FormSectionTitle("Hazır Şablonlar") }
+            }
+
             if (defaultVisible) {
                 item {
                     TemplateLibraryCard(
@@ -345,18 +370,23 @@ fun ActiveTemplateScreen(
                         badge = "HAZIR",
                         onSelect = { choose(ActiveOmrTemplateDefaults.selection, ActiveOmrTemplateDefaults.displayName) },
                         onDelete = {
-                            requestReadyDelete(ActiveOmrTemplateDefaults.displayName, defaultKey, ActiveOmrTemplateDefaults.selection)
+                            requestReadyDelete(
+                                ActiveOmrTemplateDefaults.displayName,
+                                defaultKey,
+                                ActiveOmrTemplateDefaults.selection
+                            )
                         }
                     )
                 }
             }
+
             items(visibleStarters, key = { "starter-${it.id}-${it.version}" }) { document ->
                 val selection = documentSelection(document)
                 val key = ReadyTemplateVisibilityRepository.starterKey(document.id, document.version)
                 TemplateLibraryCard(
                     name = document.name,
                     subtitle = "${document.id} · v${document.version}",
-                    detail = "Hazır optik form · düzenleme kopya oluşturur",
+                    detail = "Hazır form · düzenleme kopya oluşturur",
                     selected = resolved.selection == selection,
                     badge = "HAZIR",
                     onSelect = { choose(selection, document.name) },
@@ -365,6 +395,7 @@ fun ActiveTemplateScreen(
                     onDelete = { requestReadyDelete(document.name, key, selection) }
                 )
             }
+
             if (visibleSaved.isNotEmpty() || (filter != FormLibraryFilter.READY && savedDocuments.isEmpty())) {
                 item {
                     Row(
@@ -374,14 +405,23 @@ fun ActiveTemplateScreen(
                     ) {
                         FormSectionTitle("Kurum Formları")
                         if (savedDocuments.isNotEmpty()) {
-                            TextButton(onClick = { refreshForms("Kayıtlı formlar yenilendi.") }) { Text("Yenile", fontSize = 12.sp) }
+                            TextButton(onClick = { refreshForms("Kayıtlı formlar yenilendi.") }) {
+                                Text("Yenile", fontSize = 11.sp)
+                            }
                         }
                     }
                 }
             }
+
             if (filter != FormLibraryFilter.READY && savedDocuments.isEmpty() && normalizedQuery.isBlank()) {
-                item { CompactInfoCard("Henüz kurum formu yok", "Yeni Form Oluştur ile kendi optik formunuzu hazırlayabilirsiniz.") }
+                item {
+                    ProductEmptyState(
+                        title = "Henüz kurum formu yok",
+                        body = "Yeni Form ile kendi optik formunuzu hazırlayabilirsiniz."
+                    )
+                }
             }
+
             items(visibleSaved, key = { "saved-${it.id}-${it.version}" }) { document ->
                 val selection = documentSelection(document)
                 val ownership = ownershipStore.ownership(document)
@@ -411,13 +451,27 @@ fun ActiveTemplateScreen(
                     public = isPublic
                 )
             }
+
             if (!defaultVisible && visibleStarters.isEmpty() && visibleSaved.isEmpty()) {
-                item { CompactInfoCard("Form bulunamadı", "Arama metnini veya form filtresini değiştirin.") }
+                item {
+                    ProductEmptyState(
+                        title = "Form bulunamadı",
+                        body = "Arama metnini veya form filtresini değiştirin."
+                    )
+                }
             }
+
             if (status.isNotBlank()) {
-                item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                item {
+                    Text(
+                        status,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp
+                    )
+                }
             }
-            item { Spacer(Modifier.height(12.dp)) }
+
+            item { Spacer(Modifier.height(10.dp)) }
         }
     }
 
@@ -475,34 +529,63 @@ fun ActiveTemplateScreen(
 }
 
 @Composable
-private fun ActiveFormSummary(name: String, questionCount: Int, markGridCount: Int, version: Int, fellBackToDefault: Boolean) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Aktif Form", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f))
-                    Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun ActiveFormSummary(
+    name: String,
+    questionCount: Int,
+    markGridCount: Int,
+    version: Int,
+    fellBackToDefault: Boolean
+) {
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProductInitialBadge("✓")
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text(
+                    "Aktif Form",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "$questionCount soru · $markGridCount bilgi alanı · v$version",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (fellBackToDefault) {
+                    Text(
+                        "Önceki seçim bulunamadı; varsayılan form kullanılıyor.",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
                 }
-                ProductStatusBadge("AKTİF", ProductBadgeTone.GREEN)
             }
-            Text("$questionCount soru · $markGridCount bilgi alanı · v$version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            if (fellBackToDefault) Text("Önceki seçim bulunamadı; güvenli varsayılan form kullanılıyor.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            ProductStatusBadge("AKTİF", ProductBadgeTone.GREEN)
         }
     }
 }
 
 @Composable
-private fun FormStatCard(modifier: Modifier, value: String, label: String) {
-    Card(modifier = modifier, shape = RoundedCornerShape(15.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text("  $label", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+private fun FormSectionTitle(title: String) {
+    Text(
+        text = title,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onBackground
+    )
 }
-
-@Composable
-private fun FormSectionTitle(title: String) { Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
 
 @Composable
 private fun TemplateLibraryCard(
@@ -519,44 +602,97 @@ private fun TemplateLibraryCard(
     onTogglePublic: (() -> Unit)? = null,
     public: Boolean = false
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Column(modifier = Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProductInitialBadge(
+                    text = if (selected) "✓" else name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "F"
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        detail,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                ProductStatusBadge(if (selected) "AKTİF" else badge, if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL)
+                ProductStatusBadge(
+                    text = if (selected) "AKTİF" else badge,
+                    tone = if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
+                )
             }
-            if (onPreview != null || onEdit != null || !selected) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (onPreview != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onPreview, shape = RoundedCornerShape(12.dp)) { Text("Önizle", fontSize = 11.sp) }
-                    if (onEdit != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onEdit, shape = RoundedCornerShape(12.dp)) { Text("Düzenle", fontSize = 11.sp) }
-                    if (!selected) OutlinedButton(modifier = Modifier.weight(1f), onClick = onSelect, shape = RoundedCornerShape(12.dp)) { Text("Seç", fontSize = 11.sp) }
-                }
-            }
-            if (onExport != null || onDelete != null) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (onExport != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport, shape = RoundedCornerShape(12.dp)) { Text("Dışa Aktar (.omrd)", fontSize = 11.sp) }
-                    if (onDelete != null) OutlinedButton(modifier = Modifier.weight(1f), onClick = onDelete, shape = RoundedCornerShape(12.dp)) { Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
-                }
-            }
-            if (onTogglePublic != null) {
-                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onTogglePublic, shape = RoundedCornerShape(12.dp)) {
-                    Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = 11.sp)
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun CompactInfoCard(title: String, description: String) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (onPreview != null || onEdit != null || !selected) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onPreview != null) {
+                        TextButton(onClick = onPreview) { Text("Önizle", fontSize = 10.sp) }
+                    }
+                    if (onEdit != null) {
+                        TextButton(onClick = onEdit) { Text("Düzenle", fontSize = 10.sp) }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (!selected) {
+                        Button(
+                            onClick = onSelect,
+                            shape = RoundedCornerShape(11.dp)
+                        ) {
+                            Text("Seç", fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            if (onExport != null || onDelete != null || onTogglePublic != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onExport != null) {
+                        TextButton(onClick = onExport) { Text("Dışa Aktar", fontSize = 10.sp) }
+                    }
+                    if (onTogglePublic != null) {
+                        TextButton(onClick = onTogglePublic) {
+                            Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = 10.sp)
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (onDelete != null) {
+                        TextButton(onClick = onDelete) {
+                            Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }
