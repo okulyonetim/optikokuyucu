@@ -43,8 +43,8 @@ object ExamReportXlsxExporter {
         append("<col min=\"6\" max=\"6\" width=\"20\" customWidth=\"1\"/>")
         append("<col min=\"7\" max=\"17\" width=\"13\" customWidth=\"1\"/>")
         append("<col min=\"18\" max=\"18\" width=\"18\" customWidth=\"1\"/>")
-        append("<col min=\"19\" max=\"19\" width=\"48\" customWidth=\"1\"/>")
-        append("<col min=\"20\" max=\"20\" width=\"28\" customWidth=\"1\"/>")
+        append("<col min=\"19\" max=\"20\" width=\"48\" customWidth=\"1\"/>")
+        append("<col min=\"21\" max=\"21\" width=\"28\" customWidth=\"1\"/>")
         append("</cols>")
         append("<sheetData>")
 
@@ -67,6 +67,7 @@ object ExamReportXlsxExporter {
             "Genel Sıra",
             "Sınıf Sırası",
             "Durum",
+            "Ders Sonuçları",
             "Puan Notu",
             "Kayıt ID"
         )
@@ -99,14 +100,15 @@ object ExamReportXlsxExporter {
             append(optionalNumberCell(16, excelRow, row.overallRank?.toDouble()))
             append(optionalNumberCell(17, excelRow, row.classRank?.toDouble()))
             append(inlineStringCell(18, excelRow, statusLabel(row.status)))
-            append(inlineStringCell(19, excelRow, row.scoreNote))
-            append(inlineStringCell(20, excelRow, row.scanRecordId))
+            append(inlineStringCell(19, excelRow, formatLessonResults(row.lessons)))
+            append(inlineStringCell(20, excelRow, row.scoreNote))
+            append(inlineStringCell(21, excelRow, row.scanRecordId))
             append("</row>")
         }
 
         append("</sheetData>")
         if (report.rows.isNotEmpty()) {
-            append("<autoFilter ref=\"A1:T")
+            append("<autoFilter ref=\"A1:U")
             append(report.rows.size + 1)
             append("\"/>")
         }
@@ -147,6 +149,22 @@ object ExamReportXlsxExporter {
         }
         return result.reverse().toString()
     }
+
+    private fun formatLessonResults(lessons: List<ExamLessonScore>): String =
+        lessons.joinToString(" | ") { lesson ->
+            buildString {
+                append(lesson.lessonId)
+                append(": D ").append(lesson.correct)
+                append(" Y ").append(lesson.wrong)
+                append(" B ").append(lesson.blank)
+                append(" Net ").append(formatNumber(lesson.net))
+                lesson.standardScore?.let { append(" SP ").append(formatNumber(it)) }
+                lesson.weightedStandardScore?.let { append(" ASP ").append(formatNumber(it)) }
+            }
+        }
+
+    private fun formatNumber(value: Double): String =
+        String.format(Locale("tr", "TR"), "%.2f", value)
 
     private fun formatDate(epochMs: Long): String =
         SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale("tr", "TR")).format(Date(epochMs))
