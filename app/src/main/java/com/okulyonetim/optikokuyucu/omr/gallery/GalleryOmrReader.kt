@@ -135,6 +135,7 @@ object GalleryOmrReader {
                 best
             } else if (allowFullFrameFallback) {
                 threeMarkerFallback(gray, template, best)
+                    ?: GalleryPageRegistrationFallback.recover(gray, template, best)
                     ?: fullFrameFallback(gray, template)
                     ?: best
             } else {
@@ -191,7 +192,7 @@ object GalleryOmrReader {
      * image aspect ratio already matches the canonical form closely, the full image itself is a
      * safe registration frame even if compression/downscaling prevents ArUco detection.
      * Camera photos with surrounding background normally fail this ratio gate and therefore still
-     * require real markers (or the guarded three-marker recovery above).
+     * require real markers or a page-bound gallery recovery.
      */
     private fun fullFrameFallback(gray: Mat, template: OmrTemplate): FiducialDetectionResult? {
         if (gray.cols() < MIN_FULL_FRAME_EDGE || gray.rows() < MIN_FULL_FRAME_EDGE) return null
