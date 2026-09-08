@@ -33,10 +33,13 @@ class FileExamRepository(context: Context) : ExamRepository {
     private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
     override fun save(exam: Exam) {
+        // Old app versions could link multiple raw scans to the same student. Persist only the
+        // newest result per stable student identity from now on.
+        val deduplicatedExam = ExamPaperDeduplication.collapse(exam)
         val profile = activeProfile()
-        val ownedExam = if (exam.ownerUid.isBlank() && profile != null) {
-            exam.copy(ownerUid = profile.uid, ownerDisplayName = profile.displayName)
-        } else exam
+        val ownedExam = if (deduplicatedExam.ownerUid.isBlank() && profile != null) {
+            deduplicatedExam.copy(ownerUid = profile.uid, ownerDisplayName = profile.displayName)
+        } else deduplicatedExam
         if (profile != null && ownedExam.ownerUid.isNotBlank()) {
             require(SchoolContentAccess.canModifyExam(ownedExam, profile)) {
                 "Bu sınavı düzenleme yetkiniz yok."
@@ -73,6 +76,7 @@ class FileExamRepository(context: Context) : ExamRepository {
         return runCatching { ExamCodec.decode(file.readBytes()) }
             .getOrNull()
             ?.takeIf { it.id == id }
+            ?.let(ExamPaperDeduplication::collapse)
     }
 
     override fun list(): List<Exam> {
@@ -80,6 +84,7 @@ class FileExamRepository(context: Context) : ExamRepository {
             .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
             .orEmpty()
             .mapNotNull { file -> runCatching { ExamCodec.decode(file.readBytes()) }.getOrNull() }
+            .map(ExamPaperDeduplication::collapse)
             .sortedWith(
                 compareByDescending<Exam> { it.examDateEpochDay }
                     .thenByDescending { it.createdAtEpochMs }

@@ -77,6 +77,25 @@ class ExamPaperRegistrar(
             ?: participant?.className?.takeIf { it.isNotBlank() }
             ?: detectedClass
 
+        // UI duplicate kontrolü atlanmış, eski bir sürümden gelmiş veya numara biçimi 088/88 gibi
+        // değişmiş olsa bile kayıt katmanında aynı öğrenci için ikinci sonuç oluşturulamaz.
+        val duplicatePapers = ExamPaperDeduplication.matchingPapers(
+            exam = exam,
+            studentNumber = resolvedNumber,
+            className = resolvedClass,
+            studentName = resolvedName
+        ).filterNot { existing ->
+            existing.scanRecordId == record.id || existing.scanRecordId == replaceScanRecordId
+        }
+        require(replaceScanRecordId != null || duplicatePapers.isEmpty()) {
+            val identity = resolvedName.ifBlank {
+                StudentNumber.normalize(resolvedNumber).takeIf { it.isNotBlank() }
+                    ?.let { "Öğrenci no $it" }
+                    ?: "Bu öğrenci"
+            }
+            "$identity için bu sınavda zaten bir sonuç kayıtlı. Yeni okuma için mevcut sonucu güncelleyin."
+        }
+
         val link = if (previous == null) {
             ExamPaperLink(
                 scanRecordId = record.id,
@@ -96,7 +115,7 @@ class ExamPaperRegistrar(
         }
 
         val baseExam = replaceScanRecordId?.let(exam::withoutPaper) ?: exam
-        val updated = baseExam.withPaper(link)
+        val updated = ExamPaperDeduplication.collapse(baseExam.withPaper(link))
         examRepository.save(updated)
         return updated
     }
