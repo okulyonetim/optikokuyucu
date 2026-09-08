@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +56,8 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
-// Tek merkezli tasarım sistemi: renkler, ortak üst bar, filtreler, rozetler ve alt navigasyon burada tutulur.
+// Tek merkezli tasarım sistemi: renkler, ortak yüzeyler, arama, filtreler,
+// özet alanları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
 private val ProductPrimary = Color(0xFF0B6048)
 private val ProductPrimaryLight = Color(0xFFDDEFE6)
 private val ProductSecondary = Color(0xFF2F936E)
@@ -330,6 +332,126 @@ private fun ThemeModeButton(
         FilledTonalButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
     } else {
         OutlinedButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
+    }
+}
+
+@Composable
+fun ProductSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        modifier = modifier.fillMaxWidth(),
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        placeholder = {
+            Text(
+                text = placeholder,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        leadingIcon = {
+            Text(
+                text = "⌕",
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        },
+        textStyle = MaterialTheme.typography.bodyMedium,
+        shape = RoundedCornerShape(14.dp)
+    )
+}
+
+@Composable
+fun ProductCompactCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    val resolvedModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    Surface(
+        modifier = resolvedModifier,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun ProductMetricStrip(
+    metrics: List<Pair<String, String>>,
+    modifier: Modifier = Modifier
+) {
+    ProductCompactCard(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            metrics.take(4).forEach { (label, value) ->
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        text = value,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = label,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProductEmptyState(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier
+) {
+    ProductCompactCard(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(body, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun ProductInitialBadge(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.size(36.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
