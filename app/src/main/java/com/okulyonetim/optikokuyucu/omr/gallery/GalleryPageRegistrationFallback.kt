@@ -15,6 +15,7 @@ import org.opencv.core.MatOfPoint
 import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Point
 import org.opencv.core.Size
+import org.opencv.geometry.Geometry
 import org.opencv.imgproc.Imgproc
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -108,21 +109,21 @@ internal object GalleryPageRegistrationFallback {
             var bestScore = Double.NEGATIVE_INFINITY
 
             contours.forEach { contour ->
-                val area = abs(Imgproc.contourArea(contour))
+                val area = abs(Geometry.contourArea(contour))
                 val areaRatio = area / frameArea
                 if (areaRatio < MIN_PAGE_AREA_RATIO) return@forEach
 
                 val curve = MatOfPoint2f(*contour.toArray())
                 val approx = MatOfPoint2f()
                 try {
-                    val perimeter = Imgproc.arcLength(curve, true)
+                    val perimeter = Geometry.arcLength(curve, true)
                     if (!perimeter.isFinite() || perimeter <= 0.0) return@forEach
-                    Imgproc.approxPolyDP(curve, approx, perimeter * APPROX_EPSILON_RATIO, true)
+                    Geometry.approxPolyDP(curve, approx, perimeter * APPROX_EPSILON_RATIO, true)
                     if (approx.total() != 4L) return@forEach
 
                     val polygon = MatOfPoint(*approx.toArray())
                     val convex = try {
-                        Imgproc.isContourConvex(polygon)
+                        Geometry.isContourConvex(polygon)
                     } finally {
                         polygon.release()
                     }
@@ -176,7 +177,7 @@ internal object GalleryPageRegistrationFallback {
             page.bottomRight.toCvPoint(),
             page.bottomLeft.toCvPoint()
         )
-        val transform = Imgproc.getPerspectiveTransform(sourceCorners, destinationCorners)
+        val transform = Geometry.getPerspectiveTransform(sourceCorners, destinationCorners)
         val byCorner = template.fiducials.associateBy { it.corner }
         val markerSource = MatOfPoint2f(
             byCorner[FiducialCorner.TOP_LEFT]?.bounds?.center?.toCvPoint() ?: return null,
