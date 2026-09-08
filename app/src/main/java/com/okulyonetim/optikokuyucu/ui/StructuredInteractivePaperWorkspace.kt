@@ -10,16 +10,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -236,66 +236,99 @@ internal fun InteractivePaperWorkspace(
     } else null
     val zoomPercent = hundredZoom?.let { (zoom / it * 100.0).roundToInt() } ?: (zoom * 100f).roundToInt()
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${document.formSpec.paperSize.displayName} · $physical", style = MaterialTheme.typography.labelMedium)
-                Text(document.formSpec.orientation.displayName, style = MaterialTheme.typography.labelSmall)
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        "${document.formSpec.paperSize.displayName} · $physical",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        if (displayMode == StructuredPaperDisplayMode.EDIT) {
+                            "%$editorDisplayPercent tuval · Grid 2,5 mm · Snap 1 mm"
+                        } else {
+                            "Baskı önizlemesi · düzenleme işaretleri gizli"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                ProductStatusBadge(document.formSpec.orientation.displayName.uppercase(), ProductBadgeTone.NEUTRAL)
             }
+
             if (compileIssue != null) {
                 Text(
-                    "⚠ Formda sayfa dışına taşan bir OMR alanı var. Taşan öğeyi seçip konumunu veya boyutunu düzeltin.",
+                    "⚠ Sayfa dışına taşan bir OMR alanı var. Konumunu veya boyutunu düzeltin.",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (displayMode == StructuredPaperDisplayMode.EDIT) {
-                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.EDIT) }) { Text("Düzenle ✓") }
-                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.PREVIEW) }) { Text("Önizleme") }
-                } else {
-                    OutlinedButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.EDIT) }) { Text("Düzenle") }
-                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = { switchMode(StructuredPaperDisplayMode.PREVIEW) }) { Text("Önizleme ✓") }
-                }
-            }
-            Text(
-                if (displayMode == StructuredPaperDisplayMode.EDIT) {
-                    "Tuval oranı %$editorDisplayPercent · Canonical ${document.space.width.roundToInt()} × ${document.space.height.roundToInt()} · Grid 2,5 mm · Snap 1 mm"
-                } else {
-                    "Baskı önizlemesi · Grid, seçim çerçeveleri ve taşıma kılavuzları gizli"
-                },
-                style = MaterialTheme.typography.labelSmall
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = { zoom = DesignerMobileViewport.FIT_ZOOM.toFloat(); pan = Offset.Zero }
-                ) { Text("Sığdır") }
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    enabled = hundredZoom != null,
-                    onClick = { hundredZoom?.let(::setZoom); pan = clampPanFor(zoom, Offset.Zero) }
-                ) { Text("100%") }
-                if (displayMode == StructuredPaperDisplayMode.EDIT) {
-                    if (panMode) {
-                        FilledTonalButton(modifier = Modifier.weight(1f), onClick = { panMode = false }) { Text("Gezdir ✓") }
-                    } else {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                panMode = true
-                                activeGuides = DesignerAlignmentGuideMatch()
-                                currentOnDirectDragActiveChange(false)
-                            }
-                        ) { Text("Gezdir") }
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProductFilterPill(
+                    label = "Düzenle",
+                    selected = displayMode == StructuredPaperDisplayMode.EDIT,
+                    onClick = { switchMode(StructuredPaperDisplayMode.EDIT) }
+                )
+                ProductFilterPill(
+                    label = "Önizle",
+                    selected = displayMode == StructuredPaperDisplayMode.PREVIEW,
+                    onClick = { switchMode(StructuredPaperDisplayMode.PREVIEW) }
+                )
+                Spacer(Modifier.weight(1f))
                 TextButton(onClick = { setZoom(zoom / 1.25) }) { Text("−") }
-                Text("Yakınlaştırma $zoomPercent%", style = MaterialTheme.typography.labelMedium)
+                Text("$zoomPercent%", style = MaterialTheme.typography.labelMedium)
                 TextButton(onClick = { setZoom(zoom * 1.25) }) { Text("+") }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProductFilterPill(
+                    label = "Sığdır",
+                    selected = false,
+                    onClick = {
+                        zoom = DesignerMobileViewport.FIT_ZOOM.toFloat()
+                        pan = Offset.Zero
+                    }
+                )
+                if (hundredZoom != null) {
+                    ProductFilterPill(
+                        label = "100%",
+                        selected = false,
+                        onClick = {
+                            hundredZoom.let(::setZoom)
+                            pan = clampPanFor(zoom, Offset.Zero)
+                        }
+                    )
+                }
+                if (displayMode == StructuredPaperDisplayMode.EDIT) {
+                    ProductFilterPill(
+                        label = if (panMode) "Gezdir ✓" else "Gezdir",
+                        selected = panMode,
+                        onClick = {
+                            panMode = !panMode
+                            activeGuides = DesignerAlignmentGuideMatch()
+                            currentOnDirectDragActiveChange(false)
+                        }
+                    )
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -546,18 +579,23 @@ internal fun InteractivePaperWorkspace(
                     }
                 }
             }
+
             Text(
                 when {
                     displayMode == StructuredPaperDisplayMode.PREVIEW ->
-                        "Önizleme modu: baskı mürekkebi gösterilir; grid, seçim ve taşıma işaretleri kapalıdır. Yakınlaştırıp sayfayı gezdirebilirsiniz."
+                        "Önizleme: baskı görünümü. Yakınlaştırıp sayfayı gezdirebilirsiniz."
                     panMode ->
-                        "Gezdir modu: tek parmakla kaydırın, iki parmakla pinch zoom yapın. Düzenlemeye dönmek için Gezdir düğmesine dokunun."
+                        "Gezdir: tek parmakla kaydırın, iki parmakla yakınlaştırın."
                     else ->
-                        "Düzenle modu: öğeyi sürükleyin. Yakınlaştırınca boş tuvalden sürüklemek sayfayı gezdirir; kırmızı kesikli marker bölgelerine öğe bırakılamaz."
+                        "Düzenle: öğeyi sürükleyin; boş tuvalden sürükleyerek yakın görünümde sayfayı gezdirin."
                 },
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (editorChromeVisible) selection?.let { PrecisionGeometryCard(document, it, currentOnDocumentChange) }
+
+            if (editorChromeVisible) {
+                selection?.let { PrecisionGeometryCard(document, it, currentOnDocumentChange) }
+            }
         }
     }
 }
@@ -591,8 +629,11 @@ private fun PrecisionGeometryCard(
     val height = parsePrecisionMillimetres(heightText)
     val valid = !locked && x != null && y != null && width != null && height != null && x >= 0.0 && y >= 0.0 && width > 0.0 && height > 0.0
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text("Hassas Konum ve Boyut · mm", style = MaterialTheme.typography.labelLarge)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 PrecisionField("X", xText, { xText = it }, !locked, Modifier.weight(1f))
@@ -605,7 +646,8 @@ private fun PrecisionGeometryCard(
             if (component != null && (!canResizeWidth || !canResizeHeight)) {
                 Text(
                     "OMR alanında eksen dışı boyut standart baloncuk geometrisinden türetilir.",
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (locked) {
@@ -639,7 +681,7 @@ private fun PrecisionGeometryCard(
                     }
                     onDocumentChange(updated)
                 }
-            ) { Text("Hassas Değerleri Uygula") }
+            ) { Text("Uygula") }
         }
     }
 }
