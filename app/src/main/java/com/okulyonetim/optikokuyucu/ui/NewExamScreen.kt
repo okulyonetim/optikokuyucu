@@ -6,17 +6,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -32,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.ExamFactory
 import com.okulyonetim.optikokuyucu.exam.ExamParticipant
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
@@ -183,364 +182,356 @@ fun NewExamScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ProductSettingsSection(
+                title = "Sınav Bilgileri",
+                description = "Okul adı ayarlardan otomatik gelir. Form ve değerlendirme seçeneklerini bu sınav için belirleyin."
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "Sınav Bilgileri",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                RoundedExamField(
+                    value = examName,
+                    onValueChange = { examName = it },
+                    label = "Sınav Adı *",
+                    prefix = "✎"
+                )
+                RoundedExamField(
+                    value = schoolName,
+                    onValueChange = { schoolName = it },
+                    label = "Okul *",
+                    prefix = "⌂"
+                )
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Optik Form *",
+                        value = selectedTemplate.name,
+                        symbol = "F",
+                        onClick = {
+                            refreshTemplateOptions()
+                            templateMenuOpen = true
+                        }
                     )
-                    Text(
-                        "Okul adı Ayarlar bölümündeki kurum bilgisinden otomatik gelir; bu sınav için ayrıca değiştirilebilir.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    RoundedExamField(
-                        value = examName,
-                        onValueChange = { examName = it },
-                        label = "Sınav Adı *",
-                        prefix = "✎"
-                    )
-                    RoundedExamField(
-                        value = schoolName,
-                        onValueChange = { schoolName = it },
-                        label = "Okul *",
-                        prefix = "⌂"
-                    )
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                refreshTemplateOptions()
-                                templateMenuOpen = true
-                            },
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Text("Optik Form *", style = MaterialTheme.typography.labelSmall)
-                                Text(
-                                    selectedTemplate.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = templateMenuOpen,
-                            onDismissRequest = { templateMenuOpen = false }
-                        ) {
-                            options.forEach { option ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            option.name,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedTemplate = option
-                                        if (option.examMode != DesignerExamMode.SINGLE_LESSON) subjectName = ""
-                                        if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
-                                            personalizedFormsEnabled = false
-                                        }
-                                        templateMenuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    if (singleLessonExam) {
-                        RoundedExamField(
-                            value = subjectName,
-                            onValueChange = {
-                                subjectName = it
-                                if (status == "Tek ders sınavı için ders adı zorunludur.") status = ""
-                            },
-                            label = "Ders Adı *",
-                            prefix = "D"
-                        )
-                    }
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { wrongMenuOpen = true },
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Text("Yanlış Cevaplar", style = MaterialTheme.typography.labelSmall)
-                                Text(wrongPolicyLabel(wrongPolicy), style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = wrongMenuOpen,
-                            onDismissRequest = { wrongMenuOpen = false }
-                        ) {
-                            WrongAnswerPolicy.entries.forEach { policy ->
-                                DropdownMenuItem(
-                                    text = { Text(wrongPolicyLabel(policy)) },
-                                    onClick = {
-                                        wrongPolicy = policy
-                                        wrongMenuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { bookletMenuOpen = true },
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Text("Kitapçık Sayısı", style = MaterialTheme.typography.labelSmall)
-                                Text("$bookletCount kitapçık", style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = bookletMenuOpen,
-                            onDismissRequest = { bookletMenuOpen = false }
-                        ) {
-                            (1..8).forEach { count ->
-                                DropdownMenuItem(
-                                    text = { Text("$count kitapçık") },
-                                    onClick = {
-                                        bookletCount = count
-                                        bookletMenuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    RoundedExamField(
-                        value = folderName,
-                        onValueChange = { folderName = it },
-                        label = "Sınav Klasörü",
-                        prefix = "□"
-                    )
-                    RoundedExamField(
-                        value = dateText,
-                        onValueChange = { dateText = it },
-                        label = "Sınav Tarihi",
-                        prefix = "▣"
-                    )
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "Sınava Girecek Öğrenciler",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "Sınıfları toplu seçebilir veya öğrencileri tek tek ekleyebilirsiniz. İlkokul ve Ortaokulda aynı numara varsa öğrenciler kurumlarına göre ayrı tutulur.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { classMenuOpen = true },
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Text("Toplu Sınıf Seçimi", style = MaterialTheme.typography.labelSmall)
-                                Text(
-                                    if (selectedClasses.isEmpty()) "Sınıf seçin" else selectedClasses.sorted().joinToString(", "),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = classMenuOpen,
-                            onDismissRequest = { classMenuOpen = false }
-                        ) {
-                            if (classNames.isEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
-                                    enabled = false,
-                                    onClick = {}
-                                )
-                            } else {
-                                classNames.forEach { className ->
-                                    val count = roster.count { it.className == className }
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Checkbox(
-                                                    checked = className in selectedClasses,
-                                                    onCheckedChange = null
-                                                )
-                                                Text("$className · $count öğrenci")
-                                            }
-                                        },
-                                        onClick = {
-                                            selectedClasses = if (className in selectedClasses) {
-                                                selectedClasses - className
-                                            } else {
-                                                selectedClasses + className
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { studentMenuOpen = true },
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Text("Bireysel Öğrenci Seçimi", style = MaterialTheme.typography.labelSmall)
-                                Text(
-                                    if (selectedStudentKeys.isEmpty()) "Öğrenci seçin" else "${selectedStudentKeys.size} öğrenci tek tek seçildi",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                        DropdownMenu(
-                            expanded = studentMenuOpen,
-                            onDismissRequest = { studentMenuOpen = false }
-                        ) {
-                            if (roster.isEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
-                                    enabled = false,
-                                    onClick = {}
-                                )
-                            } else {
-                                roster.forEach { student ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Checkbox(
-                                                    checked = student.identityKey in selectedStudentKeys,
-                                                    onCheckedChange = null
-                                                )
-                                                Column {
-                                                    Text(
-                                                        student.fullName,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    Text(
-                                                        buildString {
-                                                            if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
-                                                            append(student.className).append(" · No ").append(student.studentNumber)
-                                                        },
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            selectedStudentKeys = if (student.identityKey in selectedStudentKeys) {
-                                                selectedStudentKeys - student.identityKey
-                                            } else {
-                                                selectedStudentKeys + student.identityKey
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Text(
-                        if (selectedParticipants.isEmpty()) {
-                            "Katılımcı seçilmedi. Sınav serbest taramaya açık kalır."
-                        } else {
-                            "Toplam ${selectedParticipants.size} öğrenci sınava eklenecek."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    DropdownMenu(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        expanded = templateMenuOpen,
+                        onDismissRequest = { templateMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Öğrenciye Özel Form", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                when {
-                                    !designerBackedForm -> "Form Editörü ile oluşturulmuş bir form seçildiğinde kullanılabilir."
-                                    selectedParticipants.isEmpty() -> "Önce en az bir sınıf veya öğrenci seçin."
-                                    else -> "Seçilen öğrenciler için ad, sınıf ve numara bilgileriyle kişiselleştirilmiş form üretimini etkinleştirir."
+                        options.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                onClick = {
+                                    selectedTemplate = option
+                                    if (option.examMode != DesignerExamMode.SINGLE_LESSON) subjectName = ""
+                                    if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
+                                        personalizedFormsEnabled = false
+                                    }
+                                    templateMenuOpen = false
+                                }
                             )
                         }
-                        Switch(
-                            checked = personalizedFormsEnabled,
-                            onCheckedChange = { personalizedFormsEnabled = it },
-                            enabled = designerBackedForm && selectedParticipants.isNotEmpty()
+                    }
+                }
+
+                if (singleLessonExam) {
+                    RoundedExamField(
+                        value = subjectName,
+                        onValueChange = {
+                            subjectName = it
+                            if (status == "Tek ders sınavı için ders adı zorunludur.") status = ""
+                        },
+                        label = "Ders Adı *",
+                        prefix = "D"
+                    )
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Yanlış Cevaplar",
+                        value = wrongPolicyLabel(wrongPolicy),
+                        symbol = "✓",
+                        onClick = { wrongMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        expanded = wrongMenuOpen,
+                        onDismissRequest = { wrongMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        WrongAnswerPolicy.entries.forEach { policy ->
+                            DropdownMenuItem(
+                                text = { Text(wrongPolicyLabel(policy), style = MaterialTheme.typography.bodySmall) },
+                                onClick = {
+                                    wrongPolicy = policy
+                                    wrongMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Kitapçık Sayısı",
+                        value = "$bookletCount kitapçık",
+                        symbol = "K",
+                        onClick = { bookletMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        expanded = bookletMenuOpen,
+                        onDismissRequest = { bookletMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        (1..8).forEach { count ->
+                            DropdownMenuItem(
+                                text = { Text("$count kitapçık", style = MaterialTheme.typography.bodySmall) },
+                                onClick = {
+                                    bookletCount = count
+                                    bookletMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                RoundedExamField(
+                    value = folderName,
+                    onValueChange = { folderName = it },
+                    label = "Sınav Klasörü",
+                    prefix = "□"
+                )
+                RoundedExamField(
+                    value = dateText,
+                    onValueChange = { dateText = it },
+                    label = "Sınav Tarihi",
+                    prefix = "▣"
+                )
+            }
+
+            ProductSettingsSection(
+                title = "Sınava Girecek Öğrenciler",
+                description = "Sınıfları toplu seçin veya yalnız istediğiniz öğrencileri ekleyin."
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Toplu Sınıf Seçimi",
+                        value = if (selectedClasses.isEmpty()) "Sınıf seçin" else selectedClasses.sorted().joinToString(", "),
+                        symbol = "S",
+                        onClick = { classMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        expanded = classMenuOpen,
+                        onDismissRequest = { classMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        if (classNames.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
+                                enabled = false,
+                                onClick = {}
+                            )
+                        } else {
+                            classNames.forEach { className ->
+                                val count = roster.count { it.className == className }
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = className in selectedClasses,
+                                                onCheckedChange = null
+                                            )
+                                            Text("$className · $count öğrenci", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedClasses = if (className in selectedClasses) {
+                                            selectedClasses - className
+                                        } else {
+                                            selectedClasses + className
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Bireysel Öğrenci Seçimi",
+                        value = if (selectedStudentKeys.isEmpty()) "Öğrenci seçin" else "${selectedStudentKeys.size} öğrenci seçildi",
+                        symbol = "Ö",
+                        onClick = { studentMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        modifier = Modifier.heightIn(max = 360.dp),
+                        expanded = studentMenuOpen,
+                        onDismissRequest = { studentMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        if (roster.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Önce Öğrenciler bölümünden öğrenci içe aktarın") },
+                                enabled = false,
+                                onClick = {}
+                            )
+                        } else {
+                            roster.forEach { student ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = student.identityKey in selectedStudentKeys,
+                                                onCheckedChange = null
+                                            )
+                                            Column {
+                                                Text(
+                                                    student.fullName,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    buildString {
+                                                        if (student.schoolName.isNotBlank()) append(student.schoolName).append(" · ")
+                                                        append(student.className).append(" · No ").append(student.studentNumber)
+                                                    },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedStudentKeys = if (student.identityKey in selectedStudentKeys) {
+                                            selectedStudentKeys - student.identityKey
+                                        } else {
+                                            selectedStudentKeys + student.identityKey
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (selectedParticipants.isEmpty()) {
+                            "Katılımcı seçilmedi · serbest tarama"
+                        } else {
+                            "${selectedParticipants.size} öğrenci sınava eklenecek"
+                        },
+                        modifier = Modifier.weight(1f),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    ProductStatusBadge(
+                        text = if (selectedParticipants.isEmpty()) "SERBEST" else "${selectedParticipants.size} ÖĞRENCİ",
+                        tone = if (selectedParticipants.isEmpty()) ProductBadgeTone.NEUTRAL else ProductBadgeTone.GREEN
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        Text("Öğrenciye Özel Form", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            when {
+                                !designerBackedForm -> "Form Editörü ile oluşturulmuş bir form seçin."
+                                selectedParticipants.isEmpty() -> "Önce sınıf veya öğrenci seçin."
+                                else -> "Öğrenci bilgileri forma otomatik işlenir."
+                            },
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    Switch(
+                        checked = personalizedFormsEnabled,
+                        onCheckedChange = { personalizedFormsEnabled = it },
+                        enabled = designerBackedForm && selectedParticipants.isNotEmpty()
+                    )
                 }
             }
 
             if (status.isNotBlank()) {
+                ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ProductStatusBadge("UYARI", ProductBadgeTone.RED)
+                        Text(
+                            status,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamSelectField(
+    label: String,
+    value: String,
+    symbol: String,
+    onClick: () -> Unit
+) {
+    ProductCompactCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProductInitialBadge(symbol)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
                 Text(
-                    status,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    label,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    value,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+            Text("⌄", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
         }
     }
 }
@@ -556,10 +547,11 @@ private fun RoundedExamField(
         modifier = Modifier.fillMaxWidth(),
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        leadingIcon = { Text(prefix) },
+        label = { Text(label, fontSize = 11.sp) },
+        leadingIcon = { Text(prefix, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp) },
         singleLine = true,
-        shape = RoundedCornerShape(18.dp)
+        textStyle = MaterialTheme.typography.bodyMedium,
+        shape = RoundedCornerShape(14.dp)
     )
 }
 
