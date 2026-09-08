@@ -2,7 +2,6 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,27 +12,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -169,11 +163,15 @@ fun ExamDetailScreen(
     val current = exam
     if (current == null) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(20.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Sınav kaydı bulunamadı.")
+            ProductEmptyState(
+                title = "Sınav kaydı bulunamadı",
+                body = "Sınav silinmiş veya artık erişilebilir olmayabilir."
+            )
+            Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onBack) { Text("Geri dön") }
         }
         return
@@ -209,6 +207,7 @@ fun ExamDetailScreen(
             clazz.lowercase().contains(normalizedQuery)) &&
             (classFilter == null || clazz == classFilter)
     }
+    val answerKeyCount = keys.count { keyMatchesExam(it, current) }
 
     fun refresh(message: String = "Sınav yenilendi") {
         exam = examRepository.load(examId)
@@ -227,21 +226,24 @@ fun ExamDetailScreen(
                 actionText = "⋮",
                 onActionClick = { menuExpanded = true }
             )
-        },
-        floatingActionButton = {
-            if (tab == ExamDetailTab.PAPERS) {
-                ExtendedFloatingActionButton(onClick = onScan) {
-                    Text("▣  Kağıt Oku", fontSize = 17.sp)
-                }
-            }
         }
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
+            ProductMetricStrip(
+                modifier = Modifier.padding(horizontal = 14.dp),
+                metrics = listOf(
+                    "Kağıt" to current.papers.size.toString(),
+                    "Anahtar" to answerKeyCount.toString(),
+                    "Öğrenci" to current.participants.size.toString(),
+                    "Kitapçık" to current.bookletCount.toString()
+                )
+            )
+
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -253,7 +255,7 @@ fun ExamDetailScreen(
                 )
                 ProductFilterPill(
                     label = "Anahtarlar",
-                    count = keys.count { keyMatchesExam(it, current) },
+                    count = answerKeyCount,
                     selected = tab == ExamDetailTab.KEYS,
                     onClick = { tab = ExamDetailTab.KEYS }
                 )
@@ -265,37 +267,46 @@ fun ExamDetailScreen(
             }
 
             if (status.isNotBlank()) {
-                Text(
-                    status,
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                ProductCompactCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+                    Text(
+                        status,
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 10.sp
+                    )
+                }
             }
 
             when (tab) {
                 ExamDetailTab.PAPERS -> {
-                    OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                    ProductSearchField(
+                        modifier = Modifier.padding(horizontal = 14.dp),
                         value = query,
                         onValueChange = { query = it },
-                        singleLine = true,
-                        leadingIcon = { Text("⌕", fontSize = 24.sp) },
-                        label = { Text("Öğrenci, numara veya sınıf ara") },
-                        shape = RoundedCornerShape(24.dp)
+                        placeholder = "Öğrenci, numara veya sınıf ara"
                     )
+
+                    Button(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                        onClick = onScan
+                    ) {
+                        Text("▣  Kağıt Oku", fontWeight = FontWeight.SemiBold)
+                    }
+
                     if (classes.isNotEmpty()) {
-                        Row(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            ProductFilterPill(
-                                label = "Tümü",
-                                count = current.papers.size,
-                                selected = classFilter == null,
-                                onClick = { classFilter = null }
-                            )
-                            classes.take(3).forEach { clazz ->
+                            item {
+                                ProductFilterPill(
+                                    label = "Tümü",
+                                    count = current.papers.size,
+                                    selected = classFilter == null,
+                                    onClick = { classFilter = null }
+                                )
+                            }
+                            items(classes, key = { it }) { clazz ->
                                 ProductFilterPill(
                                     label = clazz,
                                     count = current.papers.count { paperClass(it, scans[it.scanRecordId]) == clazz },
@@ -307,29 +318,19 @@ fun ExamDetailScreen(
                     }
 
                     if (visiblePapers.isEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(18.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    if (current.papers.isEmpty()) "Henüz kağıt okunmadı" else "Eşleşen öğrenci bulunamadı",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    if (current.papers.isEmpty()) "Kağıt Oku ile bu sınava öğrenci optiklerini ekleyebilirsiniz."
-                                    else "Arama veya sınıf filtresini değiştirin.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        ProductEmptyState(
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            title = if (current.papers.isEmpty()) "Henüz kağıt okunmadı" else "Eşleşen öğrenci bulunamadı",
+                            body = if (current.papers.isEmpty()) {
+                                "Kağıt Oku ile bu sınava öğrenci optiklerini ekleyebilirsiniz."
+                            } else {
+                                "Arama veya sınıf filtresini değiştirin."
                             }
-                        }
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             items(visiblePapers, key = { it.scanRecordId }) { link ->
                                 ExamPaperCard(
@@ -340,7 +341,7 @@ fun ExamDetailScreen(
                                     onClick = { onOpenPaper(link.scanRecordId) }
                                 )
                             }
-                            item { Spacer(Modifier.height(90.dp)) }
+                            item { Spacer(Modifier.height(12.dp)) }
                         }
                     }
                 }
@@ -793,52 +794,42 @@ private fun ExamPaperCard(
         runCatching { OmrScorer.score(record, key.answerKey, scoringPolicy(exam.wrongAnswerPolicy)) }.getOrNull()
     } else null
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ProductCompactCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(15.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            ProductInitialBadge(initials(name))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
-                Surface(
-                    modifier = Modifier.size(50.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(initials(name), color = MaterialTheme.colorScheme.primary, fontSize = 18.sp)
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        listOf(clazz, number).filter { it.isNotBlank() }.joinToString("  •  ").ifBlank { "Tarama kaydı" },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    listOf(clazz, number).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Tarama kaydı" },
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                when {
-                    record == null -> ProductStatusBadge("KAYIT YOK", ProductBadgeTone.RED)
-                    score == null -> ProductStatusBadge("ANAHTAR YOK", ProductBadgeTone.ORANGE)
-                    else -> ProductStatusBadge(
-                        text = "Puan: ${formatScore(score.totalPoints)}",
-                        tone = if (score.confidentlyEvaluated) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
-                    )
-                }
+            when {
+                record == null -> ProductStatusBadge("KAYIT YOK", ProductBadgeTone.RED)
+                score == null -> ProductStatusBadge("ANAHTAR YOK", ProductBadgeTone.ORANGE)
+                else -> ProductStatusBadge(
+                    text = formatScore(score.totalPoints),
+                    tone = if (score.confidentlyEvaluated) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
+                )
             }
         }
     }
@@ -848,18 +839,26 @@ private fun ExamPaperCard(
 private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Sınav Raporları", style = MaterialTheme.typography.titleMedium)
-                Text("${exam.papers.size} kağıt bu sınava bağlı.")
-                Text("Öğrenci sonuçlarını inceleyebilir; CSV, Excel (.xlsx) veya PDF olarak dışa aktarabilirsiniz.")
-            }
+        ProductSettingsSection(
+            title = "Sınav Raporları",
+            description = "${exam.papers.size} kağıdın öğrenci sonuçlarını inceleyin ve raporları dışa aktarın."
+        ) {
+            ProductMetricStrip(
+                metrics = listOf(
+                    "Kağıt" to exam.papers.size.toString(),
+                    "Öğrenci" to exam.participants.size.toString(),
+                    "Kitapçık" to exam.bookletCount.toString()
+                )
+            )
         }
-        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenReports) {
-            Text("Sınav Raporunu Aç")
-        }
+        ProductSettingsLink(
+            symbol = "↗",
+            title = "Sınav Raporunu Aç",
+            description = "Sonuçları görüntüleyin; CSV, Excel veya PDF olarak dışa aktarın.",
+            onClick = onOpenReports
+        )
     }
 }
 
