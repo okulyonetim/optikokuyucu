@@ -230,6 +230,65 @@ class ExamReportTest {
     }
 
     @Test
+    fun `equal scores share rank and next rank skips tied positions`() {
+        val exam = basicExam("scan-a").copy(
+            papers = listOf(
+                ExamPaperLink("scan-a", studentName = "A", className = "8-A", linkedAtEpochMs = 2L),
+                ExamPaperLink("scan-b", studentName = "B", className = "8-A", linkedAtEpochMs = 3L),
+                ExamPaperLink("scan-c", studentName = "C", className = "8-A", linkedAtEpochMs = 4L),
+                ExamPaperLink("scan-d", studentName = "D", className = "8-A", linkedAtEpochMs = 5L)
+            )
+        )
+        val records = listOf(
+            record(
+                "scan-a",
+                "A",
+                "1",
+                listOf(
+                    answer("1", RecordedAnswerState.MARKED, "A"),
+                    answer("2", RecordedAnswerState.MARKED, "A")
+                )
+            ),
+            record(
+                "scan-b",
+                "A",
+                "2",
+                listOf(
+                    answer("1", RecordedAnswerState.MARKED, "A"),
+                    answer("2", RecordedAnswerState.MARKED, "B")
+                )
+            ),
+            record(
+                "scan-c",
+                "A",
+                "3",
+                listOf(
+                    answer("1", RecordedAnswerState.MARKED, "B"),
+                    answer("2", RecordedAnswerState.MARKED, "A")
+                )
+            ),
+            record(
+                "scan-d",
+                "A",
+                "4",
+                listOf(
+                    answer("1", RecordedAnswerState.MARKED, "B"),
+                    answer("2", RecordedAnswerState.MARKED, "B")
+                )
+            )
+        )
+        val rows = ExamReportBuilder.build(
+            exam,
+            records,
+            listOf(generalKey(linkedMapOf("1" to "A", "2" to "A")))
+        ).rows
+
+        assertEquals(listOf(100.0, 50.0, 50.0, 0.0), rows.map { requireNotNull(it.points) })
+        assertEquals(listOf(1, 2, 2, 4), rows.map { it.overallRank })
+        assertEquals(listOf(1, 2, 2, 4), rows.map { it.classRank })
+    }
+
+    @Test
     fun `csv is bom prefixed excel friendly and includes net score ranking and lessons`() {
         val report = ExamReportBuilder.build(
             exam = basicExam("scan-a", studentName = "Ali; İmran"),
