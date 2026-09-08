@@ -55,17 +55,15 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
-// Brand palette derived from the approved Optik Okuyucu splash artwork.
-// Forest green carries primary actions, warm cream keeps light mode soft,
-// coral adds emphasis and mustard is reserved for waiting/warning states.
+// Tek merkezli tasarım sistemi: renkler, ortak üst bar, filtreler, rozetler ve alt navigasyon burada tutulur.
 private val ProductPrimary = Color(0xFF0B6048)
 private val ProductPrimaryLight = Color(0xFFDDEFE6)
 private val ProductSecondary = Color(0xFF2F936E)
 private val ProductSecondaryLight = Color(0xFFD8EEE4)
 private val ProductAccent = Color(0xFFF16A45)
 private val ProductAccentLight = Color(0xFFFFE1D6)
-private val ProductBackground = Color(0xFFFBF8F0)
-private val ProductSurface = Color(0xFFFFFDF8)
+private val ProductBackground = Color(0xFFFAF9F5)
+private val ProductSurface = Color(0xFFFFFFFF)
 
 private val ProductGreen = Color(0xFF147A55)
 private val ProductGreenSoft = Color(0xFFE0F2E8)
@@ -91,10 +89,10 @@ private val LightProductScheme = lightColorScheme(
     onBackground = Color(0xFF17372E),
     surface = ProductSurface,
     onSurface = Color(0xFF17372E),
-    surfaceVariant = Color(0xFFF0F3EC),
-    onSurfaceVariant = Color(0xFF52655D),
-    outline = Color(0xFF71867C),
-    outlineVariant = Color(0xFFD4DFD8),
+    surfaceVariant = Color(0xFFF2F4EF),
+    onSurfaceVariant = Color(0xFF5A6962),
+    outline = Color(0xFF87968F),
+    outlineVariant = Color(0xFFDDE3DE),
     error = Color(0xFFB3261E),
     onError = Color.White
 )
@@ -112,11 +110,11 @@ private val DarkProductScheme = darkColorScheme(
     onTertiary = Color(0xFF511807),
     tertiaryContainer = Color(0xFF6B301E),
     onTertiaryContainer = Color(0xFFFFDDD2),
-    background = Color(0xFF061A14),
+    background = Color(0xFF071611),
     onBackground = Color(0xFFEAF3EE),
-    surface = Color(0xFF0B251D),
+    surface = Color(0xFF0D211A),
     onSurface = Color(0xFFEAF3EE),
-    surfaceVariant = Color(0xFF15362C),
+    surfaceVariant = Color(0xFF173129),
     onSurfaceVariant = Color(0xFFB9CCC2),
     outline = Color(0xFF91AA9E),
     outlineVariant = Color(0xFF36584B),
@@ -222,17 +220,17 @@ fun ProductTopBar(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         tonalElevation = 0.dp,
-        shadowElevation = 1.dp
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .height(50.dp)
-                .padding(horizontal = 6.dp),
+                .height(46.dp)
+                .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -240,8 +238,8 @@ fun ProductTopBar(
             Text(
                 modifier = Modifier.weight(1f),
                 text = title,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 17.sp,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
@@ -265,11 +263,11 @@ fun ProductTopBar(
 
 @Composable
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
-    val actionWidth = 68.dp
+    val actionWidth = 56.dp
     if (text != null && onClick != null) {
         Box(
             modifier = Modifier
-                .size(width = actionWidth, height = 40.dp)
+                .size(width = actionWidth, height = 38.dp)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
@@ -283,7 +281,7 @@ private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
             )
         }
     } else {
-        Spacer(Modifier.size(width = actionWidth, height = 40.dp))
+        Spacer(Modifier.size(width = actionWidth, height = 38.dp))
     }
 }
 
@@ -346,7 +344,7 @@ fun ProductFilterPill(
     if (selected) {
         Button(
             onClick = onClick,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             contentPadding = ButtonDefaults.ContentPadding
         ) {
             Text(text, fontSize = 12.sp)
@@ -354,8 +352,8 @@ fun ProductFilterPill(
     } else {
         OutlinedButton(
             onClick = onClick,
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline)
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }
@@ -379,7 +377,7 @@ fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
         ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFF9B90)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(9.dp)) {
+    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(8.dp)) {
         Text(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             text = text,
@@ -394,30 +392,28 @@ fun ProductBottomBar(
     selected: ProductTab,
     onSelect: (ProductTab) -> Unit
 ) {
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 10.dp, vertical = 7.dp)
+            .navigationBarsPadding(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            shadowElevation = 7.dp,
-            shape = RoundedCornerShape(24.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(62.dp)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ProductBottomItem(Modifier.weight(1f), "Anasayfa", Icons.Rounded.Home, selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
-                ProductBottomItem(Modifier.weight(1f), "Sınavlar", Icons.Rounded.Assignment, selected == ProductTab.EXAMS) { onSelect(ProductTab.EXAMS) }
-                ProductBottomItem(Modifier.weight(1f), "Öğrenciler", Icons.Rounded.People, selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
-                ProductBottomItem(Modifier.weight(1f), "Formlar", Icons.Rounded.RadioButtonChecked, selected == ProductTab.FORMS) { onSelect(ProductTab.FORMS) }
-                ProductBottomItem(Modifier.weight(1f), "Ayarlar", Icons.Rounded.Settings, selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
-            }
+            ProductBottomItem(Modifier.weight(1f), "Anasayfa", Icons.Rounded.Home, selected == ProductTab.HOME) { onSelect(ProductTab.HOME) }
+            ProductBottomItem(Modifier.weight(1f), "Sınavlar", Icons.Rounded.Assignment, selected == ProductTab.EXAMS) { onSelect(ProductTab.EXAMS) }
+            ProductBottomItem(Modifier.weight(1f), "Öğrenciler", Icons.Rounded.People, selected == ProductTab.STUDENTS) { onSelect(ProductTab.STUDENTS) }
+            ProductBottomItem(Modifier.weight(1f), "Formlar", Icons.Rounded.RadioButtonChecked, selected == ProductTab.FORMS) { onSelect(ProductTab.FORMS) }
+            ProductBottomItem(Modifier.weight(1f), "Ayarlar", Icons.Rounded.Settings, selected == ProductTab.SETTINGS) { onSelect(ProductTab.SETTINGS) }
         }
     }
 }
@@ -431,30 +427,30 @@ private fun ProductBottomItem(
     onClick: () -> Unit
 ) {
     TextButton(
-        modifier = modifier.height(58.dp),
+        modifier = modifier.height(52.dp),
         onClick = onClick,
-        shape = RoundedCornerShape(17.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.textButtonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f) else Color.Transparent,
+            containerColor = Color.Transparent,
             contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 2.dp, vertical = 2.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Surface(
-                modifier = Modifier.size(width = 38.dp, height = 30.dp),
-                color = Color.Transparent,
+                modifier = Modifier.size(width = 32.dp, height = 27.dp),
+                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                 contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -462,7 +458,7 @@ private fun ProductBottomItem(
                 label,
                 maxLines = 1,
                 fontSize = 9.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
             )
         }
     }
