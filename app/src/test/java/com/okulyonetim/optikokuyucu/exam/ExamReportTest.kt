@@ -102,6 +102,9 @@ class ExamReportTest {
         assertEquals(1, first.classRank)
         assertEquals(ExamCalculatedScoreScope.SCALED, first.scoreScope)
         assertEquals(ExamReportRowStatus.SCORED, first.status)
+        assertEquals(1, first.lessons.size)
+        assertEquals("general", first.lessons.single().lessonId)
+        assertEquals(0.75, first.lessons.single().net, 0.0001)
 
         assertEquals(ExamReportRowStatus.NO_ANSWER_KEY, report.rows[1].status)
         assertEquals("456", report.rows[1].studentNumber)
@@ -196,7 +199,7 @@ class ExamReportTest {
     }
 
     @Test
-    fun `csv is bom prefixed excel friendly and includes net score and ranking`() {
+    fun `csv is bom prefixed excel friendly and includes lesson net score and ranking`() {
         val report = ExamReportBuilder.build(
             exam = basicExam("scan-a", studentName = "Ali; İmran"),
             records = listOf(
@@ -214,9 +217,10 @@ class ExamReportTest {
         val csv = ExamReportCsvExporter.export(report)
 
         assertTrue(csv.startsWith("\uFEFFSıra;Öğrenci;"))
+        assertTrue(csv.contains("Ders Sonuçları"))
         assertTrue(csv.contains("\"Ali; İmran\""))
         assertTrue(csv.contains("123;A;"))
-        assertTrue(csv.contains(";1;0;0;0;0;0;1,00;100,00;100,00;1;;PUANLANDI;;scan-a"))
+        assertTrue(csv.contains(";1;0;0;0;0;0;1,00;100,00;100,00;1;;PUANLANDI;general: D 1 Y 0 B 0 Net 1,00;;scan-a"))
     }
 
     private fun basicExam(scanId: String, studentName: String = ""): Exam = Exam(
