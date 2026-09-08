@@ -17,6 +17,7 @@ object ExamCodec {
             out.writeUTF(exam.id)
             out.writeUTF(exam.name)
             out.writeUTF(exam.schoolName)
+            out.writeUTF(exam.subjectName)
             out.writeUTF(exam.templateSelection.source.name)
             out.writeUTF(exam.templateSelection.templateId)
             out.writeInt(exam.templateSelection.templateVersion)
@@ -60,6 +61,7 @@ object ExamCodec {
             val id = input.readUTF()
             val name = input.readUTF()
             val schoolName = input.readUTF()
+            val subjectName = if (schema >= 4) input.readUTF() else ""
             val templateSelection = ActiveTemplateSelection(
                 source = ActiveTemplateSource.valueOf(input.readUTF()),
                 templateId = input.readUTF(),
@@ -114,6 +116,7 @@ object ExamCodec {
                 name = name,
                 schoolName = schoolName,
                 templateSelection = templateSelection,
+                subjectName = subjectName,
                 wrongAnswerPolicy = wrongAnswerPolicy,
                 folderName = folderName,
                 examDateEpochDay = examDateEpochDay,
@@ -139,7 +142,7 @@ object ExamCodec {
 
     private const val MAGIC = 0x4F4D4558 // OMEX
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 3
+    private const val SCHEMA_VERSION = 4
     private const val MAX_PAPERS = 10000
     private const val MAX_PARTICIPANTS = 10000
 }

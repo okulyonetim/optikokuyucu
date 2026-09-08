@@ -36,6 +36,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamFactory
 import com.okulyonetim.optikokuyucu.exam.ExamParticipant
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
@@ -51,7 +52,8 @@ import java.util.Locale
 
 private data class ExamTemplateOption(
     val name: String,
-    val selection: ActiveTemplateSelection
+    val selection: ActiveTemplateSelection,
+    val examMode: DesignerExamMode = DesignerExamMode.UNSPECIFIED
 )
 
 @Composable
@@ -71,6 +73,7 @@ fun NewExamScreen(
 
     var examName by remember { mutableStateOf("") }
     var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
+    var subjectName by remember { mutableStateOf("") }
     var folderName by remember { mutableStateOf("") }
     var dateText by remember { mutableStateOf(todayText()) }
     var selectedTemplate by remember {
@@ -92,6 +95,7 @@ fun NewExamScreen(
         student.className in selectedClasses || student.identityKey in selectedStudentKeys
     }
     val designerBackedForm = selectedTemplate.selection.source == ActiveTemplateSource.DESIGNER_DOCUMENT
+    val singleLessonExam = selectedTemplate.examMode == DesignerExamMode.SINGLE_LESSON
 
     fun warn(message: String) {
         status = message
@@ -103,6 +107,7 @@ fun NewExamScreen(
         when {
             examName.isBlank() -> warn("Sınav adı zorunludur.")
             schoolName.isBlank() -> warn("Okul alanı zorunludur. Ayarlar bölümünden okul adını kaydedebilirsiniz.")
+            singleLessonExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders adı zorunludur.")
             parsedDate == null -> warn("Tarih GG.AA.YYYY biçiminde olmalıdır.")
             personalizedFormsEnabled && selectedParticipants.isEmpty() ->
                 warn("Öğrenciye özel form için en az bir sınıf veya öğrenci seçin.")
@@ -115,6 +120,7 @@ fun NewExamScreen(
                         schoolName = schoolName,
                         templateSelection = selectedTemplate.selection,
                         examDateEpochDay = parsedDate.toEpochDay(),
+                        subjectName = if (singleLessonExam) subjectName else "",
                         wrongAnswerPolicy = wrongPolicy,
                         folderName = folderName,
                         participants = selectedParticipants.map { student ->
@@ -227,6 +233,7 @@ fun NewExamScreen(
                                     },
                                     onClick = {
                                         selectedTemplate = option
+                                        if (option.examMode != DesignerExamMode.SINGLE_LESSON) subjectName = ""
                                         if (option.selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) {
                                             personalizedFormsEnabled = false
                                         }
@@ -235,6 +242,18 @@ fun NewExamScreen(
                                 )
                             }
                         }
+                    }
+
+                    if (singleLessonExam) {
+                        RoundedExamField(
+                            value = subjectName,
+                            onValueChange = {
+                                subjectName = it
+                                if (status == "Tek ders sınavı için ders adı zorunludur.") status = ""
+                            },
+                            label = "Ders Adı *",
+                            prefix = "D"
+                        )
                     }
 
                     Box(modifier = Modifier.fillMaxWidth()) {
@@ -528,7 +547,8 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
                 source = ActiveTemplateSource.DESIGNER_DOCUMENT,
                 templateId = document.id,
                 templateVersion = document.version
-            )
+            ),
+            examMode = document.formSpec.examMode
         )
     }
     val saved = FileDesignerDocumentRepository(context).list().map { document ->
@@ -538,7 +558,8 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
                 source = ActiveTemplateSource.DESIGNER_DOCUMENT,
                 templateId = document.id,
                 templateVersion = document.version
-            )
+            ),
+            examMode = document.formSpec.examMode
         )
     }
     return (listOf(

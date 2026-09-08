@@ -216,10 +216,15 @@ fun ExamAnswerKeyEditor(
         status = "Cevap anahtarı okunuyor…"
         worker.execute {
             runCatching {
-                val result = GalleryOmrReader.read(context, uri, template)
+                val result = GalleryOmrReader.read(
+                    context = context,
+                    uri = uri,
+                    template = template,
+                    allowFullFrameFallback = true
+                )
                 try {
                     require(result.rectificationReady) {
-                        "Form dört köşe marker ile güvenilir biçimde hizalanamadı."
+                        "Form dört köşe marker ile güvenilir biçimde hizalanamadı. Dört markerın da görüntüde olduğundan emin olun."
                     }
                     val capture = AnswerKeyCapture.fromRead(template.id, template.version, result.bubbleResult)
                     require(capture.successful) {
@@ -374,13 +379,19 @@ fun ExamAnswerKeyEditor(
             Box(modifier = Modifier.weight(1f)) {
                 KeySelectorButton(
                     label = "Ders",
-                    value = selectedSection?.label ?: "Ders yok",
+                    value = exam.subjectName.ifBlank { selectedSection?.label ?: "Ders yok" },
                     onClick = { sectionMenu = true }
                 )
                 DropdownMenu(expanded = sectionMenu, onDismissRequest = { sectionMenu = false }) {
                     sections.forEach { section ->
                         DropdownMenuItem(
-                            text = { Text(section.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            text = {
+                                Text(
+                                    exam.subjectName.ifBlank { section.label },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
                             onClick = { sectionId = section.id; sectionMenu = false }
                         )
                     }
