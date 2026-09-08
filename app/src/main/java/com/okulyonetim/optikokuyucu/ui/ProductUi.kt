@@ -192,7 +192,8 @@ fun ProductTopBar(
     onLeadingClick: (() -> Unit)? = null,
     actionText: String = "⋮",
     onActionClick: (() -> Unit)? = null,
-    showAutomaticBack: Boolean = true
+    showAutomaticBack: Boolean = true,
+    includeStatusBarPadding: Boolean = true
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
@@ -218,6 +219,15 @@ fun ProductTopBar(
         settingsPanelAvailable -> ({ settingsPanelOpen = true })
         else -> null
     }
+    val compactRowModifier = Modifier
+        .fillMaxWidth()
+        .height(42.dp)
+        .padding(horizontal = 6.dp)
+    val rowModifier = if (includeStatusBarPadding) {
+        Modifier.statusBarsPadding().then(compactRowModifier)
+    } else {
+        compactRowModifier
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -227,11 +237,7 @@ fun ProductTopBar(
         shadowElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier
-                .statusBarsPadding()
-                .fillMaxWidth()
-                .height(46.dp)
-                .padding(horizontal = 8.dp),
+            modifier = rowModifier,
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -240,7 +246,7 @@ fun ProductTopBar(
                 modifier = Modifier.weight(1f),
                 text = title,
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
@@ -260,25 +266,25 @@ fun ProductTopBar(
 
 @Composable
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
-    val actionWidth = 56.dp
+    val actionWidth = 48.dp
     if (text != null && onClick != null) {
         Box(
             modifier = Modifier
-                .size(width = actionWidth, height = 38.dp)
+                .size(width = actionWidth, height = 34.dp)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = text,
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = if (text.length > 2) 13.sp else 20.sp,
+                fontSize = if (text.length > 2) 12.sp else 18.sp,
                 fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )
         }
     } else {
-        Spacer(Modifier.size(width = actionWidth, height = 38.dp))
+        Spacer(Modifier.size(width = actionWidth, height = 34.dp))
     }
 }
 
