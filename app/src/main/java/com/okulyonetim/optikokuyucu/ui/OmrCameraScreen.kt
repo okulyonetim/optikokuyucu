@@ -18,6 +18,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,8 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -145,27 +145,24 @@ private fun CameraPermissionContent(
             onLeadingClick = onBack
         )
         Box(
-            modifier = Modifier.fillMaxSize().padding(20.dp),
+            modifier = Modifier.fillMaxSize().padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
+            ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.padding(22.dp),
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("▣", fontSize = 38.sp, color = MaterialTheme.colorScheme.primary)
-                    Text("Kamera izni gerekli", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    ProductInitialBadge("▣")
+                    Text("Kamera izni gerekli", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         "Optik formları canlı okuyabilmek için kameraya erişim vermelisiniz.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
                     )
-                    Button(onClick = onRequestPermission, shape = RoundedCornerShape(16.dp)) {
-                        Text("Kamera İzni Ver")
+                    Button(onClick = onRequestPermission, shape = RoundedCornerShape(12.dp)) {
+                        Text("Kamera İzni Ver", fontSize = 12.sp)
                     }
                 }
             }
@@ -336,7 +333,7 @@ private fun CameraPreviewContent(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             title = title,
             subtitle = subtitle ?: "${template.id} · v${template.version}",
             stats = stats,
@@ -356,32 +353,18 @@ private fun CameraPreviewContent(
             }
         )
 
-        Surface(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 24.dp),
-            color = Color.Black.copy(alpha = 0.62f),
-            contentColor = Color.White,
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
-                text = cameraMessage,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             if (showRawReadCard) {
                 liveRead?.let { result -> LiveReadResultCard(result = result) }
             }
             CameraStatusPanel(
+                message = cameraMessage,
                 stateText = scanStateText,
                 stats = stats,
                 openCvReady = openCvReady
@@ -411,19 +394,19 @@ private fun CameraOptionsSheet(
     onShowStudentSummaryChanged: (Boolean) -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Kamera Seçenekleri", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Hassasiyet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("Kamera Seçenekleri", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text("Hassasiyet", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            "Normal, hatasız çalışan standart okuma değerleridir. Yüksek yalnız soluk işaretlerde; Düşük ise çok koyu/baskılı formlarda tercih edilmelidir.",
+            "Normal standart okumadır. Yüksek soluk işaretlerde, Düşük çok koyu baskılarda kullanılabilir.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall
+            fontSize = 10.sp
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             SensitivityButton(
                 modifier = Modifier.weight(1f),
@@ -453,11 +436,11 @@ private fun CameraOptionsSheet(
                 onCheckedChange = onShowStudentSummaryChanged
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Öğrenci bilgisini göster", fontWeight = FontWeight.SemiBold)
+                Text("Öğrenci bilgisini göster", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Okuma sonrası ad, sınıf, doğru, yanlış, boş ve net bilgisini 3 saniye gösterir.",
+                    "Okuma sonrası öğrenci ve sonuç özetini kısa süre gösterir.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
+                    fontSize = 10.sp
                 )
             }
         }
@@ -472,12 +455,12 @@ private fun SensitivityButton(
     onClick: () -> Unit
 ) {
     if (selected) {
-        Button(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(14.dp)) {
-            Text(text)
+        Button(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
+            Text(text, fontSize = 11.sp)
         }
     } else {
-        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(14.dp)) {
-            Text(text)
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
+            Text(text, fontSize = 11.sp)
         }
     }
 }
@@ -500,54 +483,61 @@ private fun CameraProductHeader(
     val stateText = when {
         !openCvReady -> "Okuma motoru hazır değil"
         !selfTest.passed -> "Okuma motoru kontrol gerekli"
-        stats.markerCount > 0 -> "${stats.markerCount}/4 marker · güven %${(stats.pageConfidence * 100).toInt()}"
-        else -> "Otomatik okuma açık"
+        stats.markerCount > 0 -> "${stats.markerCount}/4 marker · %${(stats.pageConfidence * 100).toInt()} güven"
+        else -> "Otomatik okuma"
     }
 
     Surface(
         modifier = modifier,
-        color = Color.Black.copy(alpha = 0.76f),
+        color = Color.Black.copy(alpha = 0.70f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(18.dp)
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (onBack != null) {
-                    TextButton(onClick = onBack) { Text("‹", color = Color.White, fontSize = 24.sp) }
+                    TextButton(onClick = onBack) {
+                        Text("‹", color = Color.White, fontSize = 20.sp)
+                    }
                 }
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     Text(
                         title,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.76f),
+                        fontSize = 9.sp,
+                        color = Color.White.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (onOpenGallery != null) {
-                    TextButton(onClick = onOpenGallery) {
-                        Text("Galeri", color = Color.White)
+                    OutlinedButton(
+                        onClick = onOpenGallery,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.30f))
+                    ) {
+                        Text("Galeri", fontSize = 10.sp)
                     }
                 }
                 TextButton(onClick = onOpenOptions) {
-                    Text("⋮", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("⋮", color = Color.White, fontSize = 20.sp)
                 }
             }
 
@@ -556,13 +546,22 @@ private fun CameraProductHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stateText, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    stateText,
+                    fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.78f)
+                )
                 OutlinedButton(
                     onClick = onToggleTorch,
                     enabled = torchAvailable,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White,
+                        disabledContentColor = Color.White.copy(alpha = 0.35f)
+                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.30f))
                 ) {
-                    Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", color = Color.White)
+                    Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", fontSize = 10.sp)
                 }
             }
         }
@@ -571,31 +570,46 @@ private fun CameraProductHeader(
 
 @Composable
 private fun CameraStatusPanel(
+    message: String,
     stateText: String,
     stats: CameraFrameStats,
     openCvReady: Boolean
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Black.copy(alpha = 0.76f),
-            contentColor = Color.White
-        )
+        color = Color.Black.copy(alpha = 0.72f),
+        contentColor = Color.White,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stateText, fontWeight = FontWeight.SemiBold)
-                Text("${stats.markerCount}/4", fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(message, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stateText,
+                        fontSize = 9.sp,
+                        color = Color.White.copy(alpha = 0.68f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text("${stats.markerCount}/4", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(if (openCvReady) "OMR hazır ✓" else "OMR hazır değil", style = MaterialTheme.typography.bodySmall)
-                Text("Okunan ${stats.liveReadCount}", style = MaterialTheme.typography.bodySmall)
-                Text("Güven %${(stats.pageConfidence * 100).toInt()}", style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(if (openCvReady) "OMR ✓" else "OMR —", fontSize = 9.sp)
+                Text("Okunan ${stats.liveReadCount}", fontSize = 9.sp)
+                Text("Güven %${(stats.pageConfidence * 100).toInt()}", fontSize = 9.sp)
             }
         }
     }
@@ -604,33 +618,36 @@ private fun CameraStatusPanel(
 @Composable
 private fun LiveReadResultCard(result: LiveOmrReadResult) {
     val bubbles = result.bubbleResult
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f),
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Black.copy(alpha = 0.72f),
+        contentColor = Color.White,
+        border = BorderStroke(1.dp, Color(0xFF69D49F).copy(alpha = 0.65f))
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("✓ Form Okundu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(String.format(Locale.US, "%.0f%%", result.decisionConfidence * 100.0))
+                Text("✓ Form Okundu", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text(String.format(Locale.US, "%.0f%%", result.decisionConfidence * 100.0), fontSize = 10.sp)
             }
             val student = result.markGridResult.grids.firstOrNull { it.gridId == "studentNumber" }?.value
             val booklet = result.markGridResult.grids.firstOrNull { it.gridId == "booklet" }?.value
             Text(
-                "No: ${student ?: "—"} · Kitapçık: ${booklet ?: "—"}",
-                style = MaterialTheme.typography.bodySmall
+                "No ${student ?: "—"} · Kitapçık ${booklet ?: "—"} · İşaretli ${bubbles.markedCount} · Boş ${bubbles.blankCount}",
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.76f)
             )
-            Text(
-                "İşaretli ${bubbles.markedCount} · Boş ${bubbles.blankCount} · Çift ${bubbles.doubleMarkCount} · Şüpheli ${bubbles.suspiciousCount}",
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (bubbles.doubleMarkCount > 0 || bubbles.suspiciousCount > 0) {
+                Text(
+                    "Çift ${bubbles.doubleMarkCount} · Şüpheli ${bubbles.suspiciousCount}",
+                    fontSize = 9.sp,
+                    color = Color(0xFFFFC75A)
+                )
+            }
         }
     }
 }
