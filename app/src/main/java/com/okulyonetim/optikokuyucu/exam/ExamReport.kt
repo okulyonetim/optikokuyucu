@@ -34,11 +34,11 @@ data class ExamReportRow(
     val maximumPoints: Double?,
     val status: ExamReportRowStatus,
     val net: Double? = null,
-    val lessons: List<ExamLessonScore> = emptyList(),
     val overallRank: Int? = null,
     val classRank: Int? = null,
     val scoreScope: ExamCalculatedScoreScope? = null,
-    val scoreNote: String = ""
+    val scoreNote: String = "",
+    val lessons: List<ExamLessonScore> = emptyList()
 )
 
 data class ExamReport(
@@ -147,9 +147,9 @@ object ExamReportBuilder {
                 maximumPoints = calculated?.maximumScore,
                 status = draft.status,
                 net = calculated?.net ?: score?.totalPoints,
-                lessons = calculated?.lessons.orEmpty(),
                 scoreScope = calculated?.scope,
-                scoreNote = calculated?.note.orEmpty()
+                scoreNote = calculated?.note.orEmpty(),
+                lessons = calculated?.lessons.orEmpty()
             )
         }
 
