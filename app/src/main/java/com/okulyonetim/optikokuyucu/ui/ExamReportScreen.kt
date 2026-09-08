@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.exam.ExamLessonScore
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportCsvExporter
@@ -401,6 +402,9 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
                 )
+                if (row.lessons.isNotEmpty()) {
+                    LessonScoreRows(row.lessons)
+                }
                 if ((row.doubleMark ?: 0) > 0 || (row.suspicious ?: 0) > 0 || (row.noKey ?: 0) > 0) {
                     Text(
                         "Çift ${row.doubleMark ?: 0} · Şüpheli ${row.suspicious ?: 0} · Anahtarsız ${row.noKey ?: 0}",
@@ -428,6 +432,60 @@ private fun ExamReportRowCard(row: ExamReportRow) {
             }
         }
     }
+}
+
+@Composable
+private fun LessonScoreRows(lessons: List<ExamLessonScore>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        lessons.forEach { lesson ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    reportLessonLabel(lesson.lessonId),
+                    modifier = Modifier.weight(1f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    buildString {
+                        append("D ").append(lesson.correct)
+                        append(" · Y ").append(lesson.wrong)
+                        append(" · B ").append(lesson.blank)
+                        append(" · N ").append(formatReportNumber(lesson.net))
+                        lesson.standardScore?.let { append(" · SP ").append(formatReportNumber(it)) }
+                        lesson.weightedStandardScore?.let { append(" · ASP ").append(formatReportNumber(it)) }
+                    },
+                    fontSize = 8.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+private fun reportLessonLabel(lessonId: String): String = when (lessonId.lowercase(Locale.ROOT)) {
+    "turkce" -> "Türkçe"
+    "matematik" -> "Matematik"
+    "fen" -> "Fen Bilimleri"
+    "inkilap" -> "T.C. İnkılap Tarihi"
+    "din" -> "Din Kültürü"
+    "yabanci" -> "Yabancı Dil"
+    "sosyal" -> "Sosyal Bilgiler"
+    "general" -> "Genel"
+    else -> lessonId
+        .replace('-', ' ')
+        .replace('_', ' ')
+        .split(' ')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word -> word.replaceFirstChar { it.titlecase() } }
 }
 
 private fun scoringTypeLabel(type: ExamScoringType): String = when (type) {

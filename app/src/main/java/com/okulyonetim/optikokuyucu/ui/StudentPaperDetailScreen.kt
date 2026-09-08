@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.exam.ExamLessonScore
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetadataEditor
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetrics
 import com.okulyonetim.optikokuyucu.exam.ExamPaperRemoval
@@ -289,6 +290,10 @@ fun StudentPaperDetailScreen(
             }
 
             ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
+            LessonScoreSummary(
+                lessons = calculatedRow?.lessons.orEmpty(),
+                lessonNames = lessonNames
+            )
 
             if (tab == StudentPaperTab.CONTENT) {
                 LazyColumn(
@@ -510,6 +515,57 @@ private fun ScoreHeader(
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LessonScoreSummary(
+    lessons: List<ExamLessonScore>,
+    lessonNames: Map<String, String>
+) {
+    if (lessons.isEmpty()) return
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                "Ders Bazlı Sonuçlar",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            lessons.forEach { lesson ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        lessonNames[lesson.lessonId] ?: humanizeLesson(lesson.lessonId),
+                        modifier = Modifier.weight(1f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        buildString {
+                            append("D ").append(lesson.correct)
+                            append(" · Y ").append(lesson.wrong)
+                            append(" · B ").append(lesson.blank)
+                            append(" · N ").append(formatNet(lesson.net))
+                            lesson.standardScore?.let { append(" · SP ").append(formatNet(it)) }
+                            lesson.weightedStandardScore?.let { append(" · ASP ").append(formatNet(it)) }
+                        },
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
