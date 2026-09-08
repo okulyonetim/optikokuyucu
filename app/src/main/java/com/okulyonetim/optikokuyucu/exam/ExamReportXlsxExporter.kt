@@ -41,9 +41,13 @@ object ExamReportXlsxExporter {
         append("<col min=\"2\" max=\"2\" width=\"26\" customWidth=\"1\"/>")
         append("<col min=\"3\" max=\"5\" width=\"14\" customWidth=\"1\"/>")
         append("<col min=\"6\" max=\"6\" width=\"20\" customWidth=\"1\"/>")
-        append("<col min=\"7\" max=\"14\" width=\"13\" customWidth=\"1\"/>")
-        append("<col min=\"15\" max=\"15\" width=\"18\" customWidth=\"1\"/>")
-        append("<col min=\"16\" max=\"16\" width=\"28\" customWidth=\"1\"/>")
+        append("<col min=\"7\" max=\"12\" width=\"12\" customWidth=\"1\"/>")
+        append("<col min=\"13\" max=\"15\" width=\"14\" customWidth=\"1\"/>")
+        append("<col min=\"16\" max=\"16\" width=\"20\" customWidth=\"1\"/>")
+        append("<col min=\"17\" max=\"19\" width=\"12\" customWidth=\"1\"/>")
+        append("<col min=\"20\" max=\"20\" width=\"42\" customWidth=\"1\"/>")
+        append("<col min=\"21\" max=\"21\" width=\"18\" customWidth=\"1\"/>")
+        append("<col min=\"22\" max=\"22\" width=\"28\" customWidth=\"1\"/>")
         append("</cols>")
         append("<sheetData>")
 
@@ -60,8 +64,14 @@ object ExamReportXlsxExporter {
             "Çift İşaret",
             "Şüpheli",
             "Anahtarsız",
-            "Net / Puan",
-            "Maksimum",
+            "Net",
+            "Hesaplanan Puan",
+            "Puan Tavanı",
+            "Puan Türü",
+            "Genel Sıra",
+            "Sınıf Sıra",
+            "Kurum Sıra",
+            "Puan Notu",
             "Durum",
             "Kayıt ID"
         )
@@ -88,16 +98,22 @@ object ExamReportXlsxExporter {
             append(optionalNumberCell(10, excelRow, row.doubleMark?.toDouble()))
             append(optionalNumberCell(11, excelRow, row.suspicious?.toDouble()))
             append(optionalNumberCell(12, excelRow, row.noKey?.toDouble()))
-            append(optionalNumberCell(13, excelRow, row.points))
-            append(optionalNumberCell(14, excelRow, row.maximumPoints))
-            append(inlineStringCell(15, excelRow, statusLabel(row.status)))
-            append(inlineStringCell(16, excelRow, row.scanRecordId))
+            append(optionalNumberCell(13, excelRow, row.net))
+            append(optionalNumberCell(14, excelRow, row.calculatedScore))
+            append(optionalNumberCell(15, excelRow, row.calculatedMaximum))
+            append(inlineStringCell(16, excelRow, examScoreScopeLabel(row.scoreScope)))
+            append(optionalNumberCell(17, excelRow, row.overallRank?.toDouble()))
+            append(optionalNumberCell(18, excelRow, row.classRank?.toDouble()))
+            append(optionalNumberCell(19, excelRow, row.institutionRank?.toDouble()))
+            append(inlineStringCell(20, excelRow, row.scoreNote))
+            append(inlineStringCell(21, excelRow, statusLabel(row.status)))
+            append(inlineStringCell(22, excelRow, row.scanRecordId))
             append("</row>")
         }
 
         append("</sheetData>")
         if (report.rows.isNotEmpty()) {
-            append("<autoFilter ref=\"A1:P")
+            append("<autoFilter ref=\"A1:V")
             append(report.rows.size + 1)
             append("\"/>")
         }
