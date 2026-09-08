@@ -44,6 +44,7 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepository
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import com.okulyonetim.optikokuyucu.settings.ReadyTemplateVisibilityRepository
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -68,7 +69,7 @@ fun NewExamScreen(
     val settingsRepository = remember(context) { AppSettingsRepository(appContext) }
     val roster = remember(context) { FileStudentRosterRepository(appContext).list() }
     val classNames = remember(roster) { roster.map { it.className }.distinct().sorted() }
-    val options = remember(context) { loadExamTemplateOptions(appContext) }
+    var options by remember(context) { mutableStateOf(loadExamTemplateOptions(appContext)) }
     val activeSelection = remember(context) { FileActiveTemplateSelectionRepository(appContext).load() }
 
     var examName by remember { mutableStateOf("") }
@@ -77,7 +78,14 @@ fun NewExamScreen(
     var folderName by remember { mutableStateOf("") }
     var dateText by remember { mutableStateOf(todayText()) }
     var selectedTemplate by remember {
-        mutableStateOf(options.firstOrNull { it.selection == activeSelection } ?: options.first())
+        mutableStateOf(
+            options.firstOrNull { it.selection == activeSelection }
+                ?: options.firstOrNull {
+                    it.selection.source == activeSelection.source &&
+                        it.selection.templateId == activeSelection.templateId
+                }
+                ?: options.first()
+        )
     }
     var wrongPolicy by remember { mutableStateOf(WrongAnswerPolicy.KEEP_AS_IS) }
     var selectedClasses by remember { mutableStateOf(emptySet<String>()) }
@@ -90,6 +98,19 @@ fun NewExamScreen(
     var studentMenuOpen by remember { mutableStateOf(false) }
     var bookletMenuOpen by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+
+    fun refreshTemplateOptions() {
+        val refreshed = loadExamTemplateOptions(appContext)
+        if (refreshed.isEmpty()) return
+        val current = selectedTemplate.selection
+        options = refreshed
+        selectedTemplate = refreshed.firstOrNull { it.selection == current }
+            ?: refreshed.firstOrNull {
+                it.selection.source == current.source &&
+                    it.selection.templateId == current.templateId
+            }
+            ?: refreshed.first()
+    }
 
     val selectedParticipants = roster.filter { student ->
         student.className in selectedClasses || student.identityKey in selectedStudentKeys
@@ -201,7 +222,10 @@ fun NewExamScreen(
                     Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = { templateMenuOpen = true },
+                            onClick = {
+                                refreshTemplateOptions()
+                                templateMenuOpen = true
+                            },
                             shape = RoundedCornerShape(18.dp)
                         ) {
                             Column(
@@ -540,7 +564,19 @@ private fun RoundedExamField(
 }
 
 private fun loadExamTemplateOptions(context: android.content.Context): List<ExamTemplateOption> {
-    val starter = DesignerStarterTemplates.all().map { document ->
+    val hiddenReadyKeys = ReadyTemplateVisibilityRepository(context).hiddenKeys()
+    val visibleStarters = DesignerStarterTemplates.all().filterNot { document ->
+        ReadyTemplateVisibilityRepository.starterKey(document.id, document.version) in hiddenReadyKeys
+    }
+    val savedDocuments = FileDesignerDocumentRepository(context).list()
+
+    val latestDesignerDocuments = (visibleStarters + savedDocuments)
+        .groupBy { it.id }
+        .values
+        .mapNotNull { versions -> versions.maxByOrNull { it.version } }
+        .sortedBy { it.name.lowercase(Locale.forLanguageTag("tr-TR")) }
+
+    val designerOptions = latestDesignerDocuments.map { document ->
         ExamTemplateOption(
             name = document.name,
             selection = ActiveTemplateSelection(
@@ -551,24 +587,29 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
             examMode = document.formSpec.examMode
         )
     }
-    val saved = FileDesignerDocumentRepository(context).list().map { document ->
-        ExamTemplateOption(
-            name = "${document.name} · Kayıtlı",
-            selection = ActiveTemplateSelection(
-                source = ActiveTemplateSource.DESIGNER_DOCUMENT,
-                templateId = document.id,
-                templateVersion = document.version
-            ),
-            examMode = document.formSpec.examMode
+
+    val defaultKey = ReadyTemplateVisibilityRepository.defaultKey(
+        ActiveOmrTemplateDefaults.selection.templateId,
+        ActiveOmrTemplateDefaults.selection.templateVersion
+    )
+    val defaultOptions = if (defaultKey !in hiddenReadyKeys) {
+        listOf(
+            ExamTemplateOption(
+                name = ActiveOmrTemplateDefaults.displayName,
+                selection = ActiveOmrTemplateDefaults.selection
+            )
         )
+    } else {
+        emptyList()
     }
-    return (listOf(
-        ExamTemplateOption(
-            name = ActiveOmrTemplateDefaults.displayName,
-            selection = ActiveOmrTemplateDefaults.selection
+
+    return (defaultOptions + designerOptions).ifEmpty {
+        listOf(
+            ExamTemplateOption(
+                name = ActiveOmrTemplateDefaults.displayName,
+                selection = ActiveOmrTemplateDefaults.selection
+            )
         )
-    ) + starter + saved).distinctBy {
-        Triple(it.selection.source, it.selection.templateId, it.selection.templateVersion)
     }
 }
 
