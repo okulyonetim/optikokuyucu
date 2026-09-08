@@ -42,6 +42,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamPreset
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
+import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
@@ -59,6 +60,11 @@ private data class ExamTemplateOption(
     val selection: ActiveTemplateSelection,
     val examMode: DesignerExamMode = DesignerExamMode.UNSPECIFIED,
     val examPreset: DesignerExamPreset = DesignerExamPreset.CUSTOM
+)
+
+private data class ExamLessonOption(
+    val id: String,
+    val label: String
 )
 
 @Composable
@@ -101,6 +107,7 @@ fun NewExamScreen(
         mutableStateOf(if (isOfficialMebType(initialScoringType)) "500" else "100")
     }
     var customWrongDivisorText by remember { mutableStateOf("") }
+    var customLessonWeightTexts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var wrongPolicy by remember {
         mutableStateOf(
             if (isOfficialMebType(initialScoringType)) {
@@ -132,6 +139,7 @@ fun NewExamScreen(
             maximumScoreText = "500"
             wrongPolicy = WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT
             customWrongDivisorText = ""
+            customLessonWeightTexts = emptyMap()
         } else {
             if (previousWasOfficial) {
                 scoreMode = ExamScoreMode.SCALED
@@ -139,7 +147,10 @@ fun NewExamScreen(
                 maximumScoreText = "100"
                 wrongPolicy = WrongAnswerPolicy.KEEP_AS_IS
             }
-            if (nextType != ExamScoringType.CUSTOM) customWrongDivisorText = ""
+            if (nextType != ExamScoringType.CUSTOM) {
+                customWrongDivisorText = ""
+                customLessonWeightTexts = emptyMap()
+            }
         }
     }
 
@@ -163,6 +174,9 @@ fun NewExamScreen(
     val singleSubjectExam = selectedTemplate.examMode == DesignerExamMode.SINGLE_LESSON ||
         scoringType == ExamScoringType.SINGLE_SUBJECT
     val officialMebScoring = isOfficialMebType(scoringType)
+    val customLessonOptions = remember(selectedTemplate.selection) {
+        loadExamLessonOptions(appContext, selectedTemplate.selection)
+    }
 
     fun warn(message: String) {
         status = message
@@ -176,6 +190,17 @@ fun NewExamScreen(
         val customDivisor = customWrongDivisorText
             .takeIf { it.isNotBlank() }
             ?.let(::parseScoreNumber)
+        val customLessonWeights = if (scoringType == ExamScoringType.CUSTOM) {
+            customLessonOptions.associate { option ->
+                option.id to (parseScoreNumber(customLessonWeightTexts[option.id] ?: "1") ?: Double.NaN)
+            }
+        } else {
+            emptyMap()
+        }
+        val invalidLessonWeight = customLessonOptions.firstOrNull { option ->
+            val value = customLessonWeights[option.id]
+            scoringType == ExamScoringType.CUSTOM && (value == null || !value.isFinite() || value <= 0.0)
+        }
         val scaledScore = scoreMode == ExamScoreMode.SCALED
         when {
             examName.isBlank() -> warn("Sınav adı zorunludur.")
@@ -192,6 +217,8 @@ fun NewExamScreen(
             scoringType == ExamScoringType.CUSTOM && customWrongDivisorText.isNotBlank() &&
                 (customDivisor == null || customDivisor <= 0.0) ->
                 warn("Özel yanlış oranı sıfırdan büyük bir sayı olmalıdır.")
+            invalidLessonWeight != null ->
+                warn("${invalidLessonWeight.label} ders ağırlığı sıfırdan büyük bir sayı olmalıdır.")
             personalizedFormsEnabled && selectedParticipants.isEmpty() ->
                 warn("Öğrenciye özel form için en az bir sınıf veya öğrenci seçin.")
             personalizedFormsEnabled && !designerBackedForm ->
@@ -210,6 +237,11 @@ fun NewExamScreen(
                                 customDivisor
                             } else {
                                 null
+                            },
+                            lessonWeights = if (scoringType == ExamScoringType.CUSTOM) {
+                                customLessonWeights
+                            } else {
+                                emptyMap()
                             }
                         )
                     }
@@ -313,6 +345,7 @@ fun NewExamScreen(
                                 },
                                 onClick = {
                                     selectedTemplate = option
+                                    customLessonWeightTexts = emptyMap()
                                     val suggestedType = defaultScoringType(option)
                                     applyScoringType(suggestedType)
                                     if (suggestedType != ExamScoringType.SINGLE_SUBJECT &&
@@ -466,6 +499,35 @@ fun NewExamScreen(
                             fontSize = 9.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        if (customLessonOptions.isNotEmpty()) {
+                            Text(
+                                "Ders Ağırlıkları",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            customLessonOptions.forEach { lesson ->
+                                RoundedExamField(
+                                    value = customLessonWeightTexts[lesson.id] ?: "1",
+                                    onValueChange = { value ->
+                                        customLessonWeightTexts = customLessonWeightTexts + (lesson.id to value)
+                                    },
+                                    label = "${lesson.label} Ağırlığı",
+                                    prefix = "×"
+                                )
+                            }
+                            Text(
+                                "Ağırlıklar derslerin toplam puana katkısını belirler. 1 eşit ağırlıktır; daha büyük değer daha fazla katkı verir.",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                "Seçili formda ayrı ders bölümleri bulunmadığı için ders ağırlığı tanımlanamaz.",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     if (scoreMode == ExamScoreMode.SCALED) {
@@ -485,7 +547,11 @@ fun NewExamScreen(
                                 RoundedExamField(
                                     value = maximumScoreText,
                                     onValueChange = { maximumScoreText = it },
-                                    label = "Tavan Puan",
+                                    label = if (scoringType == ExamScoringType.CUSTOM) {
+                                        "Toplam / Tavan Puan"
+                                    } else {
+                                        "Tavan Puan"
+                                    },
                                     prefix = "↑"
                                 )
                             }
@@ -822,6 +888,33 @@ private fun loadExamTemplateOptions(context: android.content.Context): List<Exam
     }
 }
 
+private fun loadExamLessonOptions(
+    context: android.content.Context,
+    selection: ActiveTemplateSelection
+): List<ExamLessonOption> {
+    if (selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) return emptyList()
+    val document = (FileDesignerDocumentRepository(context).list() + DesignerStarterTemplates.all())
+        .firstOrNull { it.id == selection.templateId && it.version == selection.templateVersion }
+        ?: return emptyList()
+    val configuredSubjects = AppSettingsRepository(context).load().subjects
+    val genericLesson = Regex("^Ders\\s+\\d+$", RegexOption.IGNORE_CASE)
+    return document.components
+        .filterIsInstance<QuestionGroupComponent>()
+        .mapIndexedNotNull { index, component ->
+            val id = component.questionIdPrefix.ifBlank { component.id }.trim()
+            if (id.isBlank()) return@mapIndexedNotNull null
+            val rawLabel = component.label.trim()
+            val label = when {
+                rawLabel.isNotBlank() && !genericLesson.matches(rawLabel) -> rawLabel
+                configuredSubjects.getOrNull(index)?.isNotBlank() == true -> configuredSubjects[index]
+                rawLabel.isNotBlank() -> rawLabel
+                else -> id.replace('-', ' ').replace('_', ' ')
+            }
+            ExamLessonOption(id = id, label = label)
+        }
+        .distinctBy { it.id }
+}
+
 private fun defaultScoringType(option: ExamTemplateOption): ExamScoringType = when (option.examPreset) {
     DesignerExamPreset.LGS -> ExamScoringType.LGS
     DesignerExamPreset.SCHOLARSHIP -> ExamScoringType.IOKBS
@@ -848,7 +941,7 @@ private fun scoringTypeDescription(type: ExamScoringType): String = when (type) 
     ExamScoringType.SINGLE_SUBJECT -> "Tek ders için net / puan"
     ExamScoringType.LGS -> "MEB yöntemi · 3 yanlış · 100–500"
     ExamScoringType.IOKBS -> "MEB yöntemi · 4 test · 100–500"
-    ExamScoringType.CUSTOM -> "Özel yanlış oranı ve puan aralığı"
+    ExamScoringType.CUSTOM -> "Ders ağırlıkları, özel yanlış oranı ve puan aralığı"
 }
 
 private fun scoreModeLabel(mode: ExamScoreMode): String = when (mode) {
