@@ -55,68 +55,71 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
-// Product palette from the approved visual direction.
-private val ProductPrimary = Color(0xFF0F2D5B)
-private val ProductPrimaryLight = Color(0xFFE6EEF8)
-private val ProductSecondary = Color(0xFF14B8A6)
-private val ProductSecondaryLight = Color(0xFFD7F7F2)
-private val ProductAccent = Color(0xFFF59E0B)
-private val ProductAccentLight = Color(0xFFFFF0CC)
-private val ProductBackground = Color(0xFFF8FAFC)
+// Brand palette derived from the approved Optik Okuyucu splash artwork.
+// Forest green carries primary actions, warm cream keeps light mode soft,
+// coral adds emphasis and mustard is reserved for waiting/warning states.
+private val ProductPrimary = Color(0xFF0B6048)
+private val ProductPrimaryLight = Color(0xFFDDEFE6)
+private val ProductSecondary = Color(0xFF2F936E)
+private val ProductSecondaryLight = Color(0xFFD8EEE4)
+private val ProductAccent = Color(0xFFF16A45)
+private val ProductAccentLight = Color(0xFFFFE1D6)
+private val ProductBackground = Color(0xFFFBF8F0)
+private val ProductSurface = Color(0xFFFFFDF8)
 
-private val ProductGreen = Color(0xFF1F7A52)
-private val ProductGreenSoft = Color(0xFFE6F5ED)
-private val ProductOrange = Color(0xFFB86100)
-private val ProductOrangeSoft = Color(0xFFFFEED8)
-private val ProductRed = Color(0xFFB92F34)
-private val ProductRedSoft = Color(0xFFFFE9EA)
+private val ProductGreen = Color(0xFF147A55)
+private val ProductGreenSoft = Color(0xFFE0F2E8)
+private val ProductOrange = Color(0xFFC98408)
+private val ProductOrangeSoft = Color(0xFFFFE9B9)
+private val ProductRed = Color(0xFFB43A35)
+private val ProductRedSoft = Color(0xFFFFE7E3)
 
 private val LightProductScheme = lightColorScheme(
     primary = ProductPrimary,
     onPrimary = Color.White,
     primaryContainer = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF0A2347),
+    onPrimaryContainer = Color(0xFF0A3B2E),
     secondary = ProductSecondary,
-    onSecondary = Color(0xFF063C37),
+    onSecondary = Color.White,
     secondaryContainer = ProductSecondaryLight,
-    onSecondaryContainer = Color(0xFF063E38),
+    onSecondaryContainer = Color(0xFF0B4031),
     tertiary = ProductAccent,
-    onTertiary = Color(0xFF422A00),
+    onTertiary = Color.White,
     tertiaryContainer = ProductAccentLight,
-    onTertiaryContainer = Color(0xFF4A2D00),
+    onTertiaryContainer = Color(0xFF67220F),
     background = ProductBackground,
-    onBackground = Color(0xFF172033),
-    surface = Color.White,
-    onSurface = Color(0xFF172033),
-    surfaceVariant = Color(0xFFEEF3F7),
-    onSurfaceVariant = Color(0xFF526174),
-    outline = Color(0xFF5F7084),
-    outlineVariant = Color(0xFFC4CED9),
+    onBackground = Color(0xFF17372E),
+    surface = ProductSurface,
+    onSurface = Color(0xFF17372E),
+    surfaceVariant = Color(0xFFF0F3EC),
+    onSurfaceVariant = Color(0xFF52655D),
+    outline = Color(0xFF71867C),
+    outlineVariant = Color(0xFFD4DFD8),
     error = Color(0xFFB3261E),
     onError = Color.White
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFFA7C7FF),
-    onPrimary = Color(0xFF092044),
-    primaryContainer = Color(0xFF173B6C),
-    onPrimaryContainer = Color(0xFFE7EFFB),
-    secondary = Color(0xFF5EEAD4),
-    onSecondary = Color(0xFF053E38),
-    secondaryContainer = Color(0xFF0E4F49),
-    onSecondaryContainer = Color(0xFFC7FFF5),
-    tertiary = Color(0xFFFBBF24),
-    onTertiary = Color(0xFF422A00),
-    tertiaryContainer = Color(0xFF614000),
-    onTertiaryContainer = Color(0xFFFFE7A1),
-    background = Color(0xFF07111F),
-    onBackground = Color(0xFFE8EEF7),
-    surface = Color(0xFF0D1B2A),
-    onSurface = Color(0xFFE8EEF7),
-    surfaceVariant = Color(0xFF172536),
-    onSurfaceVariant = Color(0xFFC4D0DD),
-    outline = Color(0xFFA9B8C9),
-    outlineVariant = Color(0xFF40566C),
+    primary = Color(0xFF69D49F),
+    onPrimary = Color(0xFF003928),
+    primaryContainer = Color(0xFF0A503B),
+    onPrimaryContainer = Color(0xFFD8F5E7),
+    secondary = Color(0xFF8AD7B4),
+    onSecondary = Color(0xFF073A2D),
+    secondaryContainer = Color(0xFF174B39),
+    onSecondaryContainer = Color(0xFFD8F4E6),
+    tertiary = Color(0xFFFF8D68),
+    onTertiary = Color(0xFF511807),
+    tertiaryContainer = Color(0xFF6B301E),
+    onTertiaryContainer = Color(0xFFFFDDD2),
+    background = Color(0xFF061A14),
+    onBackground = Color(0xFFEAF3EE),
+    surface = Color(0xFF0B251D),
+    onSurface = Color(0xFFEAF3EE),
+    surfaceVariant = Color(0xFF15362C),
+    onSurfaceVariant = Color(0xFFB9CCC2),
+    outline = Color(0xFF91AA9E),
+    outlineVariant = Color(0xFF36584B),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
 )
@@ -221,14 +224,14 @@ fun ProductTopBar(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 1.dp,
+        tonalElevation = 0.dp,
         shadowElevation = 1.dp
     ) {
         Row(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(50.dp)
                 .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -365,18 +368,18 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
     val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     val background = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF173A2D)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF463015)
-        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF472421)
+        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF153E2D)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF4D3510)
+        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF4B2621)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant
     }
     val foreground = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF78D6A6)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFFB65A)
-        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFF938C)
+        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF77D7A3)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFFC75A)
+        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFF9B90)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(8.dp)) {
+    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(9.dp)) {
         Text(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             text = text,
@@ -395,17 +398,17 @@ fun ProductBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            shadowElevation = 10.dp,
-            shape = RoundedCornerShape(28.dp)
+            tonalElevation = 1.dp,
+            shadowElevation = 7.dp,
+            shape = RoundedCornerShape(24.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -430,9 +433,9 @@ private fun ProductBottomItem(
     TextButton(
         modifier = modifier.height(58.dp),
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(17.dp),
         colors = ButtonDefaults.textButtonColors(
-            containerColor = Color.Transparent,
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f) else Color.Transparent,
             contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -442,10 +445,10 @@ private fun ProductBottomItem(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Surface(
-                modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                modifier = Modifier.size(width = 38.dp, height = 30.dp),
+                color = Color.Transparent,
                 contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = RoundedCornerShape(13.dp)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
