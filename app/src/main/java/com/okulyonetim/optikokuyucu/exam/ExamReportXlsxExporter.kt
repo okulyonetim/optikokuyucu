@@ -41,10 +41,10 @@ object ExamReportXlsxExporter {
         append("<col min=\"2\" max=\"2\" width=\"26\" customWidth=\"1\"/>")
         append("<col min=\"3\" max=\"5\" width=\"14\" customWidth=\"1\"/>")
         append("<col min=\"6\" max=\"6\" width=\"20\" customWidth=\"1\"/>")
-        append("<col min=\"7\" max=\"17\" width=\"13\" customWidth=\"1\"/>")
-        append("<col min=\"18\" max=\"18\" width=\"18\" customWidth=\"1\"/>")
-        append("<col min=\"19\" max=\"19\" width=\"48\" customWidth=\"1\"/>")
-        append("<col min=\"20\" max=\"20\" width=\"28\" customWidth=\"1\"/>")
+        append("<col min=\"7\" max=\"18\" width=\"13\" customWidth=\"1\"/>")
+        append("<col min=\"19\" max=\"19\" width=\"64\" customWidth=\"1\"/>")
+        append("<col min=\"20\" max=\"20\" width=\"48\" customWidth=\"1\"/>")
+        append("<col min=\"21\" max=\"21\" width=\"28\" customWidth=\"1\"/>")
         append("</cols>")
         append("<sheetData>")
 
@@ -67,6 +67,7 @@ object ExamReportXlsxExporter {
             "Genel Sıra",
             "Sınıf Sırası",
             "Durum",
+            "Ders Detayları",
             "Puan Notu",
             "Kayıt ID"
         )
@@ -99,14 +100,15 @@ object ExamReportXlsxExporter {
             append(optionalNumberCell(16, excelRow, row.overallRank?.toDouble()))
             append(optionalNumberCell(17, excelRow, row.classRank?.toDouble()))
             append(inlineStringCell(18, excelRow, statusLabel(row.status)))
-            append(inlineStringCell(19, excelRow, row.scoreNote))
-            append(inlineStringCell(20, excelRow, row.scanRecordId))
+            append(inlineStringCell(19, excelRow, examLessonDetailsText(row.lessons)))
+            append(inlineStringCell(20, excelRow, row.scoreNote))
+            append(inlineStringCell(21, excelRow, row.scanRecordId))
             append("</row>")
         }
 
         append("</sheetData>")
         if (report.rows.isNotEmpty()) {
-            append("<autoFilter ref=\"A1:T")
+            append("<autoFilter ref=\"A1:U")
             append(report.rows.size + 1)
             append("\"/>")
         }

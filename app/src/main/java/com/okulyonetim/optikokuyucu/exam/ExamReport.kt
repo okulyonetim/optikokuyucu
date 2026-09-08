@@ -37,7 +37,8 @@ data class ExamReportRow(
     val overallRank: Int? = null,
     val classRank: Int? = null,
     val scoreScope: ExamCalculatedScoreScope? = null,
-    val scoreNote: String = ""
+    val scoreNote: String = "",
+    val lessons: List<ExamLessonScore> = emptyList()
 )
 
 data class ExamReport(
@@ -147,7 +148,8 @@ object ExamReportBuilder {
                 status = draft.status,
                 net = calculated?.net ?: score?.totalPoints,
                 scoreScope = calculated?.scope,
-                scoreNote = calculated?.note.orEmpty()
+                scoreNote = calculated?.note.orEmpty(),
+                lessons = calculated?.lessons.orEmpty()
             )
         }
 
@@ -187,6 +189,46 @@ object ExamReportBuilder {
     }
 }
 
+fun examLessonDisplayName(lessonId: String): String {
+    val normalized = lessonId.trim().lowercase(Locale.ROOT)
+    return when (normalized) {
+        "genel" -> "Genel"
+        "turkce" -> "Türkçe"
+        "matematik" -> "Matematik"
+        "fen" -> "Fen Bilimleri"
+        "inkilap" -> "İnkılap Tarihi"
+        "din" -> "Din Kültürü"
+        "yabanci" -> "Yabancı Dil"
+        "sosyal" -> "Sosyal Bilgiler"
+        else -> lessonId
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .split(' ')
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word -> word.replaceFirstChar { it.titlecase(Locale.forLanguageTag("tr-TR")) } }
+            .ifBlank { lessonId }
+    }
+}
+
+fun examLessonDetailsText(lessons: List<ExamLessonScore>): String =
+    lessons.joinToString(" | ") { lesson ->
+        buildString {
+            append(examLessonDisplayName(lesson.lessonId))
+            append(": D ").append(lesson.correct)
+            append(" Y ").append(lesson.wrong)
+            append(" B ").append(lesson.blank)
+            append(" N ").append(formatLessonNumber(lesson.net))
+            if (lesson.weight != 1.0) {
+                append(" K ").append(formatLessonNumber(lesson.weight))
+            }
+            lesson.standardScore?.let { append(" SP ").append(formatLessonNumber(it)) }
+            lesson.weightedStandardScore?.let { append(" ASP ").append(formatLessonNumber(it)) }
+        }
+    }
+
+private fun formatLessonNumber(value: Double): String =
+    String.format(Locale("tr", "TR"), "%.2f", value)
+
 /** Excel-friendly UTF-8/semicolon CSV for one offline exam. */
 object ExamReportCsvExporter {
     fun export(report: ExamReport): String = buildString {
@@ -211,6 +253,7 @@ object ExamReportCsvExporter {
                 "Genel Sıra",
                 "Sınıf Sırası",
                 "Durum",
+                "Ders Detayları",
                 "Puan Notu",
                 "Kayıt ID"
             ).joinToString(";") { escape(it) }
@@ -236,6 +279,7 @@ object ExamReportCsvExporter {
                 row.overallRank?.toString().orEmpty(),
                 row.classRank?.toString().orEmpty(),
                 statusLabel(row.status),
+                examLessonDetailsText(row.lessons),
                 row.scoreNote,
                 row.scanRecordId
             )
