@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,7 +58,7 @@ import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
 // Tek merkezli tasarım sistemi: renkler, ortak yüzeyler, arama, filtreler,
-// özet alanları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
+// özet alanları, ayar grupları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
 private val ProductPrimary = Color(0xFF0B6048)
 private val ProductPrimaryLight = Color(0xFFDDEFE6)
 private val ProductSecondary = Color(0xFF2F936E)
@@ -193,10 +194,8 @@ fun ProductTopBar(
     onActionClick: (() -> Unit)? = null,
     showAutomaticBack: Boolean = true
 ) {
-    val context = LocalContext.current
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
-    val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
     var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
@@ -251,10 +250,6 @@ fun ProductTopBar(
         }
     }
 
-    if (title == "Ayarlar" && onActionClick == null) {
-        SettingsSubjectsCard(settingsRepository)
-    }
-
     if (settingsPanelOpen && themeController != null) {
         SettingsAppearanceSheet(
             themeController = themeController,
@@ -296,11 +291,12 @@ private fun SettingsAppearanceSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Görünüm", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(
                 "Uygulamanın açık/koyu görünümünü seçin.",
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row(
@@ -313,10 +309,10 @@ private fun SettingsAppearanceSheet(
             }
             Text(
                 "Tema değişikliği anında uygulanır ve cihazda saklanır.",
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(18.dp))
         }
     }
 }
@@ -383,6 +379,71 @@ fun ProductCompactCard(
         shadowElevation = 0.dp
     ) {
         content()
+    }
+}
+
+@Composable
+fun ProductSettingsSection(
+    title: String,
+    description: String? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ProductCompactCard(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (!description.isNullOrBlank()) {
+                Text(
+                    text = description,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+fun ProductSettingsLink(
+    symbol: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ProductCompactCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProductInitialBadge(symbol)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    description,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 

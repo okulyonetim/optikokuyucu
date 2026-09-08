@@ -2,11 +2,8 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -17,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,55 +28,56 @@ fun SchoolAccountSettingsCard() {
     var workingAction by remember { mutableStateOf<String?>(null) }
     var actionStatus by remember { mutableStateOf("") }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ProductSettingsSection(
+        title = "Okul Yönetim Hesabı",
+        description = "Kurum bağlantısı ve eşitleme işlemleri"
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+        if (account == null) {
+            Text(
+                "Okul Yönetim oturumu bulunamadı.",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.error
+            )
+            return@ProductSettingsSection
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Okul Yönetim Hesabı",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            if (account == null) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
                 Text(
-                    "Okul Yönetim oturumu bulunamadı.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.error
+                    account.profile.displayName.ifBlank { account.profile.username },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
-                return@Column
+                Text(
+                    "Öğrenciler: ${account.directoryStatus.ifBlank { "Henüz eşitlenmedi" }}",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                Text(
+                    "Sınavlar: ${account.cloudStatus.ifBlank { "Henüz eşitlenmedi" }}",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
+            ProductStatusBadge("BAĞLI", ProductBadgeTone.GREEN)
+        }
 
-            Text(
-                "Kullanıcı: ${account.profile.displayName.ifBlank { account.profile.username }}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "Bağlantı durumu: Bağlı",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "Son öğrenci senkronu: ${account.directoryStatus.ifBlank { "Henüz tamamlanmadı" }}",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                "Sınav/sonuç senkronu: ${account.cloudStatus.ifBlank { "Henüz tamamlanmadı" }}",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
             OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 enabled = workingAction == null,
-                shape = RoundedCornerShape(12.dp),
                 onClick = {
                     workingAction = "directory"
                     actionStatus = ""
@@ -90,13 +89,15 @@ fun SchoolAccountSettingsCard() {
                     }
                 }
             ) {
-                Text(if (workingAction == "directory") "Senkronize Ediliyor…" else "Öğrencileri Senkronize Et")
+                Text(
+                    if (workingAction == "directory") "Eşitleniyor…" else "Öğrenciler",
+                    fontSize = 10.sp
+                )
             }
 
             OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 enabled = workingAction == null,
-                shape = RoundedCornerShape(12.dp),
                 onClick = {
                     workingAction = "cloud"
                     actionStatus = ""
@@ -108,24 +109,27 @@ fun SchoolAccountSettingsCard() {
                     }
                 }
             ) {
-                Text(if (workingAction == "cloud") "Senkronize Ediliyor…" else "Sınav ve Sonuçları Senkronize Et")
-            }
-
-            if (actionStatus.isNotBlank()) {
                 Text(
-                    actionStatus,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (workingAction == "cloud") "Eşitleniyor…" else "Sınav / Sonuç",
+                    fontSize = 10.sp
                 )
             }
+        }
 
-            TextButton(
-                modifier = Modifier.fillMaxWidth(),
-                enabled = workingAction == null,
-                onClick = account.signOut
-            ) {
-                Text("Çıkış Yap", color = MaterialTheme.colorScheme.error)
-            }
+        if (actionStatus.isNotBlank()) {
+            Text(
+                actionStatus,
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        TextButton(
+            modifier = Modifier.align(Alignment.End),
+            enabled = workingAction == null,
+            onClick = account.signOut
+        ) {
+            Text("Çıkış Yap", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
         }
     }
 }
