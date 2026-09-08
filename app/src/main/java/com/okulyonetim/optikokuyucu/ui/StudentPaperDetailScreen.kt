@@ -44,6 +44,8 @@ import com.okulyonetim.optikokuyucu.exam.ExamPaperMetadataEditor
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetrics
 import com.okulyonetim.optikokuyucu.exam.ExamPaperRemoval
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
+import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
+import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.questionDisplayNumber
@@ -137,16 +139,31 @@ fun StudentPaperDetailScreen(
     val matchingKey = remember(record.id, keys, scoringLink.bookletCode) {
         ExamPaperResolution.answerKey(scoringLink, record, keys)
     }
-    val score = remember(record.id, matchingKey, currentExam.wrongAnswerPolicy) {
+    val score = remember(
+        record.id,
+        matchingKey,
+        currentExam.wrongAnswerPolicy,
+        currentExam.scoringConfiguration
+    ) {
         matchingKey?.let { stored ->
             runCatching {
                 OmrScorer.score(
                     record = record,
                     answerKey = stored.answerKey,
-                    policy = ExamScoringPolicyResolver.resolve(currentExam.wrongAnswerPolicy)
+                    policy = ExamScoringPolicyResolver.resolve(currentExam)
                 )
             }.getOrNull()
         }
+    }
+    val previewExam = remember(currentExam, scoringLink) {
+        currentExam.withPaper(scoringLink)
+    }
+    val calculatedRow = remember(previewExam, keys) {
+        ExamReportBuilder.build(
+            exam = previewExam,
+            records = scanRepository.list(),
+            answerKeys = keys
+        ).rows.firstOrNull { it.scanRecordId == scanRecordId }
     }
     val metrics = score?.let(ExamPaperMetrics::from)
     val evaluations = score?.evaluations?.associateBy { it.questionId }.orEmpty()
@@ -271,7 +288,7 @@ fun StudentPaperDetailScreen(
                 )
             }
 
-            ScoreHeader(metrics = metrics, hasKey = matchingKey != null)
+            ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
 
             if (tab == StudentPaperTab.CONTENT) {
                 LazyColumn(
@@ -431,7 +448,12 @@ fun StudentPaperDetailScreen(
 }
 
 @Composable
-private fun ScoreHeader(metrics: ExamPaperMetrics?, hasKey: Boolean) {
+private fun ScoreHeader(
+    metrics: ExamPaperMetrics?,
+    reportRow: ExamReportRow?,
+    hasKey: Boolean
+) {
+    val resolvedNet = reportRow?.net ?: metrics?.net
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -442,17 +464,44 @@ private fun ScoreHeader(metrics: ExamPaperMetrics?, hasKey: Boolean) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 Text(
-                    text = if (metrics != null) "Toplam Net: ${formatNet(metrics.net)}" else "Toplam Net: —",
-                    color = if (metrics != null) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = when {
+                        reportRow?.points != null -> "Puan: ${formatNet(reportRow.points)}"
+                        reportRow?.scoreNote?.isNotBlank() == true -> "Puan: —"
+                        resolvedNet != null -> "Toplam Net: ${formatNet(resolvedNet)}"
+                        else -> "Toplam Net: —"
+                    },
+                    color = if (resolvedNet != null) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
+                if (resolvedNet != null) {
+                    Text(
+                        buildString {
+                            append("Net ").append(formatNet(resolvedNet))
+                            reportRow?.overallRank?.let { append(" · Genel ").append(it).append(".") }
+                            reportRow?.classRank?.let { append(" · Sınıf ").append(it).append(".") }
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
                 Text(
                     if (hasKey) "Detaylı değerlendirme" else "Cevap anahtarı bekleniyor",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp
                 )
+                if (reportRow?.scoreNote?.isNotBlank() == true) {
+                    Text(
+                        reportRow.scoreNote,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 9.sp
+                    )
+                }
             }
             metrics?.let {
                 Text(
