@@ -211,7 +211,7 @@ object ConfiguredExamReportExporter {
             currentLeaves += size
         }
         if (current.isNotEmpty()) packed += current.toList()
-        if (packed.isEmpty()) packed += emptyList()
+        if (packed.isEmpty()) packed.add(emptyList())
         return packed.map { part -> sticky + part }
     }
 
