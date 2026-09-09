@@ -203,14 +203,14 @@ object ConfiguredExamReportExporter {
         remaining.forEach { block ->
             val size = block.leaves.size
             if (current.isNotEmpty() && currentLeaves + size > capacity) {
-                packed += current.toList()
+                packed.add(current.toList())
                 current = mutableListOf()
                 currentLeaves = 0
             }
             current += block
             currentLeaves += size
         }
-        if (current.isNotEmpty()) packed += current.toList()
+        if (current.isNotEmpty()) packed.add(current.toList())
         if (packed.isEmpty()) packed.add(emptyList())
         return packed.map { part -> sticky + part }
     }
