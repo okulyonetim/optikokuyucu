@@ -8,14 +8,42 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Dependency-free Office Open XML exporter for a single stored answer key.
+ * Dependency-free Office Open XML exporter for stored answer keys.
  * Produces a real .xlsx workbook that Excel, LibreOffice and Google Sheets can open.
  */
 object AnswerKeyXlsxExporter {
+    /** Keeps the legacy single-key export contract used by the template-library screen. */
     fun export(key: StoredAnswerKey): ByteArray {
         val lastRow = HEADER_ROW + key.answerKey.answers.size
-        val sheetXml = buildSheetXml(key, lastRow)
+        return workbookBytes(buildSheetXml(key, lastRow))
+    }
 
+    /**
+     * Exam-oriented export. Rows are rendered with human-readable subject names and local
+     * question order; every available booklet is written as its own answer column.
+     */
+    fun exportStructured(
+        keys: List<StoredAnswerKey>,
+        sections: List<ManualAnswerSection>,
+        subjectName: String? = null
+    ): ByteArray {
+        require(keys.isNotEmpty()) { "Dışa aktarılacak cevap anahtarı bulunamadı." }
+        val first = keys.first()
+        require(keys.all {
+            it.templateId == first.templateId &&
+                it.templateVersion == first.templateVersion &&
+                it.examId == first.examId
+        }) { "Aynı Excel dosyasına yalnız aynı sınav ve form sürümünün cevap anahtarları yazılabilir." }
+
+        val orderedKeys = keys
+            .distinctBy { it.variantValue.orEmpty() }
+            .sortedWith(compareBy<StoredAnswerKey> { it.variantValue.orEmpty().lowercase(Locale("tr", "TR")) })
+        val rows = structuredRows(first, sections, subjectName)
+        val lastRow = HEADER_ROW + rows.size
+        return workbookBytes(buildStructuredSheetXml(orderedKeys, rows, lastRow))
+    }
+
+    private fun workbookBytes(sheetXml: String): ByteArray {
         val output = ByteArrayOutputStream()
         ZipOutputStream(output).use { zip ->
             writeEntry(zip, "[Content_Types].xml", contentTypesXml())
@@ -83,6 +111,126 @@ object AnswerKeyXlsxExporter {
         }
     }
 
+    private fun buildStructuredSheetXml(
+        keys: List<StoredAnswerKey>,
+        rows: List<StructuredQuestionRow>,
+        lastRow: Int
+    ): String {
+        val first = keys.first()
+        val answerStartColumn = 3
+        val lastColumn = columnName(answerStartColumn + keys.size - 1)
+        val bookletSummary = keys.map { it.variantValue ?: "Genel" }.joinToString(", ")
+        val sourceSummary = keys.map { sourceLabel(it.source) }.distinct().joinToString(", ")
+        val latestCreated = keys.maxOf { it.createdAtEpochMs }
+        val metadata = listOf(
+            "Şablon" to first.templateId,
+            "Sürüm" to first.templateVersion.toString(),
+            if (keys.size > 1) "Kitapçıklar" to bookletSummary else "Kitapçık" to bookletSummary,
+            "Oluşturma" to formatDate(latestCreated),
+            "Kaynak" to sourceSummary
+        )
+
+        return buildString {
+            append(XML_DECLARATION)
+            append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
+            append("<dimension ref=\"A1:$lastColumn$lastRow\"/>")
+            append("<sheetViews><sheetView workbookViewId=\"0\">")
+            append("<pane ySplit=\"9\" topLeftCell=\"A10\" activePane=\"bottomLeft\" state=\"frozen\"/>")
+            append("</sheetView></sheetViews>")
+            append("<cols>")
+            append("<col min=\"1\" max=\"1\" width=\"28\" customWidth=\"1\"/>")
+            append("<col min=\"2\" max=\"2\" width=\"12\" customWidth=\"1\"/>")
+            if (keys.isNotEmpty()) {
+                append("<col min=\"3\" max=\"${2 + keys.size}\" width=\"18\" customWidth=\"1\"/>")
+            }
+            append("</cols>")
+            append("<sheetData>")
+
+            append("<row r=\"1\" ht=\"28\" customHeight=\"1\">")
+            append(inlineCell("A1", "OPTİK OKUYUCU · CEVAP ANAHTARI", TITLE_STYLE))
+            append("</row>")
+
+            metadata.forEachIndexed { index, (label, value) ->
+                val row = index + 3
+                append("<row r=\"$row\">")
+                append(inlineCell("A$row", label, LABEL_STYLE))
+                append(inlineCell("B$row", value, VALUE_STYLE))
+                append("</row>")
+            }
+
+            append("<row r=\"9\" ht=\"22\" customHeight=\"1\">")
+            append(inlineCell("A9", "Ders", HEADER_STYLE))
+            append(inlineCell("B9", "Soru", HEADER_STYLE))
+            keys.forEachIndexed { index, key ->
+                val col = columnName(answerStartColumn + index)
+                val title = key.variantValue?.let { "Kitapçık $it" } ?: "Doğru Cevap"
+                append(inlineCell("${col}9", title, HEADER_STYLE))
+            }
+            append("</row>")
+
+            rows.forEachIndexed { index, item ->
+                val row = HEADER_ROW + index + 1
+                append("<row r=\"$row\">")
+                append(inlineCell("A$row", item.subject, BODY_LEFT_STYLE))
+                append(inlineCell("B$row", item.questionOrder.toString(), BODY_STYLE))
+                keys.forEachIndexed { keyIndex, key ->
+                    val col = columnName(answerStartColumn + keyIndex)
+                    append(inlineCell("$col$row", key.answerKey.answers[item.questionId].orEmpty(), ANSWER_STYLE))
+                }
+                append("</row>")
+            }
+
+            append("</sheetData>")
+            append("<autoFilter ref=\"A9:$lastColumn$lastRow\"/>")
+            append("<mergeCells count=\"1\"><mergeCell ref=\"A1:$lastColumn1\"/></mergeCells>")
+            append("</worksheet>")
+        }
+    }
+
+    private fun structuredRows(
+        primaryKey: StoredAnswerKey,
+        sections: List<ManualAnswerSection>,
+        subjectName: String?
+    ): List<StructuredQuestionRow> {
+        val forcedSubject = subjectName?.trim()?.takeIf { it.isNotBlank() }
+        if (sections.isNotEmpty()) {
+            return sections.flatMap { section ->
+                section.questionIds.mapIndexed { index, questionId ->
+                    StructuredQuestionRow(
+                        subject = forcedSubject ?: section.label,
+                        questionOrder = index + 1,
+                        questionId = questionId
+                    )
+                }
+            }
+        }
+
+        return primaryKey.answerKey.answers.keys
+            .sortedWith(::compareQuestionIds)
+            .mapIndexed { index, questionId ->
+                StructuredQuestionRow(
+                    subject = forcedSubject ?: "Tüm Sorular",
+                    questionOrder = localQuestionNumber(questionId) ?: index + 1,
+                    questionId = questionId
+                )
+            }
+    }
+
+    private fun localQuestionNumber(questionId: String): Int? =
+        questionId.substringAfterLast(':', missingDelimiterValue = questionId).toIntOrNull()
+
+    private fun columnName(oneBasedIndex: Int): String {
+        require(oneBasedIndex > 0)
+        var value = oneBasedIndex
+        return buildString {
+            while (value > 0) {
+                val rem = (value - 1) % 26
+                append(('A'.code + rem).toChar())
+                value = (value - 1) / 26
+            }
+        }.reversed()
+    }
+
     private fun inlineCell(reference: String, value: String, style: Int): String =
         "<c r=\"$reference\" s=\"$style\" t=\"inlineStr\"><is><t xml:space=\"preserve\">" +
             escapeXml(value) +
@@ -132,13 +280,14 @@ object AnswerKeyXlsxExporter {
         "<border><left style=\"thin\"><color rgb=\"FFD9D9D9\"/></left><right style=\"thin\"><color rgb=\"FFD9D9D9\"/></right><top style=\"thin\"><color rgb=\"FFD9D9D9\"/></top><bottom style=\"thin\"><color rgb=\"FFD9D9D9\"/></bottom><diagonal/></border>" +
         "</borders>" +
         "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
-        "<cellXfs count=\"6\">" +
+        "<cellXfs count=\"7\">" +
         "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>" +
         "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"><alignment vertical=\"center\"/></xf>" +
         "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyFill=\"1\" applyBorder=\"1\"><alignment vertical=\"center\"/></xf>" +
         "<xf numFmtId=\"0\" fontId=\"2\" fillId=\"3\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
         "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
         "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
+        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\"><alignment horizontal=\"left\" vertical=\"center\"/></xf>" +
         "</cellXfs>" +
         "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>" +
         "</styleSheet>"
@@ -184,6 +333,12 @@ object AnswerKeyXlsxExporter {
         }
     }
 
+    private data class StructuredQuestionRow(
+        val subject: String,
+        val questionOrder: Int,
+        val questionId: String
+    )
+
     private const val XML_DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
     private const val HEADER_ROW = 9
     private const val TITLE_STYLE = 1
@@ -191,5 +346,6 @@ object AnswerKeyXlsxExporter {
     private const val HEADER_STYLE = 3
     private const val BODY_STYLE = 4
     private const val ANSWER_STYLE = 5
+    private const val BODY_LEFT_STYLE = 6
     private const val VALUE_STYLE = 0
 }
