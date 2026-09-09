@@ -168,7 +168,7 @@ class SchoolExamCloudSyncService(
             }
 
             val record = records[link.scanRecordId] ?: return@forEach
-            val key = ExamPaperResolution.answerKey(link, record, keys) ?: return@forEach
+            val key = ExamPaperResolution.answerKey(exam.id, link, record, keys) ?: return@forEach
             val score = runCatching {
                 OmrScorer.score(
                     record = record,
