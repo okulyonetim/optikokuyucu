@@ -49,6 +49,7 @@ fun ProductHomeScreen(
     onNewExam: () -> Unit,
     onOpenReportBuilder: () -> Unit,
     onOpenMiniAnswerKey: () -> Unit,
+    onOpenOcr: () -> Unit,
     onOpenExams: () -> Unit,
     onOpenExam: (String) -> Unit
 ) {
@@ -193,6 +194,13 @@ fun ProductHomeScreen(
                         title = "Yeni Sınav",
                         description = "Yeni sınav oluştur ve optik formu seç",
                         onClick = onNewExam
+                    )
+                    HomeSeparator()
+                    HomeActionRow(
+                        symbol = "OCR",
+                        title = "Belge / OCR",
+                        description = "Türkçe belge, el yazısı ve cevap anahtarı görsellerini oku",
+                        onClick = onOpenOcr
                     )
                     HomeSeparator()
                     HomeActionRow(
