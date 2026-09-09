@@ -52,6 +52,7 @@ private enum class RootDestination {
     SCANNER,
     RESULTS,
     ANSWER_KEYS,
+    OCR,
     ACTIVE_TEMPLATE,
     DESIGNER,
     ADVANCED_DESIGNER
@@ -68,6 +69,7 @@ fun OmrRootScreen(
     var formsReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
     var designerReturnDestination by remember { mutableStateOf(RootDestination.ACTIVE_TEMPLATE) }
     var reportReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
+    var ocrReturnDestination by remember { mutableStateOf(RootDestination.TOOLS) }
 
     fun openForms(returnTo: RootDestination) {
         formsReturnDestination = returnTo
@@ -77,6 +79,11 @@ fun OmrRootScreen(
     fun openDesigner(returnTo: RootDestination) {
         designerReturnDestination = returnTo
         destination = RootDestination.DESIGNER
+    }
+
+    fun openOcr(returnTo: RootDestination) {
+        ocrReturnDestination = returnTo
+        destination = RootDestination.OCR
     }
 
     if (destination != RootDestination.HOME) {
@@ -104,6 +111,7 @@ fun OmrRootScreen(
                     if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
                 }
 
+                RootDestination.OCR -> ocrReturnDestination
                 RootDestination.ACTIVE_TEMPLATE -> formsReturnDestination
                 RootDestination.DESIGNER -> designerReturnDestination
                 RootDestination.ADVANCED_DESIGNER -> RootDestination.DESIGNER
@@ -290,6 +298,7 @@ fun OmrRootScreen(
                     onOpenScanner = { destination = RootDestination.SCANNER },
                     onOpenResults = { destination = RootDestination.RESULTS },
                     onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
+                    onOpenOcr = { openOcr(RootDestination.TOOLS) },
                     onOpenActiveTemplate = { openForms(RootDestination.TOOLS) },
                     onOpenDesigner = { openDesigner(RootDestination.TOOLS) }
                 )
@@ -308,6 +317,10 @@ fun OmrRootScreen(
                     onBack = {
                         destination = if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
                     }
+                )
+
+                RootDestination.OCR -> OcrWorkspaceScreen(
+                    onBack = { destination = ocrReturnDestination }
                 )
 
                 RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
@@ -449,6 +462,7 @@ private fun RootToolsScreen(
     onOpenScanner: () -> Unit,
     onOpenResults: () -> Unit,
     onOpenAnswerKeys: () -> Unit,
+    onOpenOcr: () -> Unit,
     onOpenActiveTemplate: () -> Unit,
     onOpenDesigner: () -> Unit
 ) {
@@ -472,7 +486,7 @@ private fun RootToolsScreen(
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("OMR çalışma merkezi", fontWeight = FontWeight.Bold)
                         Text(
-                            "Tarama, sonuç, cevap anahtarı ve form araçlarını tek noktadan yönetin.",
+                            "Tarama, sonuç, cevap anahtarı, OCR ve form araçlarını tek noktadan yönetin.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -480,6 +494,7 @@ private fun RootToolsScreen(
                 }
             }
             item { ToolActionCard("▣", "Kamera ile Tara", "Aktif optik form ile canlı OMR okuma", onOpenScanner, true) }
+            item { ToolActionCard("OCR", "Belge / OCR", "Türkçe belge, el yazısı ve cevap anahtarı görsellerini oku", onOpenOcr) }
             item { ToolActionCard("▥", "Sonuçlar", "Sınav analizleri ve öğrenci sonuçları", onOpenResults) }
             item { ToolActionCard("✓", "Cevap Anahtarları", "Sınav cevap anahtarlarını oluştur ve yönet", onOpenAnswerKeys) }
             item { ToolActionCard("◎", "Optik Formlar", "Aktif, hazır ve kurum formlarını yönet", onOpenActiveTemplate) }
