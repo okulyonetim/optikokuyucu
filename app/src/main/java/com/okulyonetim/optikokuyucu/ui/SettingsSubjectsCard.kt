@@ -19,25 +19,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Settings-page entry for subject names. Visual surfaces come from ProductUi. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
+    val context = LocalContext.current
     val feedback = LocalAppFeedback.current
+    val scope = rememberCoroutineScope()
+    val manager = remember(context) { SchoolPortalManager.get(context.applicationContext) }
+    val schoolAccount = LocalSchoolAccount.current
     var subjects by remember(repository) { mutableStateOf(repository.load().subjects) }
     var editorOpen by remember { mutableStateOf(false) }
     var newSubject by remember { mutableStateOf("") }
     var editingSubject by remember { mutableStateOf<String?>(null) }
     var editingValue by remember { mutableStateOf("") }
+    var syncing by remember { mutableStateOf(false) }
 
     fun persist(updated: List<String>, successMessage: String = "Dersler güncellendi.") {
         runCatching { repository.saveSubjects(updated) }
@@ -74,10 +85,31 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
         }
     }
 
+    fun syncFromSchoolManagement() {
+        if (syncing) return
+        if (schoolAccount == null) {
+            feedback.warning("Önce Okul Yönetim hesabıyla giriş yapın.")
+            return
+        }
+        syncing = true
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { manager.syncSubjects() }
+            }.onSuccess { result ->
+                subjects = repository.load().subjects
+                cancelRename()
+                feedback.success("${result.importedSubjects} ders Okul Yönetim'den aktarıldı.")
+            }.onFailure { error ->
+                feedback.error("Dersler aktarılamadı: ${error.message ?: error.javaClass.simpleName}")
+            }
+            syncing = false
+        }
+    }
+
     ProductSettingsLink(
         symbol = "≡",
         title = "Dersler",
-        description = "${subjects.size} ders · ekle, düzenle veya kaldır",
+        description = "${subjects.size} ders · Okul Yönetim ile eşitle veya düzenle",
         onClick = { editorOpen = true }
     )
 
@@ -94,10 +126,21 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
             ) {
                 Text("Dersleri Düzenle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Sınav, cevap anahtarı ve sonuçlarda kullanılacak ders adlarını yönetin.",
+                    "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca buluttaki ders listesi cihazdaki listeyle değiştirilir.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                FilledTonalButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !syncing && schoolAccount != null,
+                    onClick = ::syncFromSchoolManagement
+                ) {
+                    Text(
+                        if (syncing) "Okul Yönetim'den aktarılıyor…" else "Okul Yönetim'den Dersleri Getir",
+                        fontSize = 11.sp
+                    )
+                }
 
                 subjects.forEach { subject ->
                     val editing = editingSubject == subject

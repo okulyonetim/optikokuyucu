@@ -90,6 +90,16 @@ fun NewExamScreen(
     val roster = remember(context) { FileStudentRosterRepository(appContext).list() }
     val classNames = remember(roster) { roster.map { it.className }.distinct().sorted() }
     val existingExam = remember(examId) { examId?.let(repository::load) }
+    val subjectOptions = remember(settingsRepository, existingExam?.subjectName) {
+        buildList {
+            addAll(settingsRepository.load().subjects)
+            existingExam?.subjectName?.trim()?.takeIf(String::isNotBlank)?.let(::add)
+        }
+            .map { it.trim().replace(Regex("\\s+"), " ") }
+            .filter(String::isNotBlank)
+            .distinctBy { it.lowercase(Locale.forLanguageTag("tr-TR")) }
+            .sortedBy { it.lowercase(Locale.forLanguageTag("tr-TR")) }
+    }
     var options by remember(context) { mutableStateOf(loadExamTemplateOptions(appContext)) }
     val activeSelection = remember(context) { FileActiveTemplateSelectionRepository(appContext).load() }
 
@@ -165,6 +175,7 @@ fun NewExamScreen(
     var personalizedFormsEnabled by remember { mutableStateOf(existingExam?.personalizedFormsEnabled ?: false) }
 
     var templateMenuOpen by remember { mutableStateOf(false) }
+    var subjectMenuOpen by remember { mutableStateOf(false) }
     var scoringTypeMenuOpen by remember { mutableStateOf(false) }
     var scoreModeMenuOpen by remember { mutableStateOf(false) }
     var wrongMenuOpen by remember { mutableStateOf(false) }
@@ -265,7 +276,7 @@ fun NewExamScreen(
         when {
             examName.isBlank() -> warn("Sınav adı zorunludur.")
             schoolName.isBlank() -> warn("Okul alanı zorunludur.")
-            singleSubjectExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders adı zorunludur.")
+            singleSubjectExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders seçimi zorunludur.")
             parsedDate == null -> warn("Tarih GG.AA.YYYY biçiminde olmalıdır.")
             scaledScore && !officialMebScoring && minimumScore == null -> warn("Taban puan geçerli bir sayı olmalıdır.")
             scaledScore && !officialMebScoring && maximumScore == null -> warn("Tavan puan geçerli bir sayı olmalıdır.")
@@ -447,7 +458,38 @@ fun NewExamScreen(
                 }
 
                 if (singleSubjectExam) {
-                    RoundedExamField(subjectName, { subjectName = it }, "Ders Adı *", "D")
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        ExamSelectField(
+                            label = "Ders *",
+                            value = subjectName.ifBlank { "Ders seçin" },
+                            symbol = "D",
+                            onClick = { subjectMenuOpen = true }
+                        )
+                        DropdownMenu(
+                            modifier = Modifier.heightIn(max = 320.dp),
+                            expanded = subjectMenuOpen,
+                            onDismissRequest = { subjectMenuOpen = false },
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ) {
+                            if (subjectOptions.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Ayarlar > Dersler bölümünden ders ekleyin") },
+                                    enabled = false,
+                                    onClick = {}
+                                )
+                            } else {
+                                subjectOptions.forEach { subject ->
+                                    DropdownMenuItem(
+                                        text = { Text(subject, style = MaterialTheme.typography.bodySmall) },
+                                        onClick = {
+                                            subjectName = subject
+                                            subjectMenuOpen = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else {
                     Text(
                         "Çoklu ders sınavında dersler seçilen optik formdaki soru gruplarından otomatik alınır.",
