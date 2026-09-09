@@ -85,7 +85,7 @@ internal fun BookletAreaEditorScreen(
                         singleLine = true
                     )
                     Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
-                    AlignmentButtons(draft.labelAlignment) { onDraftChange(draft.copy(labelAlignment = it)) }
+                    BookletAlignmentButtons(draft.labelAlignment) { onDraftChange(draft.copy(labelAlignment = it)) }
                     Text("Yön", style = MaterialTheme.typography.labelMedium)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BookletChoice(Modifier.weight(1f), "Yatay", draft.axis == ChoiceAxis.HORIZONTAL) { onDraftChange(draft.copy(axis = ChoiceAxis.HORIZONTAL)) }
@@ -129,7 +129,7 @@ internal fun BookletAreaEditorScreen(
 }
 
 @Composable
-internal fun AlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerTextAlignment) -> Unit) {
+internal fun BookletAlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerTextAlignment) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         BookletChoice(Modifier.weight(1f), "Sol", value == DesignerTextAlignment.START) { onChange(DesignerTextAlignment.START) }
         BookletChoice(Modifier.weight(1f), "Orta", value == DesignerTextAlignment.CENTER) { onChange(DesignerTextAlignment.CENTER) }
