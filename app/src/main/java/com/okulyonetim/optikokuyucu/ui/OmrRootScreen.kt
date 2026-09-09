@@ -149,6 +149,7 @@ fun OmrRootScreen(
                                 destination = RootDestination.REPORT_BUILDER
                             },
                             onOpenMiniAnswerKey = { destination = RootDestination.MINI_ANSWER_KEY },
+                            onOpenOcr = { openOcr(RootDestination.HOME) },
                             onOpenExams = { destination = RootDestination.EXAMS },
                             onOpenExam = { examId ->
                                 selectedExamId = examId
@@ -180,10 +181,7 @@ fun OmrRootScreen(
                             onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
                         )
 
-                        RootDestination.SETTINGS -> RootSettingsScreen(
-                            onOpenTools = { destination = RootDestination.TOOLS },
-                            onOpenForms = { openForms(RootDestination.SETTINGS) }
-                        )
+                        RootDestination.SETTINGS -> RootSettingsScreen()
 
                         else -> Unit
                     }
@@ -367,10 +365,7 @@ private fun ProductTab.toRootDestination(): RootDestination = when (this) {
 }
 
 @Composable
-private fun RootSettingsScreen(
-    onOpenTools: () -> Unit,
-    onOpenForms: () -> Unit
-) {
+private fun RootSettingsScreen() {
     val context = LocalContext.current
     val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
     var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
@@ -428,22 +423,6 @@ private fun RootSettingsScreen(
                 }
             }
             item { SettingsSubjectsCard(settingsRepository) }
-            item {
-                ProductSettingsLink(
-                    symbol = "◎",
-                    title = "Optik Formlar",
-                    description = "Aktif form, hazır şablonlar ve kurum formlarını yönetin.",
-                    onClick = onOpenForms
-                )
-            }
-            item {
-                ProductSettingsLink(
-                    symbol = "⌁",
-                    title = "Gelişmiş Araçlar",
-                    description = "Cevap anahtarı, test ve gelişmiş OMR araçlarına erişin.",
-                    onClick = onOpenTools
-                )
-            }
             item {
                 Text(
                     "Tema seçimi için sağ üstteki ◐ simgesini kullanın.",
