@@ -1,25 +1,29 @@
 package com.okulyonetim.optikokuyucu.omr.designer
 
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
+import kotlin.math.max
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.max
 
 class DesignerEditSafetyTest {
-    private val document = DesignerDocument("edit-safety", 1, "Edit Safety")
+    private val document = DesignerDocument(
+        id = "safety-test",
+        version = 1,
+        name = "Safety Test"
+    )
 
     @Test
-    fun `placement inside safe area and away from fiducials is accepted`() {
+    fun `placement inside safe page area is accepted`() {
         val safe = DesignerPageGeometry.safeArea(document.space)
         val bounds = TemplateRect(
-            left = safe.left + safe.width * 0.25,
-            top = safe.top + safe.height * 0.25,
-            width = safe.width * 0.15,
-            height = safe.height * 0.10
+            left = safe.center.x - 20.0,
+            top = safe.center.y - 20.0,
+            width = 40.0,
+            height = 40.0
         )
 
         assertNull(DesignerEditSafety.placementIssue(document, bounds))
@@ -27,19 +31,19 @@ class DesignerEditSafetyTest {
     }
 
     @Test
-    fun `placement outside safe area is rejected with warning`() {
+    fun `placement extending outside usable page area is rejected with warning`() {
         val safe = DesignerPageGeometry.safeArea(document.space)
         val bounds = TemplateRect(
-            left = safe.left - 1.0,
-            top = safe.top + 10.0,
-            width = 40.0,
-            height = 40.0
+            left = safe.right - 5.0,
+            top = safe.center.y,
+            width = 20.0,
+            height = 20.0
         )
 
         val issue = DesignerEditSafety.placementIssue(document, bounds)
 
         assertNotNull(issue)
-        assertTrue(requireNotNull(issue).contains("güvenli alanın dışına"))
+        assertTrue(requireNotNull(issue).contains("sığmıyor"))
         assertFalse(DesignerEditSafety.isPlacementSafe(document, bounds))
     }
 
