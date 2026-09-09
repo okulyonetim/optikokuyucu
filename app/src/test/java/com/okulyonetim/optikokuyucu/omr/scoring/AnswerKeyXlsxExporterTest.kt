@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.omr.scoring
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -71,6 +72,75 @@ class AnswerKeyXlsxExporterTest {
 
         assertTrue(sheet.contains("Genel"))
         assertTrue(sheet.contains("Kamera kaydı"))
+    }
+
+    @Test
+    fun `structured export shows subjects local question order and all booklet columns`() {
+        val sections = listOf(
+            ManualAnswerSection(
+                id = "answers-1",
+                label = "Türkçe",
+                questionIds = listOf("answers-1:1", "answers-1:2"),
+                allowedChoices = setOf("A", "B", "C", "D")
+            ),
+            ManualAnswerSection(
+                id = "answers-2",
+                label = "Matematik",
+                questionIds = listOf("answers-2:1"),
+                allowedChoices = setOf("A", "B", "C", "D")
+            )
+        )
+        val keyA = StoredAnswerKey(
+            answerKey = AnswerKey(
+                templateId = "deneme",
+                templateVersion = 3,
+                answers = linkedMapOf(
+                    "answers-1:1" to "B",
+                    "answers-1:2" to "D",
+                    "answers-2:1" to "A"
+                )
+            ),
+            variantGridId = "booklet",
+            variantValue = "A",
+            source = AnswerKeySource.MANUAL,
+            examId = "exam-1"
+        )
+        val keyB = StoredAnswerKey(
+            answerKey = AnswerKey(
+                templateId = "deneme",
+                templateVersion = 3,
+                answers = linkedMapOf(
+                    "answers-1:1" to "C",
+                    "answers-1:2" to "A",
+                    "answers-2:1" to "D"
+                )
+            ),
+            variantGridId = "booklet",
+            variantValue = "B",
+            source = AnswerKeySource.MANUAL,
+            examId = "exam-1"
+        )
+
+        val sheet = unzip(
+            AnswerKeyXlsxExporter.exportStructured(
+                keys = listOf(keyB, keyA),
+                sections = sections
+            )
+        ).getValue("xl/worksheets/sheet1.xml")
+
+        assertTrue(sheet.contains(">Ders<"))
+        assertTrue(sheet.contains(">Soru<"))
+        assertTrue(sheet.contains(">Kitapçık A<"))
+        assertTrue(sheet.contains(">Kitapçık B<"))
+        assertTrue(sheet.contains(">Türkçe<"))
+        assertTrue(sheet.contains(">Matematik<"))
+        assertTrue(sheet.contains("autoFilter ref=\"A9:D12\""))
+        assertFalse(sheet.contains("answers-1:1"))
+        assertFalse(sheet.contains("answers-2:1"))
+
+        val turkish = sheet.indexOf(">Türkçe<")
+        val math = sheet.indexOf(">Matematik<")
+        assertTrue(turkish >= 0 && math > turkish)
     }
 
     private fun unzip(bytes: ByteArray): Map<String, String> = buildMap {

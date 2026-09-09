@@ -362,17 +362,27 @@ fun ExamAnswerKeyEditor(
     }
 
     fun exportCurrent() {
-        val key = matchingKey()
-        if (key == null) {
-            feedback.warning("Önce bu kitapçık için bir cevap anahtarı oluşturun.")
+        val scopedKeys = keys.filter { key ->
+            key.examId == exam.id &&
+                key.templateId == template.id &&
+                key.templateVersion == template.version
+        }
+        if (scopedKeys.isEmpty()) {
+            feedback.warning("Önce en az bir cevap anahtarı oluşturun.")
             return
         }
-        runCatching { AnswerKeyXlsxExporter.export(key) }
-            .onSuccess { bytes ->
-                pendingXlsx = bytes
-                xlsxLauncher.launch(examAnswerKeyFileName(exam.name, booklet))
-            }
-            .onFailure { feedback.error("XLSX oluşturulamadı: ${it.message ?: it.javaClass.simpleName}") }
+        runCatching {
+            AnswerKeyXlsxExporter.exportStructured(
+                keys = scopedKeys,
+                sections = sections,
+                subjectName = exam.subjectName.takeIf { it.isNotBlank() }
+            )
+        }.onSuccess { bytes ->
+            pendingXlsx = bytes
+            xlsxLauncher.launch(examAnswerKeyFileName(exam.name, null))
+        }.onFailure {
+            feedback.error("XLSX oluşturulamadı: ${it.message ?: it.javaClass.simpleName}")
+        }
     }
 
     val selectedSection = sections.firstOrNull { it.id == sectionId } ?: sections.firstOrNull()
