@@ -32,7 +32,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,9 +87,8 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val clipboard = LocalClipboardManager.current
-    val examRepository = remember(context) { FileExamRepository(appContext) }
+    val exams = remember(context) { FileExamRepository(appContext).list() }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
-    val exams = remember(context) { examRepository.list() }
 
     var mode by remember { mutableStateOf(OcrWorkspaceMode.TEXT) }
     var writingMode by remember { mutableStateOf(OcrWritingMode.PRINTED) }
@@ -107,9 +105,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var lastSource by remember { mutableStateOf(OcrImageSource.GALLERY) }
 
-    val selectedExam = remember(selectedExamId, exams) {
-        exams.firstOrNull { it.id == selectedExamId }
-    }
+    val selectedExam = remember(selectedExamId, exams) { exams.firstOrNull { it.id == selectedExamId } }
     val target = remember(selectedExam?.id, selectedExam?.templateSelection) {
         selectedExam?.let { loadOcrExamTarget(appContext, it) }
     }
@@ -117,12 +113,12 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     fun process(uri: Uri, source: OcrImageSource) {
         if (busy) return
         busy = true
+        lastSource = source
         status = if (writingMode == OcrWritingMode.HANDWRITING) {
             "El yazısı için iki aşamalı OCR uygulanıyor…"
         } else {
             "Türkçe metin okunuyor…"
         }
-        lastSource = source
         OcrTextRecognizer.recognize(
             context = appContext,
             uri = uri,
@@ -145,26 +141,24 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(mode, recognition, target?.exam?.id) {
-        if (mode == OcrWorkspaceMode.ANSWER_KEY) {
-            val currentRecognition = recognition
-            val currentTarget = target
-            if (currentRecognition != null && currentTarget != null) {
-                val parsed = OcrAnswerKeyParser.parse(
-                    recognition = currentRecognition,
-                    sections = currentTarget.sections,
-                    knownBooklets = currentTarget.bookletChoices
-                )
-                extraction = parsed
-                editedAnswers = parsed.answers
-                selectedBooklet = parsed.detectedBooklet
-                    ?: currentTarget.bookletChoices.singleOrNull()
-                status = "${parsed.answers.size}/${currentTarget.sections.sumOf { it.questionIds.size }} cevap algılandı"
-            } else {
-                extraction = null
-                editedAnswers = emptyMap()
-                selectedBooklet = null
-            }
+        if (mode != OcrWorkspaceMode.ANSWER_KEY) return@LaunchedEffect
+        val currentRecognition = recognition
+        val currentTarget = target
+        if (currentRecognition == null || currentTarget == null) {
+            extraction = null
+            editedAnswers = emptyMap()
+            selectedBooklet = null
+            return@LaunchedEffect
         }
+        val parsed = OcrAnswerKeyParser.parse(
+            recognition = currentRecognition,
+            sections = currentTarget.sections,
+            knownBooklets = currentTarget.bookletChoices
+        )
+        extraction = parsed
+        editedAnswers = parsed.answers
+        selectedBooklet = parsed.detectedBooklet ?: currentTarget.bookletChoices.singleOrNull()
+        status = "${parsed.answers.size}/${currentTarget.sections.sumOf { it.questionIds.size }} cevap algılandı"
     }
 
     val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -206,12 +200,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ProductTopBar(
-            title = "Belge / OCR",
-            leadingText = "‹",
-            onLeadingClick = onBack
-        )
-
+        ProductTopBar(title = "Belge / OCR", leadingText = "‹", onLeadingClick = onBack)
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -223,32 +212,24 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     subtitle = "Türkçe belgeyi metne çevirin veya cevap anahtarını sınava aktarın."
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OcrChoiceButton(
-                            modifier = Modifier.weight(1f),
-                            label = "Belgeden Metin",
-                            selected = mode == OcrWorkspaceMode.TEXT
-                        ) { mode = OcrWorkspaceMode.TEXT }
-                        OcrChoiceButton(
-                            modifier = Modifier.weight(1f),
-                            label = "Cevap Anahtarı",
-                            selected = mode == OcrWorkspaceMode.ANSWER_KEY
-                        ) { mode = OcrWorkspaceMode.ANSWER_KEY }
+                        OcrChoiceButton(Modifier.weight(1f), "Belgeden Metin", mode == OcrWorkspaceMode.TEXT) {
+                            mode = OcrWorkspaceMode.TEXT
+                        }
+                        OcrChoiceButton(Modifier.weight(1f), "Cevap Anahtarı", mode == OcrWorkspaceMode.ANSWER_KEY) {
+                            mode = OcrWorkspaceMode.ANSWER_KEY
+                        }
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OcrChoiceButton(
-                            modifier = Modifier.weight(1f),
-                            label = "Basılı Metin",
-                            selected = writingMode == OcrWritingMode.PRINTED
-                        ) { writingMode = OcrWritingMode.PRINTED }
-                        OcrChoiceButton(
-                            modifier = Modifier.weight(1f),
-                            label = "El Yazısı",
-                            selected = writingMode == OcrWritingMode.HANDWRITING
-                        ) { writingMode = OcrWritingMode.HANDWRITING }
+                        OcrChoiceButton(Modifier.weight(1f), "Basılı Metin", writingMode == OcrWritingMode.PRINTED) {
+                            writingMode = OcrWritingMode.PRINTED
+                        }
+                        OcrChoiceButton(Modifier.weight(1f), "El Yazısı", writingMode == OcrWritingMode.HANDWRITING) {
+                            writingMode = OcrWritingMode.HANDWRITING
+                        }
                     }
                     if (writingMode == OcrWritingMode.HANDWRITING) {
                         Text(
-                            "El yazısında görüntü büyütme + kontrast iyileştirme ile ikinci OCR geçişi uygulanır. Sonucu kaydetmeden önce kontrol edin.",
+                            "El yazısında büyütme ve kontrast iyileştirme ile ikinci OCR geçişi uygulanır. Sonucu kaydetmeden önce kontrol edin.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -260,7 +241,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                 item {
                     OcrSectionCard(
                         title = "Hedef Sınav",
-                        subtitle = "Görseldeki dersler, seçili sınavın optik formundaki cevap alanlarıyla eşleştirilir."
+                        subtitle = "Dersler ve soru sırası seçili sınavın optik formundan alınır."
                     ) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(
@@ -276,20 +257,13 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                 )
                                 Text("⌄")
                             }
-                            DropdownMenu(
-                                expanded = examMenuOpen,
-                                onDismissRequest = { examMenuOpen = false }
-                            ) {
+                            DropdownMenu(expanded = examMenuOpen, onDismissRequest = { examMenuOpen = false }) {
                                 exams.forEach { exam ->
                                     DropdownMenuItem(
                                         text = {
                                             Column {
                                                 Text(exam.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                Text(
-                                                    exam.schoolName,
-                                                    fontSize = 10.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                Text(exam.schoolName, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
                                         },
                                         onClick = {
@@ -331,17 +305,13 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                             enabled = !busy && (mode == OcrWorkspaceMode.TEXT || target != null),
                             onClick = { galleryPicker.launch("image/*") },
                             shape = RoundedCornerShape(13.dp)
-                        ) {
-                            Text(if (busy) "Okunuyor…" else "Galeriden Seç")
-                        }
+                        ) { Text(if (busy) "Okunuyor…" else "Galeriden Seç") }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             enabled = !busy && (mode == OcrWorkspaceMode.TEXT || target != null),
                             onClick = ::requestCamera,
                             shape = RoundedCornerShape(13.dp)
-                        ) {
-                            Text("Kamerayla Tara")
-                        }
+                        ) { Text("Kamerayla Tara") }
                     }
                     if (status.isNotBlank()) {
                         Text(
@@ -357,10 +327,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 
             if (mode == OcrWorkspaceMode.TEXT && recognition != null) {
                 item {
-                    OcrSectionCard(
-                        title = "Düzenlenebilir Metin",
-                        subtitle = "OCR sonucunu burada düzeltebilir ve kopyalayabilirsiniz."
-                    ) {
+                    OcrSectionCard("Düzenlenebilir Metin", "OCR sonucunu burada düzeltebilir ve kopyalayabilirsiniz.") {
                         OutlinedTextField(
                             modifier = Modifier.fillMaxWidth(),
                             value = editableText,
@@ -378,21 +345,17 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                 status = "Metin panoya kopyalandı."
                             },
                             shape = RoundedCornerShape(13.dp)
-                        ) {
-                            Text("Metni Kopyala")
-                        }
+                        ) { Text("Metni Kopyala") }
                     }
                 }
             }
 
-            if (mode == OcrWorkspaceMode.ANSWER_KEY && extraction != null && target != null) {
-                val parsed = extraction!!
+            val parsed = extraction
+            val currentTarget = target
+            if (mode == OcrWorkspaceMode.ANSWER_KEY && parsed != null && currentTarget != null) {
                 if (parsed.warnings.isNotEmpty()) {
                     item {
-                        OcrSectionCard(
-                            title = "Kontrol Gerekenler",
-                            subtitle = "Şüpheli hücreler otomatik kaydedilmez."
-                        ) {
+                        OcrSectionCard("Kontrol Gerekenler", "Şüpheli hücreler otomatik kaydedilmez.") {
                             parsed.warnings.forEach { warning ->
                                 Text("• $warning", fontSize = 10.sp, color = MaterialTheme.colorScheme.error)
                             }
@@ -400,9 +363,9 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     }
                 }
 
-                if (target.bookletChoices.isNotEmpty()) {
+                if (currentTarget.bookletChoices.isNotEmpty()) {
                     item {
-                        OcrSectionCard(title = "Kitapçık", subtitle = "Görselden algılanan kitapçığı doğrulayın.") {
+                        OcrSectionCard("Kitapçık", "Görselden algılanan kitapçığı doğrulayın.") {
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedButton(
                                     modifier = Modifier.fillMaxWidth(),
@@ -412,11 +375,8 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                     Text("Kitapçık ${selectedBooklet ?: "Seç"}", modifier = Modifier.weight(1f))
                                     Text("⌄")
                                 }
-                                DropdownMenu(
-                                    expanded = bookletMenuOpen,
-                                    onDismissRequest = { bookletMenuOpen = false }
-                                ) {
-                                    target.bookletChoices.forEach { value ->
+                                DropdownMenu(expanded = bookletMenuOpen, onDismissRequest = { bookletMenuOpen = false }) {
+                                    currentTarget.bookletChoices.forEach { value ->
                                         DropdownMenuItem(
                                             text = { Text("Kitapçık $value") },
                                             onClick = {
@@ -431,35 +391,29 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     }
                 }
 
-                target.sections.forEach { section ->
-                    item(key = "ocr-section-${section.id}") {
-                        OcrAnswerSection(
-                            section = section,
-                            answers = editedAnswers,
-                            onAnswerChange = { questionId, choice ->
-                                editedAnswers = editedAnswers.toMutableMap().apply { put(questionId, choice) }
-                            }
-                        )
+                currentTarget.sections.forEach { section ->
+                    item(key = "ocr-${section.id}") {
+                        OcrAnswerSection(section, editedAnswers) { questionId, choice ->
+                            editedAnswers = editedAnswers.toMutableMap().apply { put(questionId, choice) }
+                        }
                     }
                 }
 
                 item {
-                    val expected = target.sections.flatMap { it.questionIds }
+                    val expected = currentTarget.sections.flatMap { it.questionIds }
                     val sectionByQuestion = buildMap<String, ManualAnswerSection> {
-                        target.sections.forEach { section -> section.questionIds.forEach { put(it, section) } }
+                        currentTarget.sections.forEach { section ->
+                            section.questionIds.forEach { questionId -> put(questionId, section) }
+                        }
                     }
                     val missing = expected.count { questionId ->
                         val answer = editedAnswers[questionId]
                         answer == null || answer !in sectionByQuestion.getValue(questionId).allowedChoices
                     }
-                    val bookletReady = target.bookletGridId == null || !selectedBooklet.isNullOrBlank()
+                    val bookletReady = currentTarget.bookletGridId == null || !selectedBooklet.isNullOrBlank()
                     OcrSectionCard(
-                        title = "Cevap Anahtarına Aktar",
-                        subtitle = if (missing == 0) {
-                            "Tüm cevaplar kontrol edildi."
-                        } else {
-                            "$missing soru henüz boş veya geçersiz."
-                        }
+                        "Cevap Anahtarına Aktar",
+                        if (missing == 0) "Tüm cevaplar kontrol edildi." else "$missing soru henüz boş veya geçersiz."
                     ) {
                         Button(
                             modifier = Modifier.fillMaxWidth(),
@@ -469,14 +423,14 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                     val variant = selectedBooklet?.takeIf(String::isNotBlank)
                                     StoredAnswerKey(
                                         answerKey = AnswerKey(
-                                            templateId = target.template.id,
-                                            templateVersion = target.template.version,
-                                            answers = expected.associateWith { editedAnswers.getValue(it) }
+                                            currentTarget.template.id,
+                                            currentTarget.template.version,
+                                            expected.associateWith { editedAnswers.getValue(it) }
                                         ),
-                                        variantGridId = if (variant == null) null else target.bookletGridId,
+                                        variantGridId = if (variant == null) null else currentTarget.bookletGridId,
                                         variantValue = variant,
                                         source = if (lastSource == OcrImageSource.CAMERA) AnswerKeySource.CAMERA else AnswerKeySource.GALLERY,
-                                        examId = target.exam.id
+                                        examId = currentTarget.exam.id
                                     ).also(keyRepository::save)
                                 }.onSuccess {
                                     status = buildString {
@@ -488,9 +442,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                 }
                             },
                             shape = RoundedCornerShape(13.dp)
-                        ) {
-                            Text("Cevap Anahtarına Kaydet")
-                        }
+                        ) { Text("Cevap Anahtarına Kaydet") }
                     }
                 }
             }
@@ -501,11 +453,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun OcrSectionCard(
-    title: String,
-    subtitle: String? = null,
-    content: @Composable () -> Unit
-) {
+private fun OcrSectionCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
@@ -518,21 +466,14 @@ private fun OcrSectionCard(
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            if (subtitle != null) {
-                Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            subtitle?.let { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             content()
         }
     }
 }
 
 @Composable
-private fun OcrChoiceButton(
-    modifier: Modifier,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+private fun OcrChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
     if (selected) {
         FilledTonalButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
             Text("$label ✓", fontSize = 11.sp)
@@ -550,22 +491,14 @@ private fun OcrAnswerSection(
     answers: Map<String, String>,
     onAnswerChange: (String, String) -> Unit
 ) {
-    OcrSectionCard(
-        title = section.label,
-        subtitle = "${section.questionIds.size} soru · OCR sonucunu kontrol edin"
-    ) {
+    OcrSectionCard(section.label, "${section.questionIds.size} soru · OCR sonucunu kontrol edin") {
         section.questionIds.forEachIndexed { index, questionId ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Text(
-                    "${index + 1}",
-                    modifier = Modifier.size(32.dp),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("${index + 1}", modifier = Modifier.size(32.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 section.allowedChoices.sorted().forEach { choice ->
                     val selected = answers[questionId] == choice
                     Surface(
@@ -596,11 +529,13 @@ private fun loadOcrExamTarget(context: Context, exam: Exam): OcrExamTarget? = ru
     val documentRepository = FileDesignerDocumentRepository(context.applicationContext)
     val savedDocuments = documentRepository.list()
     val starterDocuments = DesignerStarterTemplates.all()
-    val resolved = ActiveOmrTemplateResolver.resolve(
-        selection = exam.templateSelection,
-        savedDocuments = savedDocuments,
-        starterDocuments = starterDocuments
-    )
+    val resolved = requireNotNull(
+        ActiveOmrTemplateResolver.resolve(
+            selection = exam.templateSelection,
+            savedDocuments = savedDocuments,
+            starterDocuments = starterDocuments
+        )
+    ) { "Sınavın optik formu bulunamadı." }
     val document = if (exam.templateSelection.source == ActiveTemplateSource.DESIGNER_DOCUMENT) {
         savedDocuments.firstOrNull {
             it.id == exam.templateSelection.templateId && it.version == exam.templateSelection.templateVersion
@@ -618,11 +553,5 @@ private fun loadOcrExamTarget(context: Context, exam: Exam): OcrExamTarget? = ru
         ?.distinct()
         .orEmpty()
 
-    OcrExamTarget(
-        exam = exam,
-        template = resolved.template,
-        sections = sections,
-        bookletGridId = bookletGridId,
-        bookletChoices = bookletChoices
-    )
+    OcrExamTarget(exam, resolved.template, sections, bookletGridId, bookletChoices)
 }.getOrNull()
