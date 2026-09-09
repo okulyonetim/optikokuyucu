@@ -49,8 +49,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 91
-        versionName = "0.19.35"
+        versionCode = 92
+        versionName = "0.19.36"
         vectorDrawables { useSupportLibrary = true }
     }
     buildTypes {
