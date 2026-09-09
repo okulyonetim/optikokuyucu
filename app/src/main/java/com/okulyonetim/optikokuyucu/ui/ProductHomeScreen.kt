@@ -86,39 +86,46 @@ fun ProductHomeScreen(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Spacer(Modifier.height(10.dp)) }
+        item { Spacer(Modifier.height(8.dp)) }
+
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Optik Okuyucu", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        when {
-                            profile?.admin == true -> "Tüm kullanıcı sınavları"
-                            profile != null -> "${profile.displayName} · sınav yönetim merkezi"
-                            else -> "Sınav yönetim merkezi"
-                        },
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        text = if (profile?.admin == true) "ADMIN" else "OMR",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Text(
+                            "O",
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text("Optik Okuyucu", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            profile?.displayName?.takeIf(String::isNotBlank) ?: "Sınav yönetim merkezi",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
+                ProductStatusBadge(
+                    if (profile?.admin == true) "YÖNETİCİ" else "OMR",
+                    if (profile?.admin == true) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
+                )
             }
         }
 
@@ -129,44 +136,66 @@ fun ProductHomeScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    HomeMetric(Modifier.weight(1f), "Sınav", examItems.size.toString())
-                    HomeMetric(Modifier.weight(1f), "Kağıt", paperCount.toString())
-                    HomeMetric(Modifier.weight(1f), "Öğrenci", studentCount.toString())
-                    HomeMetric(Modifier.weight(1f), "Bekleyen", waiting.toString())
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text("Genel Durum", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(examItems.size.toString(), fontSize = 31.sp, fontWeight = FontWeight.Bold)
+                                Text("sınav", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 5.dp))
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ProductStatusBadge("$completed tamamlandı", ProductBadgeTone.GREEN)
+                            ProductStatusBadge("$waiting bekliyor", if (waiting > 0) ProductBadgeTone.ORANGE else ProductBadgeTone.NEUTRAL)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        HomeInfoPill(Modifier.weight(1f), "Kağıt", paperCount.toString())
+                        HomeInfoPill(Modifier.weight(1f), "Öğrenci", studentCount.toString())
+                    }
                 }
             }
         }
 
-        item { Text("Hızlı İşlemler", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Hızlı İşlemler", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                HomePrimaryAction(
-                    symbol = "+",
-                    title = "Yeni Sınav",
-                    description = "Sınav oluşturma ekranını aç",
-                    onClick = onNewExam
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HomeAction(
-                        modifier = Modifier.weight(1f),
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    HomeActionRow(
+                        symbol = "+",
+                        title = "Yeni Sınav",
+                        description = "Yeni sınav oluştur ve optik formu seç",
+                        onClick = onNewExam
+                    )
+                    HomeSeparator()
+                    HomeActionRow(
                         symbol = "▤",
                         title = "Rapor Oluştur",
-                        description = "Sınav veya öğrenci raporu",
+                        description = "Sınav veya öğrenci raporu hazırla",
                         onClick = onOpenReportBuilder
                     )
-                    HomeAction(
-                        modifier = Modifier.weight(1f),
+                    HomeSeparator()
+                    HomeActionRow(
                         symbol = "✓",
                         title = "Mini Cevap Anahtarı",
-                        description = "A4 çoklu dağıtım çıktısı",
+                        description = "A4 çoklu dağıtım çıktısı oluştur",
                         onClick = onOpenMiniAnswerKey
                     )
                 }
@@ -179,15 +208,15 @@ fun ProductHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text("Son Sınavlar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("Son Sınavlar", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "$completed tamamlandı · $waiting bekliyor",
+                        if (examItems.isEmpty()) "Henüz kayıt yok" else "En son ${minOf(5, examItems.size)} sınav",
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                TextButton(onClick = onOpenExams) { Text("Tümünü Gör", fontSize = 11.sp) }
+                TextButton(onClick = onOpenExams) { Text("Tümünü Gör", fontSize = 10.sp) }
             }
         }
 
@@ -195,21 +224,21 @@ fun ProductHomeScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(15.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(13.dp),
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Henüz sınav yok", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text("İlk sınavınızı oluşturarak başlayın.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("İlk sınavınızı oluşturun", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Sınav, form ve puanlama ayarlarını tek ekrandan belirleyin.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         OutlinedButton(onClick = onNewExam, shape = RoundedCornerShape(11.dp)) {
-                            Text("Yeni Sınav", fontSize = 10.sp)
+                            Text("Başla", fontSize = 10.sp)
                         }
                     }
                 }
@@ -225,81 +254,65 @@ fun ProductHomeScreen(
                 )
             }
         }
-        item { Spacer(Modifier.height(8.dp)) }
+        item { Spacer(Modifier.height(10.dp)) }
     }
 }
 
 @Composable
-private fun HomeMetric(modifier: Modifier, label: String, value: String) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-    }
-}
-
-@Composable
-private fun HomePrimaryAction(symbol: String, title: String, description: String, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().height(72.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+private fun HomeInfoPill(modifier: Modifier, label: String, value: String) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(symbol, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(description, fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f))
-            }
-            Text("›", fontSize = 22.sp)
+            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
 @Composable
-private fun HomeAction(
-    modifier: Modifier,
-    symbol: String,
-    title: String,
-    description: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.height(94.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+private fun HomeActionRow(symbol: String, title: String, description: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.primary,
+            shape = RoundedCornerShape(11.dp)
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text(symbol, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            Column {
-                Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(description, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            Text(
+                symbol,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(description, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+@Composable
+private fun HomeSeparator() {
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(1.dp).padding(horizontal = 13.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    ) {}
 }
 
 @Composable
@@ -308,27 +321,38 @@ private fun HomeExamRow(item: SchoolExamListItem, onClick: () -> Unit) {
     val exam = item.localExam
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(15.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                contentColor = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(formatHomeDay(summary.examDateEpochDay), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(formatHomeMonth(summary.examDateEpochDay), fontSize = 8.sp, fontWeight = FontWeight.Medium)
+                }
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(summary.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(summary.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     buildString {
-                        append(formatHomeDate(summary.examDateEpochDay))
-                        append(" · ")
                         append(exam?.papers?.size ?: 0)
                         append(" kağıt")
                         if (summary.ownerName.isNotBlank()) append(" · ${summary.ownerName}")
                         if (exam == null) append(" · Bulut")
                     },
-                    fontSize = 10.sp,
+                    fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -350,6 +374,10 @@ private fun HomeExamRow(item: SchoolExamListItem, onClick: () -> Unit) {
     }
 }
 
-private fun formatHomeDate(epochDay: Long): String = runCatching {
-    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-}.getOrDefault("-")
+private fun formatHomeDay(epochDay: Long): String = runCatching {
+    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("dd"))
+}.getOrDefault("--")
+
+private fun formatHomeMonth(epochDay: Long): String = runCatching {
+    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("MMM", java.util.Locale.forLanguageTag("tr-TR"))).uppercase(java.util.Locale.forLanguageTag("tr-TR"))
+}.getOrDefault("---")
