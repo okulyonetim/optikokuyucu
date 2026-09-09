@@ -274,16 +274,6 @@ fun ActiveTemplateScreen(
             }
 
             item {
-                ActiveFormSummary(
-                    name = resolved.name,
-                    questionCount = resolved.template.bubbleRows.size,
-                    markGridCount = resolved.template.markGrids.size,
-                    version = resolved.template.version,
-                    fellBackToDefault = resolved.fellBackToDefault
-                )
-            }
-
-            item {
                 ProductMetricStrip(
                     metrics = listOf(
                         "Toplam" to totalCount.toString(),
@@ -614,7 +604,7 @@ private fun TemplateLibraryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ProductInitialBadge(
-                    text = if (selected) "✓" else name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "F"
+                    text = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "F"
                 )
                 Column(
                     modifier = Modifier.weight(1f),
@@ -643,12 +633,12 @@ private fun TemplateLibraryCard(
                     )
                 }
                 ProductStatusBadge(
-                    text = if (selected) "AKTİF" else badge,
-                    tone = if (selected) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
+                    text = badge,
+                    tone = ProductBadgeTone.NEUTRAL
                 )
             }
 
-            if (onPreview != null || onEdit != null || !selected) {
+            if (onPreview != null || onEdit != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -669,15 +659,6 @@ private fun TemplateLibraryCard(
                         ) { Text("Düzenle", fontSize = 10.sp) }
                     }
                     Spacer(Modifier.weight(1f))
-                    if (!selected) {
-                        Button(
-                            modifier = Modifier.height(34.dp),
-                            onClick = onSelect,
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Seç", fontSize = 10.sp)
-                        }
-                    }
                 }
             }
 

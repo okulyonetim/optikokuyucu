@@ -197,7 +197,6 @@ fun ProductTopBar(
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
-    var settingsPanelOpen by remember { mutableStateOf(false) }
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
         showAutomaticBack && dispatcher != null -> "‹"
@@ -208,17 +207,7 @@ fun ProductTopBar(
         showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
         else -> null
     }
-    val settingsPanelAvailable = title == "Ayarlar" && onActionClick == null && themeController != null
-    val resolvedActionText = when {
-        onActionClick != null -> actionText
-        settingsPanelAvailable -> "◐"
-        else -> null
-    }
-    val resolvedActionClick: (() -> Unit)? = when {
-        onActionClick != null -> onActionClick
-        settingsPanelAvailable -> ({ settingsPanelOpen = true })
-        else -> null
-    }
+    val resolvedActionText = actionText.takeIf { onActionClick != null }
     val compactRowModifier = Modifier
         .fillMaxWidth()
         .height(42.dp)
@@ -236,14 +225,17 @@ fun ProductTopBar(
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Row(
-            modifier = rowModifier,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            HeaderAction(text = resolvedLeadingText, onClick = resolvedLeadingClick)
+        Box(modifier = rowModifier) {
+            Row(
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HeaderAction(text = resolvedLeadingText, onClick = resolvedLeadingClick)
+            }
             Text(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 102.dp),
                 text = title,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 16.sp,
@@ -252,15 +244,21 @@ fun ProductTopBar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            HeaderAction(text = resolvedActionText, onClick = resolvedActionClick)
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (resolvedActionText != null && onActionClick != null) {
+                    HeaderAction(text = resolvedActionText, onClick = onActionClick)
+                }
+                if (themeController != null) {
+                    HeaderAction(
+                        text = if (themeController.isDark) "☀" else "☾",
+                        onClick = { themeController.toggleLightDark() }
+                    )
+                }
+            }
         }
-    }
-
-    if (settingsPanelOpen && themeController != null) {
-        SettingsAppearanceSheet(
-            themeController = themeController,
-            onDismiss = { settingsPanelOpen = false }
-        )
     }
 }
 
@@ -425,6 +423,8 @@ fun ProductSettingsLink(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (title == "Optik Formlar" || title == "Gelişmiş Araçlar") return
+
     ProductCompactCard(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick
