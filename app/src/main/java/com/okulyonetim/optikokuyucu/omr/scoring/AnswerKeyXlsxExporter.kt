@@ -7,20 +7,17 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/**
- * Dependency-free Office Open XML exporter for stored answer keys.
- * Produces a real .xlsx workbook that Excel, LibreOffice and Google Sheets can open.
- */
+/** Dependency-free Office Open XML exporter for answer keys. */
 object AnswerKeyXlsxExporter {
-    /** Keeps the legacy single-key export contract used by the template-library screen. */
+    /** Legacy single-key layout retained for the template-library export flow. */
     fun export(key: StoredAnswerKey): ByteArray {
         val lastRow = HEADER_ROW + key.answerKey.answers.size
-        return workbookBytes(buildSheetXml(key, lastRow))
+        return workbookBytes(buildLegacySheetXml(key, lastRow))
     }
 
     /**
-     * Exam-oriented export. Rows are rendered with human-readable subject names and local
-     * question order; every available booklet is written as its own answer column.
+     * Exam-oriented workbook: human-readable subject + local question order followed by
+     * one answer column for every available booklet.
      */
     fun exportStructured(
         keys: List<StoredAnswerKey>,
@@ -35,12 +32,12 @@ object AnswerKeyXlsxExporter {
                 it.examId == first.examId
         }) { "Aynı Excel dosyasına yalnız aynı sınav ve form sürümünün cevap anahtarları yazılabilir." }
 
+        val tr = Locale("tr", "TR")
         val orderedKeys = keys
             .distinctBy { it.variantValue.orEmpty() }
-            .sortedWith(compareBy<StoredAnswerKey> { it.variantValue.orEmpty().lowercase(Locale("tr", "TR")) })
+            .sortedWith(compareBy { it.variantValue.orEmpty().lowercase(tr) })
         val rows = structuredRows(first, sections, subjectName)
-        val lastRow = HEADER_ROW + rows.size
-        return workbookBytes(buildStructuredSheetXml(orderedKeys, rows, lastRow))
+        return workbookBytes(buildStructuredSheetXml(orderedKeys, rows, HEADER_ROW + rows.size))
     }
 
     private fun workbookBytes(sheetXml: String): ByteArray {
@@ -56,7 +53,7 @@ object AnswerKeyXlsxExporter {
         return output.toByteArray()
     }
 
-    private fun buildSheetXml(key: StoredAnswerKey, lastRow: Int): String {
+    private fun buildLegacySheetXml(key: StoredAnswerKey, lastRow: Int): String {
         val answers = key.answerKey.answers.entries.sortedWith { left, right ->
             compareQuestionIds(left.key, right.key)
         }
@@ -69,33 +66,15 @@ object AnswerKeyXlsxExporter {
         )
 
         return buildString {
-            append(XML_DECLARATION)
-            append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
-            append("<dimension ref=\"A1:B$lastRow\"/>")
-            append("<sheetViews><sheetView workbookViewId=\"0\">")
-            append("<pane ySplit=\"9\" topLeftCell=\"A10\" activePane=\"bottomLeft\" state=\"frozen\"/>")
-            append("</sheetView></sheetViews>")
-            append("<cols><col min=\"1\" max=\"1\" width=\"24\" customWidth=\"1\"/>")
-            append("<col min=\"2\" max=\"2\" width=\"34\" customWidth=\"1\"/></cols>")
+            worksheetStart("B", lastRow, this)
+            appendColumns(listOf(24.0, 34.0), this)
             append("<sheetData>")
-
-            append("<row r=\"1\" ht=\"28\" customHeight=\"1\">")
-            append(inlineCell("A1", "OPTİK OKUYUCU · CEVAP ANAHTARI", TITLE_STYLE))
-            append("</row>")
-
-            metadata.forEachIndexed { index, (label, value) ->
-                val row = index + 3
-                append("<row r=\"$row\">")
-                append(inlineCell("A$row", label, LABEL_STYLE))
-                append(inlineCell("B$row", value, VALUE_STYLE))
-                append("</row>")
-            }
-
+            appendTitleRow(this)
+            appendMetadata(metadata, this)
             append("<row r=\"9\" ht=\"22\" customHeight=\"1\">")
             append(inlineCell("A9", "Soru", HEADER_STYLE))
             append(inlineCell("B9", "Doğru Cevap", HEADER_STYLE))
             append("</row>")
-
             answers.forEachIndexed { index, entry ->
                 val row = HEADER_ROW + index + 1
                 append("<row r=\"$row\">")
@@ -103,7 +82,6 @@ object AnswerKeyXlsxExporter {
                 append(inlineCell("B$row", entry.value, ANSWER_STYLE))
                 append("</row>")
             }
-
             append("</sheetData>")
             append("<autoFilter ref=\"A9:B$lastRow\"/>")
             append("<mergeCells count=\"1\"><mergeCell ref=\"A1:B1\"/></mergeCells>")
@@ -117,54 +95,34 @@ object AnswerKeyXlsxExporter {
         lastRow: Int
     ): String {
         val first = keys.first()
-        val answerStartColumn = 3
-        val lastColumn = columnName(answerStartColumn + keys.size - 1)
-        val bookletSummary = keys.map { it.variantValue ?: "Genel" }.joinToString(", ")
-        val sourceSummary = keys.map { sourceLabel(it.source) }.distinct().joinToString(", ")
-        val latestCreated = keys.maxOf { it.createdAtEpochMs }
+        val lastColumn = columnName(2 + keys.size)
+        val variants = keys.joinToString(", ") { it.variantValue ?: "Genel" }
         val metadata = listOf(
             "Şablon" to first.templateId,
             "Sürüm" to first.templateVersion.toString(),
-            if (keys.size > 1) "Kitapçıklar" to bookletSummary else "Kitapçık" to bookletSummary,
-            "Oluşturma" to formatDate(latestCreated),
-            "Kaynak" to sourceSummary
+            (if (keys.size > 1) "Kitapçıklar" else "Kitapçık") to variants,
+            "Oluşturma" to formatDate(keys.maxOf { it.createdAtEpochMs }),
+            "Kaynak" to keys.map { sourceLabel(it.source) }.distinct().joinToString(", ")
         )
 
         return buildString {
-            append(XML_DECLARATION)
-            append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
-            append("<dimension ref=\"A1:$lastColumn$lastRow\"/>")
-            append("<sheetViews><sheetView workbookViewId=\"0\">")
-            append("<pane ySplit=\"9\" topLeftCell=\"A10\" activePane=\"bottomLeft\" state=\"frozen\"/>")
-            append("</sheetView></sheetViews>")
+            worksheetStart(lastColumn, lastRow, this)
             append("<cols>")
             append("<col min=\"1\" max=\"1\" width=\"28\" customWidth=\"1\"/>")
             append("<col min=\"2\" max=\"2\" width=\"12\" customWidth=\"1\"/>")
-            if (keys.isNotEmpty()) {
-                append("<col min=\"3\" max=\"${2 + keys.size}\" width=\"18\" customWidth=\"1\"/>")
-            }
+            append("<col min=\"3\" max=\"${2 + keys.size}\" width=\"18\" customWidth=\"1\"/>")
             append("</cols>")
             append("<sheetData>")
-
-            append("<row r=\"1\" ht=\"28\" customHeight=\"1\">")
-            append(inlineCell("A1", "OPTİK OKUYUCU · CEVAP ANAHTARI", TITLE_STYLE))
-            append("</row>")
-
-            metadata.forEachIndexed { index, (label, value) ->
-                val row = index + 3
-                append("<row r=\"$row\">")
-                append(inlineCell("A$row", label, LABEL_STYLE))
-                append(inlineCell("B$row", value, VALUE_STYLE))
-                append("</row>")
-            }
+            appendTitleRow(this)
+            appendMetadata(metadata, this)
 
             append("<row r=\"9\" ht=\"22\" customHeight=\"1\">")
             append(inlineCell("A9", "Ders", HEADER_STYLE))
             append(inlineCell("B9", "Soru", HEADER_STYLE))
             keys.forEachIndexed { index, key ->
-                val col = columnName(answerStartColumn + index)
-                val title = key.variantValue?.let { "Kitapçık $it" } ?: "Doğru Cevap"
-                append(inlineCell("${col}9", title, HEADER_STYLE))
+                val column = columnName(3 + index)
+                val header = key.variantValue?.let { "Kitapçık $it" } ?: "Doğru Cevap"
+                append(inlineCell("${column}9", header, HEADER_STYLE))
             }
             append("</row>")
 
@@ -174,15 +132,15 @@ object AnswerKeyXlsxExporter {
                 append(inlineCell("A$row", item.subject, BODY_LEFT_STYLE))
                 append(inlineCell("B$row", item.questionOrder.toString(), BODY_STYLE))
                 keys.forEachIndexed { keyIndex, key ->
-                    val col = columnName(answerStartColumn + keyIndex)
-                    append(inlineCell("$col$row", key.answerKey.answers[item.questionId].orEmpty(), ANSWER_STYLE))
+                    val column = columnName(3 + keyIndex)
+                    append(inlineCell("$column$row", key.answerKey.answers[item.questionId].orEmpty(), ANSWER_STYLE))
                 }
                 append("</row>")
             }
 
             append("</sheetData>")
             append("<autoFilter ref=\"A9:$lastColumn$lastRow\"/>")
-            append("<mergeCells count=\"1\"><mergeCell ref=\"A1:$lastColumn1\"/></mergeCells>")
+            append("<mergeCells count=\"1\"><mergeCell ref=\"A1:${lastColumn}1\"/></mergeCells>")
             append("</worksheet>")
         }
     }
@@ -192,7 +150,7 @@ object AnswerKeyXlsxExporter {
         sections: List<ManualAnswerSection>,
         subjectName: String?
     ): List<StructuredQuestionRow> {
-        val forcedSubject = subjectName?.trim()?.takeIf { it.isNotBlank() }
+        val forcedSubject = subjectName?.trim()?.takeIf(String::isNotBlank)
         if (sections.isNotEmpty()) {
             return sections.flatMap { section ->
                 section.questionIds.mapIndexed { index, questionId ->
@@ -204,9 +162,8 @@ object AnswerKeyXlsxExporter {
                 }
             }
         }
-
         return primaryKey.answerKey.answers.keys
-            .sortedWith(::compareQuestionIds)
+            .sortedWith { left, right -> compareQuestionIds(left, right) }
             .mapIndexed { index, questionId ->
                 StructuredQuestionRow(
                     subject = forcedSubject ?: "Tüm Sorular",
@@ -214,6 +171,40 @@ object AnswerKeyXlsxExporter {
                     questionId = questionId
                 )
             }
+    }
+
+    private fun worksheetStart(lastColumn: String, lastRow: Int, target: StringBuilder) {
+        target.append(XML_DECLARATION)
+        target.append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
+        target.append("<dimension ref=\"A1:$lastColumn$lastRow\"/>")
+        target.append("<sheetViews><sheetView workbookViewId=\"0\">")
+        target.append("<pane ySplit=\"9\" topLeftCell=\"A10\" activePane=\"bottomLeft\" state=\"frozen\"/>")
+        target.append("</sheetView></sheetViews>")
+    }
+
+    private fun appendColumns(widths: List<Double>, target: StringBuilder) {
+        target.append("<cols>")
+        widths.forEachIndexed { index, width ->
+            val column = index + 1
+            target.append("<col min=\"$column\" max=\"$column\" width=\"$width\" customWidth=\"1\"/>")
+        }
+        target.append("</cols>")
+    }
+
+    private fun appendTitleRow(target: StringBuilder) {
+        target.append("<row r=\"1\" ht=\"28\" customHeight=\"1\">")
+        target.append(inlineCell("A1", "OPTİK OKUYUCU · CEVAP ANAHTARI", TITLE_STYLE))
+        target.append("</row>")
+    }
+
+    private fun appendMetadata(metadata: List<Pair<String, String>>, target: StringBuilder) {
+        metadata.forEachIndexed { index, (label, value) ->
+            val row = index + 3
+            target.append("<row r=\"$row\">")
+            target.append(inlineCell("A$row", label, LABEL_STYLE))
+            target.append(inlineCell("B$row", value, VALUE_STYLE))
+            target.append("</row>")
+        }
     }
 
     private fun localQuestionNumber(questionId: String): Int? =
@@ -224,8 +215,8 @@ object AnswerKeyXlsxExporter {
         var value = oneBasedIndex
         return buildString {
             while (value > 0) {
-                val rem = (value - 1) % 26
-                append(('A'.code + rem).toChar())
+                val remainder = (value - 1) % 26
+                append(('A'.code + remainder).toChar())
                 value = (value - 1) / 26
             }
         }.reversed()
@@ -233,8 +224,7 @@ object AnswerKeyXlsxExporter {
 
     private fun inlineCell(reference: String, value: String, style: Int): String =
         "<c r=\"$reference\" s=\"$style\" t=\"inlineStr\"><is><t xml:space=\"preserve\">" +
-            escapeXml(value) +
-            "</t></is></c>"
+            escapeXml(value) + "</t></is></c>"
 
     private fun contentTypesXml(): String = XML_DECLARATION +
         "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
