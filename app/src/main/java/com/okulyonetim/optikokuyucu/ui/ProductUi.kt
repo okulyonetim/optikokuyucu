@@ -197,22 +197,24 @@ fun ProductTopBar(
 ) {
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val themeController = LocalProductThemeController.current
+    val rootTabTitle = title == "Sınavlar" || title == "Öğrenciler" || title == "Ayarlar" || title == "Optik Formlar"
+    val automaticBackEnabled = showAutomaticBack || title == "Sınavlar"
     val resolvedLeadingText = when {
         leadingText != null -> leadingText
-        showAutomaticBack && dispatcher != null -> "‹"
+        automaticBackEnabled && dispatcher != null -> "‹"
         else -> null
     }
     val resolvedLeadingClick = when {
         onLeadingClick != null -> onLeadingClick
-        showAutomaticBack && dispatcher != null -> ({ dispatcher.onBackPressed() })
+        automaticBackEnabled && dispatcher != null -> ({ dispatcher.onBackPressed() })
         else -> null
     }
     val resolvedActionText = actionText.takeIf { onActionClick != null }
     val compactRowModifier = Modifier
         .fillMaxWidth()
-        .height(42.dp)
-        .padding(horizontal = 6.dp)
-    val rowModifier = if (includeStatusBarPadding) {
+        .height(48.dp)
+        .padding(horizontal = 4.dp)
+    val rowModifier = if (includeStatusBarPadding && !rootTabTitle) {
         Modifier.statusBarsPadding().then(compactRowModifier)
     } else {
         compactRowModifier
@@ -235,10 +237,10 @@ fun ProductTopBar(
             Text(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(horizontal = 102.dp),
+                    .padding(horizontal = 118.dp),
                 text = title,
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
@@ -264,25 +266,31 @@ fun ProductTopBar(
 
 @Composable
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
-    val actionWidth = 48.dp
+    val actionWidth = 54.dp
+    val actionHeight = 44.dp
     if (text != null && onClick != null) {
         Box(
             modifier = Modifier
-                .size(width = actionWidth, height = 34.dp)
+                .size(width = actionWidth, height = actionHeight)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = text,
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = if (text.length > 2) 12.sp else 18.sp,
-                fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Normal,
+                fontSize = when {
+                    text.length > 2 -> 13.sp
+                    text == "‹" -> 30.sp
+                    text == "☀" || text == "☾" -> 25.sp
+                    else -> 24.sp
+                },
+                fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )
         }
     } else {
-        Spacer(Modifier.size(width = actionWidth, height = 34.dp))
+        Spacer(Modifier.size(width = actionWidth, height = actionHeight))
     }
 }
 
