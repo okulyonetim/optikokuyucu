@@ -33,7 +33,7 @@ class ExamScanToScoreIntegrationTest {
             schoolName = "Test Okulu",
             templateSelection = selection,
             examDateEpochDay = 1L,
-            id = "exam-1",
+            id = EXAM_ID,
             createdAtEpochMs = 2L
         )
         val examRepository = InMemoryExamRepository(exam)
@@ -70,7 +70,7 @@ class ExamScanToScoreIntegrationTest {
         val keyA = variantKey("A", mapOf("1" to "A", "2" to "A"))
         val keyB = variantKey("B", mapOf("1" to "B", "2" to "C"))
         val resolvedKey = requireNotNull(
-            ExamPaperResolution.answerKey(link, record, listOf(keyA, keyB))
+            ExamPaperResolution.answerKey(exam.id, link, record, listOf(keyA, keyB))
         )
         val score = OmrScorer.score(record, resolvedKey.answerKey)
 
@@ -95,7 +95,8 @@ class ExamScanToScoreIntegrationTest {
             variantGridId = "booklet-1",
             variantValue = variant,
             createdAtEpochMs = 6L,
-            source = AnswerKeySource.MANUAL
+            source = AnswerKeySource.MANUAL,
+            examId = EXAM_ID
         )
 
     private fun cameraRecord(
@@ -179,6 +180,7 @@ class ExamScanToScoreIntegrationTest {
     }
 
     private companion object {
+        const val EXAM_ID = "exam-1"
         const val TEMPLATE_ID = "designer-form"
         const val TEMPLATE_VERSION = 1
     }

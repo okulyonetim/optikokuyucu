@@ -23,7 +23,9 @@ data class StoredAnswerKey(
     val variantValue: String? = null,
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val source: AnswerKeySource,
-    val sourceRecordId: String? = null
+    val sourceRecordId: String? = null,
+    /** Null means a legacy/template-library key. Exam scoring only consumes an exact exam id. */
+    val examId: String? = null
 ) {
     init {
         require((variantGridId == null) == (variantValue == null)) {
@@ -33,6 +35,7 @@ data class StoredAnswerKey(
         require(variantValue?.isNotBlank() != false)
         require(createdAtEpochMs >= 0L)
         require(sourceRecordId?.isNotBlank() != false)
+        require(examId?.isNotBlank() != false)
     }
 
     val templateId: String get() = answerKey.templateId
@@ -45,14 +48,16 @@ interface AnswerKeyRepository {
         templateId: String,
         templateVersion: Int,
         variantGridId: String? = null,
-        variantValue: String? = null
+        variantValue: String? = null,
+        examId: String? = null
     ): StoredAnswerKey?
     fun list(): List<StoredAnswerKey>
     fun delete(
         templateId: String,
         templateVersion: Int,
         variantGridId: String? = null,
-        variantValue: String? = null
+        variantValue: String? = null,
+        examId: String? = null
     ): Boolean
 }
 
@@ -64,7 +69,8 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
             key.templateId,
             key.templateVersion,
             key.variantGridId,
-            key.variantValue
+            key.variantValue,
+            key.examId
         )
         val temporary = File(directory, destination.name + ".tmp")
         temporary.writeBytes(AnswerKeyCodec.encode(key))
@@ -82,9 +88,10 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
         templateId: String,
         templateVersion: Int,
         variantGridId: String?,
-        variantValue: String?
+        variantValue: String?,
+        examId: String?
     ): StoredAnswerKey? {
-        val file = fileFor(templateId, templateVersion, variantGridId, variantValue)
+        val file = fileFor(templateId, templateVersion, variantGridId, variantValue, examId)
         if (!file.isFile) return null
         return runCatching { AnswerKeyCodec.decode(file.readBytes()) }
             .getOrNull()
@@ -92,7 +99,8 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
                 it.templateId == templateId &&
                     it.templateVersion == templateVersion &&
                     it.variantGridId == variantGridId &&
-                    it.variantValue == variantValue
+                    it.variantValue == variantValue &&
+                    it.examId == examId
             }
     }
 
@@ -102,6 +110,7 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
         .mapNotNull { file -> runCatching { AnswerKeyCodec.decode(file.readBytes()) }.getOrNull() }
         .sortedWith(
             compareByDescending<StoredAnswerKey> { it.createdAtEpochMs }
+                .thenBy { it.examId ?: "" }
                 .thenBy { it.templateId }
                 .thenBy { it.templateVersion }
                 .thenBy { it.variantGridId ?: "" }
@@ -112,9 +121,10 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
         templateId: String,
         templateVersion: Int,
         variantGridId: String?,
-        variantValue: String?
+        variantValue: String?,
+        examId: String?
     ): Boolean {
-        val file = fileFor(templateId, templateVersion, variantGridId, variantValue)
+        val file = fileFor(templateId, templateVersion, variantGridId, variantValue, examId)
         return !file.exists() || file.delete()
     }
 
@@ -122,18 +132,22 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
         templateId: String,
         templateVersion: Int,
         variantGridId: String?,
-        variantValue: String?
+        variantValue: String?,
+        examId: String?
     ): File {
         require(templateId.isNotBlank())
         require(templateVersion > 0)
         require((variantGridId == null) == (variantValue == null))
-        val identity = listOf(
+        require(examId?.isNotBlank() != false)
+        // Keep the exact legacy identity when examId is null so old library keys remain readable.
+        val parts = mutableListOf(
             templateId,
             templateVersion.toString(),
             variantGridId ?: "",
             variantValue ?: ""
-        ).joinToString("\u0000")
-        return File(directory, sha256(identity) + FILE_SUFFIX)
+        )
+        if (examId != null) parts += "exam:$examId"
+        return File(directory, sha256(parts.joinToString("\u0000")) + FILE_SUFFIX)
     }
 
     private fun sha256(value: String): String {
@@ -148,9 +162,15 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
 }
 
 object AnswerKeyResolver {
-    fun resolve(record: ScanRecord, keys: List<StoredAnswerKey>): StoredAnswerKey? {
+    fun resolve(
+        record: ScanRecord,
+        keys: List<StoredAnswerKey>,
+        examId: String? = null
+    ): StoredAnswerKey? {
         val compatible = keys.filter {
-            it.templateId == record.templateId && it.templateVersion == record.templateVersion
+            it.templateId == record.templateId &&
+                it.templateVersion == record.templateVersion &&
+                it.examId == examId
         }
         if (compatible.isEmpty()) return null
 
@@ -179,6 +199,7 @@ object AnswerKeyCodec {
             out.writeLong(key.createdAtEpochMs)
             out.writeUTF(key.source.name)
             writeNullableString(out, key.sourceRecordId)
+            writeNullableString(out, key.examId)
             require(key.answerKey.answers.size in 1..MAX_ANSWERS)
             out.writeInt(key.answerKey.answers.size)
             key.answerKey.answers.forEach { (questionId, choice) ->
@@ -193,7 +214,9 @@ object AnswerKeyCodec {
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             require(input.readInt() == MAGIC) { "Geçersiz cevap anahtarı dosyası." }
             val schema = input.readInt()
-            require(schema == SCHEMA_VERSION) { "Desteklenmeyen cevap anahtarı sürümü: $schema" }
+            require(schema in MIN_SUPPORTED_SCHEMA..SCHEMA_VERSION) {
+                "Desteklenmeyen cevap anahtarı sürümü: $schema"
+            }
             val templateId = input.readUTF()
             val templateVersion = input.readInt()
             val variantGridId = readNullableString(input)
@@ -201,6 +224,7 @@ object AnswerKeyCodec {
             val createdAtEpochMs = input.readLong()
             val source = AnswerKeySource.valueOf(input.readUTF())
             val sourceRecordId = readNullableString(input)
+            val examId = if (schema >= 2) readNullableString(input) else null
             val count = input.readInt()
             require(count in 1..MAX_ANSWERS) { "Geçersiz cevap anahtarı soru sayısı: $count" }
             val answers = linkedMapOf<String, String>()
@@ -221,7 +245,8 @@ object AnswerKeyCodec {
                 variantValue = variantValue,
                 createdAtEpochMs = createdAtEpochMs,
                 source = source,
-                sourceRecordId = sourceRecordId
+                sourceRecordId = sourceRecordId,
+                examId = examId
             )
         }
     }
@@ -235,6 +260,7 @@ object AnswerKeyCodec {
         if (input.readBoolean()) input.readUTF() else null
 
     private const val MAGIC = 0x4F4D414B // OMAK
-    private const val SCHEMA_VERSION = 1
+    private const val MIN_SUPPORTED_SCHEMA = 1
+    private const val SCHEMA_VERSION = 2
     private const val MAX_ANSWERS = 1000
 }

@@ -95,7 +95,7 @@ object ExamReportBuilder {
                 )
             } else {
                 val metadata = ExamPaperResolution.metadata(link, record)
-                val key = ExamPaperResolution.answerKey(link, record, answerKeys)
+                val key = ExamPaperResolution.answerKey(exam.id, link, record, answerKeys)
                 val score = key?.let { stored ->
                     runCatching {
                         OmrScorer.score(record, stored.answerKey, scoringPolicy)

@@ -27,7 +27,7 @@ class ExamPaperResolutionTest {
         val keyA = variantKey("A", expected = "A")
         val keyB = variantKey("B", expected = "B")
 
-        val resolved = ExamPaperResolution.answerKey(link, record, listOf(keyA, keyB))
+        val resolved = ExamPaperResolution.answerKey(EXAM_ID, link, record, listOf(keyA, keyB))
 
         assertEquals("B", resolved?.variantValue)
         assertEquals("B", resolved?.answerKey?.answers?.get("1"))
@@ -42,7 +42,7 @@ class ExamPaperResolutionTest {
             linkedAtEpochMs = 2L
         )
 
-        val resolved = ExamPaperResolution.answerKey(link, record, listOf(variantKey("A", expected = "A")))
+        val resolved = ExamPaperResolution.answerKey(EXAM_ID, link, record, listOf(variantKey("A", expected = "A")))
 
         assertNull(resolved)
     }
@@ -58,10 +58,21 @@ class ExamPaperResolutionTest {
         val general = StoredAnswerKey(
             answerKey = AnswerKey(record.templateId, record.templateVersion, mapOf("1" to "C")),
             createdAtEpochMs = 3L,
-            source = AnswerKeySource.MANUAL
+            source = AnswerKeySource.MANUAL,
+            examId = EXAM_ID
         )
 
-        assertEquals(general, ExamPaperResolution.answerKey(link, record, listOf(variantKey("A", "A"), general)))
+        assertEquals(general, ExamPaperResolution.answerKey(EXAM_ID, link, record, listOf(variantKey("A", "A"), general)))
+    }
+
+    @Test
+    fun `key from another exam and legacy key are never used`() {
+        val record = record(booklet = "A", studentNumber = "000016")
+        val link = ExamPaperLink(scanRecordId = record.id, bookletCode = "A", linkedAtEpochMs = 2L)
+        val anotherExam = variantKey("A", "A", examId = "exam-2")
+        val legacy = variantKey("A", "A", examId = null)
+
+        assertNull(ExamPaperResolution.answerKey(EXAM_ID, link, record, listOf(anotherExam, legacy)))
     }
 
     @Test
@@ -75,12 +86,17 @@ class ExamPaperResolutionTest {
         assertEquals("A", metadata.bookletCode)
     }
 
-    private fun variantKey(variant: String, expected: String): StoredAnswerKey = StoredAnswerKey(
+    private fun variantKey(
+        variant: String,
+        expected: String,
+        examId: String? = EXAM_ID
+    ): StoredAnswerKey = StoredAnswerKey(
         answerKey = AnswerKey(TEMPLATE_ID, TEMPLATE_VERSION, mapOf("1" to expected)),
         variantGridId = "booklet-1",
         variantValue = variant,
         createdAtEpochMs = 3L,
-        source = AnswerKeySource.MANUAL
+        source = AnswerKeySource.MANUAL,
+        examId = examId
     )
 
     private fun record(booklet: String, studentNumber: String): ScanRecord = ScanRecord(
@@ -123,6 +139,7 @@ class ExamPaperResolutionTest {
     )
 
     private companion object {
+        const val EXAM_ID = "exam-1"
         const val TEMPLATE_ID = "designer-form"
         const val TEMPLATE_VERSION = 1
     }

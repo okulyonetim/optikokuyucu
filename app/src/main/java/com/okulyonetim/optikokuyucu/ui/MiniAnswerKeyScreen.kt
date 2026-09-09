@@ -108,7 +108,11 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
     val data = resolvedData
     val availableEntries = remember(data, keys, exam) {
         if (data == null || exam == null) emptyList() else {
-            val matching = keys.filter { key -> key.templateId == data.templateId && key.templateVersion == data.templateVersion }
+            val matching = keys.filter { key ->
+                key.examId == exam.id &&
+                    key.templateId == data.templateId &&
+                    key.templateVersion == data.templateVersion
+            }
             if (data.booklets.isEmpty()) {
                 matching.firstOrNull { it.variantValue == null }?.let { key ->
                     listOf(AnswerKeyPdfExporter.SheetEntry(key, exam.name, data.sections))

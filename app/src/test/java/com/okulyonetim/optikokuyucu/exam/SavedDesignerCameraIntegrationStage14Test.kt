@@ -79,7 +79,7 @@ class SavedDesignerCameraIntegrationStage14Test {
         )
         val repository = MemoryExamRepository(
             Exam(
-                id = "exam",
+                id = EXAM_ID,
                 name = "Deneme",
                 schoolName = "Okul",
                 templateSelection = selection,
@@ -88,7 +88,7 @@ class SavedDesignerCameraIntegrationStage14Test {
             )
         )
 
-        val linkedExam = ExamPaperRegistrar(repository).register("exam", record, linkedAtEpochMs = 20L)
+        val linkedExam = ExamPaperRegistrar(repository).register(EXAM_ID, record, linkedAtEpochMs = 20L)
         assertEquals("16", linkedExam.papers.single().studentNumber)
         assertEquals("B", linkedExam.papers.single().bookletCode)
 
@@ -101,9 +101,10 @@ class SavedDesignerCameraIntegrationStage14Test {
             variantGridId = booklet.id,
             variantValue = "B",
             createdAtEpochMs = 30L,
-            source = AnswerKeySource.GALLERY
+            source = AnswerKeySource.GALLERY,
+            examId = EXAM_ID
         )
-        assertEquals(key, AnswerKeyResolver.resolve(record, listOf(key)))
+        assertEquals(key, AnswerKeyResolver.resolve(record, listOf(key), EXAM_ID))
 
         val row = ExamReportBuilder.build(linkedExam, listOf(record), listOf(key)).rows.single()
         assertEquals("16", row.studentNumber)
@@ -144,5 +145,9 @@ class SavedDesignerCameraIntegrationStage14Test {
             if (exam?.id == id) exam = null
             return true
         }
+    }
+
+    private companion object {
+        const val EXAM_ID = "exam"
     }
 }

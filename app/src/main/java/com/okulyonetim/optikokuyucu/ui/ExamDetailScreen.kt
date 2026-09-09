@@ -789,7 +789,7 @@ private fun ExamPaperCard(
     val name = link.studentName.ifBlank {
         if (number.isBlank()) "İsimsiz Öğrenci" else "Öğrenci $number"
     }
-    val key = record?.let { ExamPaperResolution.answerKey(link, it, keys) }
+    val key = record?.let { ExamPaperResolution.answerKey(exam.id, link, it, keys) }
     val score = if (record != null && key != null) {
         runCatching { OmrScorer.score(record, key.answerKey, scoringPolicy(exam.wrongAnswerPolicy)) }.getOrNull()
     } else null
@@ -933,7 +933,8 @@ private fun wrongPolicyLabel(policy: WrongAnswerPolicy): String = when (policy) 
 }
 
 private fun keyMatchesExam(key: StoredAnswerKey, exam: Exam): Boolean =
-    key.templateId == exam.templateSelection.templateId &&
+    key.examId == exam.id &&
+        key.templateId == exam.templateSelection.templateId &&
         key.templateVersion == exam.templateSelection.templateVersion
 
 private fun paperNumber(link: ExamPaperLink, record: ScanRecord?): String =

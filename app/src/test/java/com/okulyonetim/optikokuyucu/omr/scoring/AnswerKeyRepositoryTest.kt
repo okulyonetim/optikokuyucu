@@ -15,7 +15,7 @@ import org.junit.Test
 
 class AnswerKeyRepositoryTest {
     @Test
-    fun `stored answer key codec round trips variant scope`() {
+    fun `stored answer key codec round trips variant and exam scope`() {
         val original = StoredAnswerKey(
             answerKey = AnswerKey(
                 templateId = "exam",
@@ -26,7 +26,8 @@ class AnswerKeyRepositoryTest {
             variantValue = "B",
             createdAtEpochMs = 1234L,
             source = AnswerKeySource.SCAN_RECORD,
-            sourceRecordId = "record-42"
+            sourceRecordId = "record-42",
+            examId = "exam-42"
         )
 
         val decoded = AnswerKeyCodec.decode(AnswerKeyCodec.encode(original))
@@ -36,12 +37,25 @@ class AnswerKeyRepositoryTest {
 
     @Test
     fun `resolver selects matching booklet and never crosses variants`() {
-        val keyA = storedKey("A")
-        val keyB = storedKey("B")
+        val keyA = storedKey("A", examId = "exam-1")
+        val keyB = storedKey("B", examId = "exam-1")
 
-        assertEquals(keyA, AnswerKeyResolver.resolve(record(booklet = "A"), listOf(keyB, keyA)))
-        assertEquals(keyB, AnswerKeyResolver.resolve(record(booklet = "B"), listOf(keyA, keyB)))
-        assertNull(AnswerKeyResolver.resolve(record(booklet = "C"), listOf(keyA, keyB)))
+        assertEquals(keyA, AnswerKeyResolver.resolve(record(booklet = "A"), listOf(keyB, keyA), "exam-1"))
+        assertEquals(keyB, AnswerKeyResolver.resolve(record(booklet = "B"), listOf(keyA, keyB), "exam-1"))
+        assertNull(AnswerKeyResolver.resolve(record(booklet = "C"), listOf(keyA, keyB), "exam-1"))
+    }
+
+    @Test
+    fun `resolver never crosses exam scope or falls back to legacy key`() {
+        val examOne = storedKey("A", examId = "exam-1")
+        val examTwo = storedKey("A", examId = "exam-2")
+        val legacy = storedKey("A", examId = null)
+        val currentRecord = record(booklet = "A")
+
+        assertEquals(examOne, AnswerKeyResolver.resolve(currentRecord, listOf(examTwo, legacy, examOne), "exam-1"))
+        assertEquals(examTwo, AnswerKeyResolver.resolve(currentRecord, listOf(examOne, legacy, examTwo), "exam-2"))
+        assertNull(AnswerKeyResolver.resolve(currentRecord, listOf(examTwo, legacy), "exam-1"))
+        assertEquals(legacy, AnswerKeyResolver.resolve(currentRecord, listOf(examOne, legacy, examTwo)))
     }
 
     @Test
@@ -61,7 +75,7 @@ class AnswerKeyRepositoryTest {
         assertEquals(listOf("2"), invalid.invalidQuestionIds)
     }
 
-    private fun storedKey(booklet: String): StoredAnswerKey = StoredAnswerKey(
+    private fun storedKey(booklet: String, examId: String?): StoredAnswerKey = StoredAnswerKey(
         answerKey = AnswerKey(
             templateId = "exam",
             templateVersion = 1,
@@ -71,7 +85,8 @@ class AnswerKeyRepositoryTest {
         variantValue = booklet,
         createdAtEpochMs = 100L,
         source = AnswerKeySource.SCAN_RECORD,
-        sourceRecordId = "key-$booklet"
+        sourceRecordId = "key-$booklet-${examId.orEmpty()}",
+        examId = examId
     )
 
     private fun record(booklet: String): ScanRecord = ScanRecord(
