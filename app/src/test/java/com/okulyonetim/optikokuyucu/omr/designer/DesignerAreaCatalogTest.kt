@@ -71,6 +71,18 @@ class DesignerAreaCatalogTest {
     }
 
     @Test
+    fun `new answer blocks default to ten sequential questions`() {
+        var document = DesignerPageGeometry.apply(DesignerDocument("answer-defaults", 1, "Form"))
+        repeat(3) { index ->
+            val answer = DesignerAreaCatalog.createAnswerArea(document)
+            assertEquals(10, answer.questionCount)
+            assertEquals(index * 10 + 1, answer.startQuestion)
+            assertEquals(10, DesignerAreaCatalog.answerQuestionsPerBlock(answer))
+            document = document.copy(components = document.components + answer)
+        }
+    }
+
+    @Test
     fun `six compact lesson fields fit side by side on portrait A4`() {
         var document = DesignerPageGeometry.apply(
             DesignerDocument(
@@ -88,7 +100,7 @@ class DesignerAreaCatalogTest {
         repeat(6) {
             val answer = DesignerAreaCatalog.createAnswerArea(document)
             assertEquals(1, answer.columns)
-            assertEquals(1, answer.questionCount)
+            assertEquals(10, answer.questionCount)
             assertEquals(DesignerEditorLayout.STANDARD_BUBBLE_RADIUS, answer.bubbleRadius, 0.0)
             assertNull(DesignerAreaCatalog.answerAreaIssue(document, answer))
             bounds += DesignerComponentGeometry.bounds(answer)
@@ -97,6 +109,15 @@ class DesignerAreaCatalogTest {
         for (index in 1 until bounds.size) {
             assertTrue("lesson fields must progress left to right", bounds[index].left > bounds[index - 1].right)
         }
+    }
+
+    @Test
+    fun `new description starts empty and validates until text is entered`() {
+        val document = DesignerPageGeometry.apply(DesignerDocument("description-default", 1, "Form"))
+        val description = DesignerAreaCatalog.createDescriptionArea(document)
+        assertEquals("", description.text)
+        assertTrue(DesignerAreaCatalog.descriptionAreaIssue(document, description) != null)
+        assertNull(DesignerAreaCatalog.descriptionAreaIssue(document, description.copy(text = "Açıklama metni")))
     }
 
     @Test

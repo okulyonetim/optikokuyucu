@@ -66,13 +66,13 @@ class DesignerEditSafetyTest {
     }
 
     @Test
-    fun `new answer area starts with one question and compiles safely`() {
+    fun `new answer area starts with ten questions and compiles safely`() {
         val page = DesignerPageGeometry.apply(document)
         val answer = DesignerAreaCatalog.createAnswerArea(page)
 
-        assertEquals(1, answer.questionCount)
+        assertEquals(10, answer.questionCount)
 
         val compiled = DesignerTemplateCompiler.compile(page.copy(components = listOf(answer)))
-        assertEquals(1, compiled.bubbleRows.size)
+        assertEquals(10, compiled.bubbleRows.size)
     }
 }

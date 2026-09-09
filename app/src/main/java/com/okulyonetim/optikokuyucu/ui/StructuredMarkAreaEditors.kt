@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAnswerAppearance
@@ -54,6 +56,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerOmrComponent
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridOrientation
 import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
@@ -85,34 +88,45 @@ internal fun NumberAreaEditorScreen(
     val issue = patternIssue ?: DesignerAreaCatalog.numberAreaIssue(document, effective)
     val horizontalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.columnGap else normalized.rowGap
     val verticalGap = if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.rowGap else normalized.columnGap
-    MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
-        MarkCard {
-            ReadOnlyField("Tür", "Numara")
-            MoveControls(document) { dx, dy ->
-                update(DesignerComponentPlacement.translate(normalized, dx, dy) as NumericGridComponent)
-            }
-            DirectionButtons(
-                horizontal = normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL,
-                onHorizontal = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_HORIZONTAL)) },
-                onVertical = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_VERTICAL)) }
-            )
+
+    MarkScaffold(
+        title = "Numara Alanı",
+        completeEnabled = issue == null,
+        onCancel = onCancel,
+        onComplete = { onComplete(effective) }
+    ) {
+        NumberPreview(document, effective)
+        MarkCard(title = "Temel Ayarlar", subtitle = "Numara alanının görünümü ve veri yapısı") {
+            CompactTypeBadge("Numara")
             LabelControls(normalized.label, normalized.showLabel, "Etiket", { update(normalized.copy(showLabel = it)) }) {
                 update(normalized.copy(label = it))
             }
-            Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
-            AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
+            CompactChoiceGroup("Etiket Hizası") {
+                AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
+            }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.numberPatternPresets, onPatternTextChange)
-            IntInput("Veri / Hane Sayısı", normalized.digits, 1, 16) { update(normalized.copy(digits = it)) }
-            NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
+            IntInput("Hane Sayısı", normalized.digits, 1, 16) { update(normalized.copy(digits = it)) }
+        }
+        MarkCard(title = "Yerleşim", subtitle = "Baloncuk yönü, aralıklar ve konum") {
+            CompactChoiceGroup("Yön") {
+                DirectionButtons(
+                    horizontal = normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL,
+                    onHorizontal = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_HORIZONTAL)) },
+                    onVertical = { update(normalized.copy(orientation = NumericGridOrientation.DIGITS_VERTICAL)) }
+                )
+            }
+            NumberInput("Yatay Aralık", horizontalGap, 18.0, 120.0, 1.0) { gap ->
                 update(if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.copy(columnGap = gap) else normalized.copy(rowGap = gap))
             }
-            NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
+            NumberInput("Dikey Aralık", verticalGap, 18.0, 120.0, 1.0) { gap ->
                 update(if (normalized.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) normalized.copy(rowGap = gap) else normalized.copy(columnGap = gap))
             }
-            Text("Boyut değişince alan otomatik olarak güvenli sayfa sınırları içine alınır.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            MoveControls(document) { dx, dy ->
+                update(DesignerComponentPlacement.translate(normalized, dx, dy) as NumericGridComponent)
+            }
+            HintText("Boyut değişikliklerinde alan otomatik olarak güvenli sayfa sınırları içinde tutulur.")
         }
         issue?.let { IssueText(it) }
-        NumberPreview(document, effective)
     }
 }
 
@@ -158,12 +172,16 @@ internal fun AnswerAreaEditorScreen(
     val perBlock = DesignerAreaCatalog.answerQuestionsPerBlock(effective)
     val horizontalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.choiceGap else normalized.rowGap
     val verticalGap = if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.rowGap else normalized.choiceGap
-    MarkScaffold(issue == null, onCancel, { onComplete(effective) }) {
-        MarkCard {
-            ReadOnlyField("Tür", "Cevaplar")
-            MoveControls(document) { dx, dy ->
-                update(DesignerComponentPlacement.translate(normalized, dx, dy) as QuestionGroupComponent)
-            }
+
+    MarkScaffold(
+        title = "Cevap Alanı",
+        completeEnabled = issue == null,
+        onCancel = onCancel,
+        onComplete = { onComplete(effective) }
+    ) {
+        AnswerPreview(document, effective)
+        MarkCard(title = "Temel Ayarlar", subtitle = "Ders, soru başlangıcı ve cevap deseni") {
+            CompactTypeBadge("Cevaplar")
             AnswerSubjectControls(
                 selectedSubject = normalized.label,
                 showLabel = normalized.showLabel,
@@ -171,84 +189,214 @@ internal fun AnswerAreaEditorScreen(
                 onShowLabelChange = { update(normalized.copy(showLabel = it)) },
                 onSubjectSelected = { update(normalized.copy(label = it)) }
             )
-            Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
-            AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
+            CompactChoiceGroup("Etiket Hizası") {
+                AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
+            }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.answerPatternPresets, onPatternTextChange)
-            IntInput("İlk Soru Numarası", normalized.startQuestion, 1, 9999) { update(normalized.copy(startQuestion = it)) }
-            Text("Yön", style = MaterialTheme.typography.labelSmall)
-            DirectionButtons(
-                horizontal = normalized.orientation == QuestionGroupOrientation.HORIZONTAL,
-                onHorizontal = { update(normalized.copy(orientation = QuestionGroupOrientation.HORIZONTAL)) },
-                onVertical = { update(normalized.copy(orientation = QuestionGroupOrientation.VERTICAL)) }
-            )
+            IntInput("İlk Soru", normalized.startQuestion, 1, 9999) { update(normalized.copy(startQuestion = it)) }
+        }
+        MarkCard(title = "Soru Düzeni", subtitle = "Sütun yapısı ve baloncuk aralıkları") {
+            CompactChoiceGroup("Yön") {
+                DirectionButtons(
+                    horizontal = normalized.orientation == QuestionGroupOrientation.HORIZONTAL,
+                    onHorizontal = { update(normalized.copy(orientation = QuestionGroupOrientation.HORIZONTAL)) },
+                    onVertical = { update(normalized.copy(orientation = QuestionGroupOrientation.VERTICAL)) }
+                )
+            }
             IntInput("Sütun Sayısı", normalized.columns, 1, minOf(8, normalized.questionCount)) { columns ->
                 val total = perBlock * columns
                 update(normalized.copy(columns = columns, questionCount = total))
             }
-            IntInput("Sütundaki Soru Sayısı", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count ->
+            IntInput("Sütundaki Soru", perBlock, 1, maxOf(1, 250 / normalized.columns)) { count ->
                 update(normalized.copy(questionCount = count * normalized.columns))
             }
-            NumberInput("Yatay Baloncuk Aralığı", horizontalGap, 18.0, 120.0, 1.0) { gap ->
+            NumberInput("Yatay Aralık", horizontalGap, 18.0, 120.0, 1.0) { gap ->
                 update(if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.copy(choiceGap = gap) else normalized.copy(rowGap = gap))
             }
-            NumberInput("Dikey Baloncuk Aralığı", verticalGap, 18.0, 120.0, 1.0) { gap ->
+            NumberInput("Dikey Aralık", verticalGap, 18.0, 120.0, 1.0) { gap ->
                 update(if (normalized.orientation == QuestionGroupOrientation.VERTICAL) normalized.copy(rowGap = gap) else normalized.copy(choiceGap = gap))
             }
-            NumberInput("Sütunlar Arası Boşluk", normalized.columnGap, 20.0, 600.0, 5.0) { gap ->
+            NumberInput("Sütun Boşluğu", normalized.columnGap, 20.0, 600.0, 5.0) { gap ->
                 update(normalized.copy(columnGap = gap))
             }
-            Text("Toplam: ${effective.questionCount} soru · Boyut değişince alan sayfa içinde otomatik yeniden konumlanır.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+            ) {
+                Text(
+                    "Toplam ${effective.questionCount} soru",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
+        MarkCard(title = "Konum", subtitle = "Alanı sayfa üzerinde hassas taşıyın") {
+            MoveControls(document) { dx, dy ->
+                update(DesignerComponentPlacement.translate(normalized, dx, dy) as QuestionGroupComponent)
+            }
+            HintText("Alanı ana form düzenleme ekranından sürükleyerek de taşıyabilirsiniz.")
         }
         issue?.let { IssueText(it) }
-        AnswerPreview(document, effective)
     }
+}
+
+@Composable
+private fun MarkScaffold(
+    title: String,
+    completeEnabled: Boolean,
+    onCancel: () -> Unit,
+    onComplete: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text("×", style = MaterialTheme.typography.headlineSmall)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Optik Form Alanı",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledTonalButton(
+                    enabled = completeEnabled,
+                    onClick = onComplete,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Tamam")
+                }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            content()
+            Spacer(Modifier.size(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun MarkCard(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CompactTypeBadge(value: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+    ) {
+        Text(
+            value,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
+}
+
+@Composable
+private fun CompactChoiceGroup(label: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        content()
+    }
+}
+
+@Composable
+private fun HintText(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
 private fun MoveControls(document: DesignerDocument, onMove: (Double, Double) -> Unit) {
     val step = DesignerEditorLayout.canonicalForMillimeters(document, 2.0)
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text("Konum", style = MaterialTheme.typography.labelMedium)
-        Text("Alanı düzenleme ekranından da hareket ettirebilirsiniz.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(-step, 0.0) }) { Text("←") }
-            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, -step) }) { Text("↑") }
-            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, step) }) { Text("↓") }
-            OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(step, 0.0) }) { Text("→") }
-        }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(-step, 0.0) }, shape = RoundedCornerShape(12.dp)) { Text("←") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, -step) }, shape = RoundedCornerShape(12.dp)) { Text("↑") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, step) }, shape = RoundedCornerShape(12.dp)) { Text("↓") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(step, 0.0) }, shape = RoundedCornerShape(12.dp)) { Text("→") }
     }
 }
 
 @Composable
-private fun MarkScaffold(completeEnabled: Boolean, onCancel: () -> Unit, onComplete: () -> Unit, content: @Composable () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.background)) {
-        Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary) {
-            Row(modifier = Modifier.fillMaxWidth().padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onCancel, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("×") }
-                Text("Optik Form Alanı", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onPrimary)
-                TextButton(enabled = completeEnabled, onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary, disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.48f))) { Text("Tamam") }
-            }
-        }
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content(); Spacer(Modifier.size(8.dp)) }
-    }
-}
-
-@Composable
-private fun MarkCard(content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Optik Form Alanı Bilgileri", style = MaterialTheme.typography.labelLarge); content()
-        }
-    }
-}
-
-@Composable
-private fun LabelControls(label: String, showLabel: Boolean, title: String, onShowLabelChange: (Boolean) -> Unit, onLabelChange: (String) -> Unit) {
+private fun LabelControls(
+    label: String,
+    showLabel: Boolean,
+    title: String,
+    onShowLabelChange: (Boolean) -> Unit,
+    onLabelChange: (String) -> Unit
+) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Etiketi Gizle", modifier = Modifier.weight(1f))
-        Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Etiketi Göster", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (showLabel) "Form üzerinde görünür" else "Form üzerinde gizli",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = showLabel, onCheckedChange = onShowLabelChange)
     }
-    OutlinedTextField(value = label, onValueChange = { if ('\n' !in it && '\r' !in it && it.length <= 60) onLabelChange(it) }, modifier = Modifier.fillMaxWidth(), label = { Text(title) }, enabled = showLabel, singleLine = true)
+    if (showLabel) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = { if ('\n' !in it && '\r' !in it && it.length <= 60) onLabelChange(it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(title) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
+        )
+    }
 }
 
 @Composable
@@ -268,108 +416,182 @@ private fun AnswerSubjectControls(
     var expanded by remember { mutableStateOf(false) }
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Etiketi Gizle", modifier = Modifier.weight(1f))
-        Switch(checked = !showLabel, onCheckedChange = { onShowLabelChange(!it) })
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Ders Etiketini Göster", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (showLabel) selectedSubject.ifBlank { "Ders seçilmedi" } else "Etiket gizli",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = showLabel, onCheckedChange = onShowLabelChange)
     }
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = options.isNotEmpty(),
-            onClick = { expanded = true },
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
+    if (showLabel) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = options.isNotEmpty(),
+                onClick = { expanded = true },
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Ders Adı", style = MaterialTheme.typography.labelSmall)
-                Text(
-                    selectedSubject.ifBlank { "Ders seçin" },
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(selectedSubject.ifBlank { "Ders seçin" }, modifier = Modifier.weight(1f))
+                    Text("⌄", style = MaterialTheme.typography.titleMedium)
+                }
             }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { subject ->
-                DropdownMenuItem(
-                    text = { Text(if (subject == selectedSubject) "$subject ✓" else subject) },
-                    onClick = {
-                        onSubjectSelected(subject)
-                        expanded = false
-                    }
-                )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { subject ->
+                    DropdownMenuItem(
+                        text = { Text(if (subject == selectedSubject) "$subject ✓" else subject) },
+                        onClick = {
+                            onSubjectSelected(subject)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
-    Text(
-        "Dersler Ayarlar bölümündeki ders listesinden gelir.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 }
 
 @Composable
 private fun PatternField(text: String, issue: String?, presets: List<String>, onChange: (String) -> Unit) {
-    OutlinedTextField(value = text, onValueChange = onChange, modifier = Modifier.fillMaxWidth(), label = { Text("Desen") }, isError = issue != null, singleLine = true)
-    presets.chunked(3).forEach { group ->
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            group.forEach { preset -> ChoiceButton(Modifier.weight(1f), preset, text == preset) { onChange(preset) } }
-            repeat(3 - group.size) { Spacer(Modifier.weight(1f)) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Desen", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = text,
+            onValueChange = onChange,
+            modifier = Modifier.fillMaxWidth(),
+            isError = issue != null,
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
+        )
+        presets.chunked(3).forEach { group ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                group.forEach { preset -> ChoiceButton(Modifier.weight(1f), preset, text == preset) { onChange(preset) } }
+                repeat(3 - group.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
     }
 }
 
 @Composable
 private fun DirectionButtons(horizontal: Boolean, onHorizontal: () -> Unit, onVertical: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         ChoiceButton(Modifier.weight(1f), "Yatay", horizontal, onHorizontal)
         ChoiceButton(Modifier.weight(1f), "Dikey", !horizontal, onVertical)
     }
 }
 
 @Composable
-private fun ChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") }
-    else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
+private fun AlignmentButtons(value: DesignerTextAlignment, onChange: (DesignerTextAlignment) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        ChoiceButton(Modifier.weight(1f), "Sol", value == DesignerTextAlignment.START) { onChange(DesignerTextAlignment.START) }
+        ChoiceButton(Modifier.weight(1f), "Orta", value == DesignerTextAlignment.CENTER) { onChange(DesignerTextAlignment.CENTER) }
+        ChoiceButton(Modifier.weight(1f), "Sağ", value == DesignerTextAlignment.END) { onChange(DesignerTextAlignment.END) }
+    }
 }
 
 @Composable
-private fun ReadOnlyField(label: String, value: String) {
-    Column { Text(label, style = MaterialTheme.typography.labelSmall); Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text(value, modifier = Modifier.padding(14.dp)) } }
+private fun ChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
+    if (selected) {
+        FilledTonalButton(
+            modifier = modifier,
+            onClick = onClick,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        ) { Text("$label ✓") }
+    } else {
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(label) }
+    }
 }
 
 @Composable
 private fun NumberInput(label: String, value: Double, min: Double, max: Double, step: Double, onValueChange: (Double) -> Unit) {
     var text by remember(value) { mutableStateOf(formatNumber(value)) }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = text, onValueChange = { input -> text = input; input.replace(',', '.').toDoubleOrNull()?.let { if (it in min..max) onValueChange(it) } }, modifier = Modifier.weight(1f), label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-        OutlinedButton(enabled = value - step >= min, onClick = { onValueChange(value - step) }) { Text("−") }
-        OutlinedButton(enabled = value + step <= max, onClick = { onValueChange(value + step) }) { Text("+") }
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { input ->
+                    text = input
+                    input.replace(',', '.').toDoubleOrNull()?.let { if (it in min..max) onValueChange(it) }
+                },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(12.dp)
+            )
+            StepButton("−", enabled = value - step >= min) { onValueChange(value - step) }
+            StepButton("+", enabled = value + step <= max) { onValueChange(value + step) }
+        }
     }
 }
 
 @Composable
 private fun IntInput(label: String, value: Int, min: Int, max: Int, onValueChange: (Int) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = text, onValueChange = { input -> text = input; input.toIntOrNull()?.let { if (it in min..max) onValueChange(it) } }, modifier = Modifier.weight(1f), label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        OutlinedButton(enabled = value > min, onClick = { onValueChange(value - 1) }) { Text("−") }
-        OutlinedButton(enabled = value < max, onClick = { onValueChange(value + 1) }) { Text("+") }
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { input ->
+                    text = input
+                    input.toIntOrNull()?.let { if (it in min..max) onValueChange(it) }
+                },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp)
+            )
+            StepButton("−", enabled = value > min) { onValueChange(value - 1) }
+            StepButton("+", enabled = value < max) { onValueChange(value + 1) }
+        }
     }
 }
 
 @Composable
-private fun IssueText(message: String) { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+private fun StepButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        enabled = enabled,
+        onClick = onClick,
+        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun IssueText(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.errorContainer
+    ) {
+        Text(
+            message,
+            modifier = Modifier.padding(11.dp),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
 
 @Composable
 private fun NumberPreview(document: DesignerDocument, component: NumericGridComponent) {
-    val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
+    val preview = remember(document.space, document.fiducials, component) {
+        document.copy(components = listOf(component), visualElements = emptyList())
+    }
     val template = remember(preview) { runCatching { DesignerTemplateCompiler.compile(preview) }.getOrNull() }
-    PreviewCard(document) {
-        val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
+    PreviewCard(document, "Canlı Önizleme") {
+        val sx = size.width / document.space.width.toFloat()
+        val sy = size.height / document.space.height.toFloat()
         if (template != null) drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFF9E3E3E))
         drawComponentDecorations(preview, sx, sy)
     }
@@ -377,43 +599,116 @@ private fun NumberPreview(document: DesignerDocument, component: NumericGridComp
 
 @Composable
 private fun AnswerPreview(document: DesignerDocument, component: QuestionGroupComponent) {
-    val preview = remember(document.space, document.fiducials, component) { document.copy(components = listOf(component), visualElements = emptyList()) }
+    val preview = remember(document.space, document.fiducials, component) {
+        document.copy(components = listOf(component), visualElements = emptyList())
+    }
     val template = remember(preview) { runCatching { DesignerTemplateCompiler.compile(preview) }.getOrNull() }
     val rows = remember(template) { template?.bubbleRows?.associateBy { it.id }.orEmpty() }
-    PreviewCard(document) {
-        val sx = size.width / document.space.width.toFloat(); val sy = size.height / document.space.height.toFloat()
+    PreviewCard(document, "Canlı Önizleme") {
+        val sx = size.width / document.space.width.toFloat()
+        val sy = size.height / document.space.height.toFloat()
         if (template != null) drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFF9E3E3E))
         drawComponentDecorations(preview, sx, sy)
     }
 }
 
 @Composable
-private fun PreviewCard(document: DesignerDocument, draw: DrawScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().padding(10.dp).aspectRatio((document.space.width / document.space.height).toFloat()).background(Color.White)) { Canvas(Modifier.fillMaxSize(), onDraw = draw) }
+private fun PreviewCard(document: DesignerDocument, title: String, draw: DrawScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio((document.space.width / document.space.height).toFloat())
+                    .background(Color.White, RoundedCornerShape(10.dp))
+            ) {
+                Canvas(Modifier.fillMaxSize(), onDraw = draw)
+            }
+        }
     }
 }
 
-internal fun DrawScope.drawNumberGrid(component: NumericGridComponent, grid: MarkGridSpec, scaleX: Float, scaleY: Float, bubbleColor: Color) {
+internal fun DrawScope.drawNumberGrid(
+    component: NumericGridComponent,
+    grid: MarkGridSpec,
+    scaleX: Float,
+    scaleY: Float,
+    bubbleColor: Color
+) {
     val averageScale = (scaleX + scaleY) / 2f
-    val textPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.CENTER; textSize = (component.bubbleRadius * 0.82).toFloat() * averageScale }
-    grid.columns.forEach { column -> column.marks.forEach { mark ->
-        val center = Offset(mark.center.x.toFloat() * scaleX, mark.center.y.toFloat() * scaleY)
-        drawCircle(bubbleColor, mark.radius.toFloat() * averageScale, center, style = Stroke(1.05f))
-        drawIntoCanvas { val m = textPaint.fontMetrics; it.nativeCanvas.drawText(mark.id, center.x, center.y - (m.ascent + m.descent) / 2f, textPaint) }
-    } }
+    val textPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.DKGRAY
+        textAlign = AndroidPaint.Align.CENTER
+        textSize = (component.bubbleRadius * 0.82).toFloat() * averageScale
+    }
+    grid.columns.forEach { column ->
+        column.marks.forEach { mark ->
+            val center = Offset(mark.center.x.toFloat() * scaleX, mark.center.y.toFloat() * scaleY)
+            drawCircle(bubbleColor, mark.radius.toFloat() * averageScale, center, style = Stroke(1.05f))
+            drawIntoCanvas {
+                val m = textPaint.fontMetrics
+                it.nativeCanvas.drawText(mark.id, center.x, center.y - (m.ascent + m.descent) / 2f, textPaint)
+            }
+        }
+    }
 }
 
-internal fun DrawScope.drawAnswerGroup(component: QuestionGroupComponent, rowsById: Map<String, BubbleRowSpec>, appearance: DesignerAnswerAppearance, scaleX: Float, scaleY: Float, bubbleColor: Color) {
+internal fun DrawScope.drawAnswerGroup(
+    component: QuestionGroupComponent,
+    rowsById: Map<String, BubbleRowSpec>,
+    appearance: DesignerAnswerAppearance,
+    scaleX: Float,
+    scaleY: Float,
+    bubbleColor: Color
+) {
     val averageScale = (scaleX + scaleY) / 2f
-    val choicePaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.CENTER; textSize = (component.bubbleRadius * appearance.choiceLabelScale).toFloat() * averageScale }
-    val numberPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; textAlign = AndroidPaint.Align.RIGHT; textSize = (component.bubbleRadius * appearance.questionNumberScale).toFloat() * averageScale }
+    val choicePaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.DKGRAY
+        textAlign = AndroidPaint.Align.CENTER
+        textSize = (component.bubbleRadius * appearance.choiceLabelScale).toFloat() * averageScale
+    }
+    val numberPaint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.DKGRAY
+        textAlign = AndroidPaint.Align.RIGHT
+        textSize = (component.bubbleRadius * appearance.questionNumberScale).toFloat() * averageScale
+    }
     repeat(component.questionCount) { index ->
-        val number = component.startQuestion + index; val row = rowsById[DesignerTemplateCompiler.questionReadId(component, number)] ?: return@repeat; val first = row.bubbles.firstOrNull() ?: return@repeat
+        val number = component.startQuestion + index
+        val row = rowsById[DesignerTemplateCompiler.questionReadId(component, number)] ?: return@repeat
+        val first = row.bubbles.firstOrNull() ?: return@repeat
         val cy = first.center.y.toFloat() * scaleY
-        drawIntoCanvas { val m = numberPaint.fontMetrics; it.nativeCanvas.drawText(number.toString(), (first.center.x - first.radius * appearance.questionNumberDistanceInRadii).toFloat() * scaleX, cy - (m.ascent + m.descent) / 2f, numberPaint) }
-        row.bubbles.forEach { bubble -> val center = Offset(bubble.center.x.toFloat() * scaleX, bubble.center.y.toFloat() * scaleY); drawCircle(bubbleColor, bubble.radius.toFloat() * averageScale, center, style = Stroke(appearance.bubbleOutlineWidth.toFloat().coerceAtLeast(0.8f))); drawIntoCanvas { val m = choicePaint.fontMetrics; it.nativeCanvas.drawText(bubble.id, center.x, center.y - (m.ascent + m.descent) / 2f, choicePaint) } }
+        drawIntoCanvas {
+            val m = numberPaint.fontMetrics
+            it.nativeCanvas.drawText(
+                number.toString(),
+                (first.center.x - first.radius * appearance.questionNumberDistanceInRadii).toFloat() * scaleX,
+                cy - (m.ascent + m.descent) / 2f,
+                numberPaint
+            )
+        }
+        row.bubbles.forEach { bubble ->
+            val center = Offset(bubble.center.x.toFloat() * scaleX, bubble.center.y.toFloat() * scaleY)
+            drawCircle(
+                bubbleColor,
+                bubble.radius.toFloat() * averageScale,
+                center,
+                style = Stroke(appearance.bubbleOutlineWidth.toFloat().coerceAtLeast(0.8f))
+            )
+            drawIntoCanvas {
+                val m = choicePaint.fontMetrics
+                it.nativeCanvas.drawText(bubble.id, center.x, center.y - (m.ascent + m.descent) / 2f, choicePaint)
+            }
+        }
     }
 }
 
-private fun formatNumber(value: Double): String = if (value == value.roundToInt().toDouble()) value.roundToInt().toString() else String.format(java.util.Locale.US, "%.1f", value)
+private fun formatNumber(value: Double): String =
+    if (value == value.roundToInt().toDouble()) value.roundToInt().toString()
+    else String.format(java.util.Locale.US, "%.1f", value)

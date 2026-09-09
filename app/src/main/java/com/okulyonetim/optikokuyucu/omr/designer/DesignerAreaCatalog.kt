@@ -70,10 +70,11 @@ object DesignerAreaCatalog {
         val ordinal = document.components.count { it is QuestionGroupComponent }
         val id = nextComponentId(document, "answers")
         val start = DesignerEditorLayout.compactAnswerStart(document, ordinal)
+        val questionsPerBlock = 10
         return QuestionGroupComponent(
             id = id,
-            startQuestion = 1,
-            questionCount = 1,
+            startQuestion = ordinal * questionsPerBlock + 1,
+            questionCount = questionsPerBlock,
             choices = parseAnswerPattern("ABCD")!!,
             columns = 1,
             firstChoiceX = start.x,
@@ -130,7 +131,7 @@ object DesignerAreaCatalog {
         return DesignerTextElement(
             id,
             TemplateRect(safe.left + 30.0 + stagger, safe.top + 70.0 + stagger, width, height),
-            "Açıklama",
+            "",
             22.0
         )
     }

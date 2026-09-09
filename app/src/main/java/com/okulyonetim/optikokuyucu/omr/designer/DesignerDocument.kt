@@ -176,7 +176,8 @@ data class DesignerTextElement(
 ) : DesignerVisualElement {
     init {
         require(id.isNotBlank())
-        require(text.isNotEmpty())
+        // Empty text is allowed while a new description is being drafted. The editor's
+        // validation still prevents an empty description from being completed/saved.
         require(fontSize > 0.0)
     }
 }
