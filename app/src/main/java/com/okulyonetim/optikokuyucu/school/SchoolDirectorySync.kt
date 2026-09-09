@@ -161,6 +161,9 @@ class SchoolPortalManager private constructor(context: Context) {
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
+    fun syncSubjects(): SchoolSubjectSyncResult =
+        SchoolSubjectSyncService(appContext, client).sync()
+
     fun syncExamsAndResults(force: Boolean = false): SchoolExamCloudSyncResult? =
         cloudCoordinator.syncIfChanged(force)
 
