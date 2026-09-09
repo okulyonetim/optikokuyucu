@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +58,7 @@ fun ProductHomeScreen(
     val catalogStore = remember(context) { SchoolExamCatalogStore(appContext) }
     val manager = remember(context) { SchoolPortalManager.get(appContext) }
     val profile = LocalSchoolAccount.current?.profile
+    val themeController = LocalProductThemeController.current
     var localExams by remember(profile?.uid) { mutableStateOf(repository.list()) }
     var cloudCatalog by remember(profile?.uid) { mutableStateOf(catalogStore.list()) }
 
@@ -122,10 +124,18 @@ fun ProductHomeScreen(
                         )
                     }
                 }
-                ProductStatusBadge(
-                    if (profile?.admin == true) "YÖNETİCİ" else "OMR",
-                    if (profile?.admin == true) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProductStatusBadge(
+                        if (profile?.admin == true) "YÖNETİCİ" else "OMR",
+                        if (profile?.admin == true) ProductBadgeTone.GREEN else ProductBadgeTone.NEUTRAL
+                    )
+                    if (themeController != null) {
+                        HomeThemeToggle(themeController)
+                    }
+                }
             }
         }
 
@@ -255,6 +265,30 @@ fun ProductHomeScreen(
             }
         }
         item { Spacer(Modifier.height(10.dp)) }
+    }
+}
+
+@Composable
+private fun HomeThemeToggle(controller: ProductThemeController) {
+    Surface(
+        modifier = Modifier
+            .size(44.dp)
+            .clickable { controller.toggleLightDark() },
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(13.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (controller.isDark) "☀" else "☾",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
