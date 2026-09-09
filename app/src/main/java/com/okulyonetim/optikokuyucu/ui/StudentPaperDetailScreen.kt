@@ -138,8 +138,8 @@ fun StudentPaperDetailScreen(
     var deleteDialogOpen by remember { mutableStateOf(false) }
 
     val scoringLink = remember(link, bookletCode) { link.copy(bookletCode = bookletCode.trim()) }
-    val matchingKey = remember(record.id, keys, scoringLink.bookletCode) {
-        ExamPaperResolution.answerKey(scoringLink, record, keys)
+    val matchingKey = remember(record.id, keys, scoringLink.bookletCode, currentExam.id) {
+        ExamPaperResolution.answerKey(currentExam.id, scoringLink, record, keys)
     }
     val score = remember(
         record.id,
