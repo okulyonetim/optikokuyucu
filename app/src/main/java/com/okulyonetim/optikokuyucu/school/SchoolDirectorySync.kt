@@ -52,7 +52,6 @@ object SchoolClassParser {
     }
 }
 
-/** Pure field mapping from Okul Yönetim documents to the existing offline roster model. */
 object SchoolDirectoryMapper {
     fun schoolClass(doc: FirestoreDocument): SchoolClassIdentity {
         val name = doc.fields["ad"]?.toString().orEmpty().trim()
@@ -99,7 +98,6 @@ object SchoolDirectoryMapper {
     }
 }
 
-/** Maps Okul Yönetim oy_veliler records into the existing offline OMR roster. */
 class SchoolDirectorySyncService(
     private val context: Context,
     private val client: SchoolPortalClient
@@ -112,8 +110,6 @@ class SchoolDirectorySyncService(
         }
         val studentDocs = client.listDocuments(SchoolPortalConfig.STUDENTS)
 
-        // Mapping is performed before identity caching so the class level can distinguish the same
-        // number in Koruk İlkokulu (1–4) and Koruk Ortaokulu (5–8).
         val mapped = studentDocs.map { doc -> doc to SchoolDirectoryMapper.student(doc, classes) }
         val documentIdentities = mapped.mapNotNull { (doc, mapping) ->
             mapping.entry?.let { entry ->
@@ -144,7 +140,6 @@ class SchoolDirectorySyncService(
     }
 }
 
-/** Application-level access point for the shared school session and sync services. */
 class SchoolPortalManager private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val store = SchoolSessionStore(appContext)
@@ -177,6 +172,11 @@ class SchoolPortalManager private constructor(context: Context) {
 
     fun setExamPublic(examId: String, isPublic: Boolean) {
         SchoolExamCatalogSyncService(appContext, client).setPublic(examId, isPublic)
+    }
+
+    fun deleteExamCloudCopy(examId: String) {
+        SchoolExamCatalogSyncService(appContext, client).delete(examId)
+        cloudCoordinator.invalidate()
     }
 
     fun setTemplatePublic(document: DesignerDocument, isPublic: Boolean) {
