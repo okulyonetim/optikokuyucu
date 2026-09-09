@@ -89,9 +89,12 @@ internal fun DescriptionAreaEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 value = draft.text,
                 onValueChange = {
-                    if (it.isNotEmpty() && it.length <= 2_000) onDraftChange(draft.copy(text = it))
+                    if (it.length <= 2_000) onDraftChange(draft.copy(text = it))
                 },
                 label = { Text(if (personalizedField == null) "Metin / Açıklama" else "Etiket Metni") },
+                placeholder = {
+                    if (personalizedField == null) Text("Açıklamanızı yazın")
+                },
                 supportingText = {
                     if (personalizedField == null) {
                         Text("${draft.text.length}/2000")
@@ -211,7 +214,7 @@ private fun InfoAreaScaffold(
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -219,7 +222,7 @@ private fun InfoAreaScaffold(
             contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
@@ -227,14 +230,17 @@ private fun InfoAreaScaffold(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
                 ) { Text("×", style = MaterialTheme.typography.titleLarge) }
                 Text(
-                    "Yeni Optik Form Alanı",
+                    "Optik Form Alanı",
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall
                 )
                 TextButton(
                     enabled = completeEnabled,
                     onClick = onComplete,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.48f)
+                    )
                 ) { Text("Tamam") }
             }
         }
@@ -255,8 +261,10 @@ private fun InfoAreaScaffold(
 private fun InfoEditorCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -302,8 +310,18 @@ private fun InfoNumberStepper(label: String, value: Int, min: Int, max: Int, onC
 
 @Composable
 private fun InfoChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) FilledTonalButton(modifier = modifier, onClick = onClick) { Text("$label ✓") }
-    else OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
+    if (selected) {
+        FilledTonalButton(
+            modifier = modifier,
+            onClick = onClick,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) { Text("$label ✓") }
+    } else {
+        OutlinedButton(modifier = modifier, onClick = onClick) { Text(label) }
+    }
 }
 
 @Composable
