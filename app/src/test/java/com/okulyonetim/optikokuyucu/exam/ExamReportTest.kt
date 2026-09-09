@@ -70,7 +70,8 @@ class ExamReportTest {
             variantValue = "A",
             createdAtEpochMs = 5L,
             source = AnswerKeySource.SCAN_RECORD,
-            sourceRecordId = "key-a"
+            sourceRecordId = "key-a",
+            examId = exam.id
         )
 
         val report = ExamReportBuilder.build(
@@ -164,14 +165,16 @@ class ExamReportTest {
             variantGridId = "booklet",
             variantValue = "A",
             createdAtEpochMs = 5L,
-            source = AnswerKeySource.MANUAL
+            source = AnswerKeySource.MANUAL,
+            examId = exam.id
         )
         val keyB = StoredAnswerKey(
             answerKey = AnswerKey(selection.templateId, selection.templateVersion, mapOf("1" to "B")),
             variantGridId = "booklet",
             variantValue = "B",
             createdAtEpochMs = 6L,
-            source = AnswerKeySource.MANUAL
+            source = AnswerKeySource.MANUAL,
+            examId = exam.id
         )
 
         val row = ExamReportBuilder.build(exam, listOf(scan), listOf(keyA, keyB)).rows.single()
@@ -314,7 +317,7 @@ class ExamReportTest {
     }
 
     private fun basicExam(scanId: String, studentName: String = ""): Exam = Exam(
-        id = "exam-1",
+        id = EXAM_ID,
         name = "Deneme",
         schoolName = "Okul",
         templateSelection = selection,
@@ -337,7 +340,8 @@ class ExamReportTest {
         ),
         createdAtEpochMs = 5L,
         source = AnswerKeySource.SCAN_RECORD,
-        sourceRecordId = "key"
+        sourceRecordId = "key",
+        examId = EXAM_ID
     )
 
     private fun record(
@@ -387,4 +391,8 @@ class ExamReportTest {
             )
         }
     )
+
+    private companion object {
+        const val EXAM_ID = "exam-1"
+    }
 }
