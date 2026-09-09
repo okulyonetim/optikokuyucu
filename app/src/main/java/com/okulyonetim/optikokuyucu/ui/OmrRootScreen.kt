@@ -9,26 +9,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,22 +29,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.okulyonetim.optikokuyucu.exam.ExamStatus
-import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
-import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
-import com.okulyonetim.optikokuyucu.school.SchoolExamCatalogStore
-import com.okulyonetim.optikokuyucu.school.SchoolExamListItem
-import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
 import com.okulyonetim.optikokuyucu.settings.AppSettings
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 private enum class RootDestination {
     HOME,
@@ -62,7 +43,9 @@ private enum class RootDestination {
     EXAM_SCANNER,
     EXAM_GALLERY_BATCH,
     STUDENT_PAPER,
-    EXAM_REPORT,
+    REPORT_BUILDER,
+    PARENT_RESULT_SHARE,
+    MINI_ANSWER_KEY,
     STUDENTS,
     SETTINGS,
     TOOLS,
@@ -84,6 +67,7 @@ fun OmrRootScreen(
     var selectedScanRecordId by remember { mutableStateOf<String?>(null) }
     var formsReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
     var designerReturnDestination by remember { mutableStateOf(RootDestination.ACTIVE_TEMPLATE) }
+    var reportReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
 
     fun openForms(returnTo: RootDestination) {
         formsReturnDestination = returnTo
@@ -103,15 +87,18 @@ fun OmrRootScreen(
                 RootDestination.SCANNER,
                 RootDestination.RESULTS,
                 RootDestination.STUDENTS,
-                RootDestination.SETTINGS -> RootDestination.HOME
+                RootDestination.SETTINGS,
+                RootDestination.MINI_ANSWER_KEY -> RootDestination.HOME
 
                 RootDestination.EXAM_DETAIL,
                 RootDestination.TOOLS -> RootDestination.EXAMS
 
                 RootDestination.EXAM_SCANNER,
                 RootDestination.EXAM_GALLERY_BATCH,
-                RootDestination.STUDENT_PAPER,
-                RootDestination.EXAM_REPORT -> RootDestination.EXAM_DETAIL
+                RootDestination.STUDENT_PAPER -> RootDestination.EXAM_DETAIL
+
+                RootDestination.REPORT_BUILDER -> reportReturnDestination
+                RootDestination.PARENT_RESULT_SHARE -> RootDestination.REPORT_BUILDER
 
                 RootDestination.ANSWER_KEYS -> {
                     if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
@@ -134,9 +121,7 @@ fun OmrRootScreen(
                     ProductBottomBar(
                         selected = rootTab,
                         onSelect = { tab ->
-                            if (tab == ProductTab.FORMS) {
-                                formsReturnDestination = RootDestination.HOME
-                            }
+                            if (tab == ProductTab.FORMS) formsReturnDestination = RootDestination.HOME
                             destination = tab.toRootDestination()
                         }
                     )
@@ -149,12 +134,14 @@ fun OmrRootScreen(
                 ) {
                     when (destination) {
                         RootDestination.HOME -> ProductHomeScreen(
-                            onStartScan = { destination = RootDestination.EXAMS },
-                            onOpenExams = { destination = RootDestination.EXAMS },
                             onNewExam = { destination = RootDestination.NEW_EXAM },
-                            onOpenStudents = { destination = RootDestination.STUDENTS },
-                            onOpenResults = { destination = RootDestination.RESULTS },
-                            onOpenForms = { openForms(RootDestination.HOME) },
+                            onOpenReportBuilder = {
+                                selectedExamId = null
+                                reportReturnDestination = RootDestination.HOME
+                                destination = RootDestination.REPORT_BUILDER
+                            },
+                            onOpenMiniAnswerKey = { destination = RootDestination.MINI_ANSWER_KEY },
+                            onOpenExams = { destination = RootDestination.EXAMS },
                             onOpenExam = { examId ->
                                 selectedExamId = examId
                                 selectedScanRecordId = null
@@ -196,16 +183,6 @@ fun OmrRootScreen(
             }
         } else {
             when (destination) {
-                RootDestination.EXAMS -> ExamListScreen(
-                    onNewExam = { destination = RootDestination.NEW_EXAM },
-                    onOpenExam = { examId ->
-                        selectedExamId = examId
-                        selectedScanRecordId = null
-                        destination = RootDestination.EXAM_DETAIL
-                    },
-                    onOpenTools = { destination = RootDestination.TOOLS }
-                )
-
                 RootDestination.NEW_EXAM -> NewExamScreen(
                     onBack = { destination = RootDestination.EXAMS },
                     onSaved = { examId ->
@@ -232,7 +209,10 @@ fun OmrRootScreen(
                                 destination = RootDestination.STUDENT_PAPER
                             },
                             onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
-                            onOpenReports = { destination = RootDestination.EXAM_REPORT }
+                            onOpenReports = {
+                                reportReturnDestination = RootDestination.EXAM_DETAIL
+                                destination = RootDestination.REPORT_BUILDER
+                            }
                         )
                     }
                 }
@@ -279,17 +259,31 @@ fun OmrRootScreen(
                     }
                 }
 
-                RootDestination.EXAM_REPORT -> {
+                RootDestination.REPORT_BUILDER -> ReportBuilderScreen(
+                    initialExamId = selectedExamId,
+                    onBack = { destination = reportReturnDestination },
+                    onExamChanged = { selectedExamId = it },
+                    onShareParents = { examId ->
+                        selectedExamId = examId
+                        destination = RootDestination.PARENT_RESULT_SHARE
+                    }
+                )
+
+                RootDestination.PARENT_RESULT_SHARE -> {
                     val examId = selectedExamId
                     if (examId == null) {
-                        destination = RootDestination.EXAMS
+                        destination = RootDestination.REPORT_BUILDER
                     } else {
-                        ExamReportScreen(
+                        ParentResultShareScreen(
                             examId = examId,
-                            onBack = { destination = RootDestination.EXAM_DETAIL }
+                            onBack = { destination = RootDestination.REPORT_BUILDER }
                         )
                     }
                 }
+
+                RootDestination.MINI_ANSWER_KEY -> MiniAnswerKeyScreen(
+                    onBack = { destination = RootDestination.HOME }
+                )
 
                 RootDestination.TOOLS -> RootToolsScreen(
                     onBackToExams = { destination = RootDestination.EXAMS },
@@ -360,378 +354,6 @@ private fun ProductTab.toRootDestination(): RootDestination = when (this) {
 }
 
 @Composable
-private fun ProductHomeScreen(
-    onStartScan: () -> Unit,
-    onOpenExams: () -> Unit,
-    onNewExam: () -> Unit,
-    onOpenStudents: () -> Unit,
-    onOpenResults: () -> Unit,
-    onOpenForms: () -> Unit,
-    onOpenExam: (String) -> Unit
-) {
-    val context = LocalContext.current
-    val appContext = context.applicationContext
-    val repository = remember(context) { FileExamRepository(appContext) }
-    val catalogStore = remember(context) { SchoolExamCatalogStore(appContext) }
-    val manager = remember(context) { SchoolPortalManager.get(appContext) }
-    val profile = LocalSchoolAccount.current?.profile
-    var localExams by remember(profile?.uid) { mutableStateOf(repository.list()) }
-    var cloudCatalog by remember(profile?.uid) { mutableStateOf(catalogStore.list()) }
-
-    LaunchedEffect(profile?.uid) {
-        if (profile != null) {
-            runCatching { withContext(Dispatchers.IO) { manager.refreshExamCatalog() } }
-        }
-        localExams = repository.list()
-        cloudCatalog = catalogStore.list()
-    }
-
-    val examItems = if (profile == null) {
-        localExams.map { exam -> SchoolExamListItem(SchoolContentAccess.run { exam.toSummary() }, exam) }
-    } else {
-        SchoolContentAccess.mergeExamItems(localExams, cloudCatalog, profile)
-    }
-    val readExams = examItems.count { it.localExam?.status == ExamStatus.READ }
-    val waitingExams = examItems.count { it.localExam == null || it.localExam.status == ExamStatus.WAITING }
-    val linkedPapers = examItems.sumOf { it.localExam?.papers?.size ?: 0 }
-    val scannedPapers = examItems
-        .flatMap { it.localExam?.papers.orEmpty() }
-        .map { it.scanRecordId }
-        .distinct()
-        .size
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item { Spacer(Modifier.height(10.dp)) }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text("Optik Okuyucu", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        when {
-                            profile?.admin == true -> "Tüm kullanıcı sınavları"
-                            profile != null -> "${profile.displayName} · sınav ve tarama merkezi"
-                            else -> "Sınav ve tarama merkezi"
-                        },
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                        text = if (profile?.admin == true) "ADMIN" else "OMR",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("Yeni Tarama", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Sınavı seçin ve kağıdı kamerayla okuyun",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.84f)
-                        )
-                        Text(
-                            "$linkedPapers bağlı kağıt",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.62f)
-                        )
-                    }
-                    Surface(
-                        modifier = Modifier.clickable(onClick = onStartScan),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        contentColor = MaterialTheme.colorScheme.onTertiary,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            text = "Başlat",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HomeStatCell(Modifier.weight(1f), "Sınav", examItems.size.toString())
-                    HomeStatCell(Modifier.weight(1f), "Taranan", scannedPapers.toString())
-                    HomeStatCell(Modifier.weight(1f), "Okunan", readExams.toString())
-                    HomeStatCell(Modifier.weight(1f), "Bekleyen", waitingExams.toString())
-                }
-            }
-        }
-
-        item {
-            Text("Hızlı İşlemler", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HomeActionCard(Modifier.weight(1f), "＋", "Yeni Sınav", onNewExam)
-                    HomeActionCard(Modifier.weight(1f), "▤", "Sınavlar", onOpenExams)
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HomeActionCard(Modifier.weight(1f), "◎", "Formlar", onOpenForms)
-                    HomeActionCard(Modifier.weight(1f), "●", "Öğrenciler", onOpenStudents)
-                    HomeActionCard(Modifier.weight(1f), "▥", "Sonuçlar", onOpenResults)
-                }
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Son Sınavlar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onOpenExams) {
-                    Text("Tümünü Gör", fontSize = 11.sp)
-                }
-            }
-        }
-
-        if (examItems.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Henüz görünür sınav yok", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "İlk sınavınızı oluşturarak başlayın.",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        OutlinedButton(onClick = onNewExam, shape = RoundedCornerShape(11.dp)) {
-                            Text("Yeni Sınav", fontSize = 10.sp)
-                        }
-                    }
-                }
-            }
-        } else {
-            items(examItems.take(4), key = { it.summary.id }) { item ->
-                HomeExamCard(
-                    item = item,
-                    onClick = {
-                        val local = item.localExam
-                        if (local != null) onOpenExam(local.id) else onOpenExams()
-                    }
-                )
-            }
-        }
-
-        item { Spacer(Modifier.height(8.dp)) }
-    }
-}
-
-@Composable
-private fun HomeStatCell(modifier: Modifier, label: String, value: String) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            value,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            label,
-            fontSize = 9.sp,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun HomeActionCard(
-    modifier: Modifier,
-    symbol: String,
-    label: String,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .height(58.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(9.dp)
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                    text = symbol,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Text(
-                label,
-                modifier = Modifier.weight(1f),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeExamCard(item: SchoolExamListItem, onClick: () -> Unit) {
-    val summary = item.summary
-    val exam = item.localExam
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    summary.name,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    buildString {
-                        append(formatHomeExamDate(summary.examDateEpochDay))
-                        append(" · ")
-                        append(exam?.papers?.size ?: 0)
-                        append(" kağıt")
-                        if (summary.ownerName.isNotBlank()) append(" · ${summary.ownerName}")
-                        if (summary.isPublic) append(" · Herkese açık")
-                        if (exam == null) append(" · Bulut")
-                    },
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            ProductStatusBadge(
-                text = when {
-                    exam == null -> "BULUT"
-                    exam.status == ExamStatus.READ -> "OKUNDU"
-                    else -> "BEKLİYOR"
-                },
-                tone = when {
-                    exam == null -> ProductBadgeTone.NEUTRAL
-                    exam.status == ExamStatus.READ -> ProductBadgeTone.GREEN
-                    else -> ProductBadgeTone.ORANGE
-                }
-            )
-        }
-    }
-}
-
-private fun formatHomeExamDate(epochDay: Long): String = runCatching {
-    LocalDate.ofEpochDay(epochDay).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-}.getOrDefault("-")
-
-@Composable
 private fun RootSettingsScreen(
     onOpenTools: () -> Unit,
     onOpenForms: () -> Unit
@@ -749,10 +371,8 @@ private fun RootSettingsScreen(
                 .padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { Spacer(Modifier.height(2.dp)) }
-
+            item { Spacer(Modifier.padding(1.dp)) }
             item { SchoolAccountSettingsCard() }
-
             item {
                 ProductSettingsSection(
                     title = "Kurum Bilgileri",
@@ -772,14 +392,14 @@ private fun RootSettingsScreen(
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
-                            runCatching {
-                                settingsRepository.save(AppSettings(schoolName))
-                            }.onSuccess {
-                                schoolName = schoolName.trim()
-                                schoolStatus = "Okul adı kaydedildi."
-                            }.onFailure { error ->
-                                schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                            }
+                            runCatching { settingsRepository.save(AppSettings(schoolName)) }
+                                .onSuccess {
+                                    schoolName = schoolName.trim()
+                                    schoolStatus = "Okul adı kaydedildi."
+                                }
+                                .onFailure { error ->
+                                    schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                                }
                         },
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -789,18 +409,12 @@ private fun RootSettingsScreen(
                         Text(
                             schoolStatus,
                             fontSize = 9.sp,
-                            color = if (schoolStatus.startsWith("Kaydedilemedi")) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
+                            color = if (schoolStatus.startsWith("Kaydedilemedi")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                     }
                 }
             }
-
             item { SettingsSubjectsCard(settingsRepository) }
-
             item {
                 ProductSettingsLink(
                     symbol = "◎",
@@ -809,7 +423,6 @@ private fun RootSettingsScreen(
                     onClick = onOpenForms
                 )
             }
-
             item {
                 ProductSettingsLink(
                     symbol = "⌁",
@@ -818,7 +431,6 @@ private fun RootSettingsScreen(
                     onClick = onOpenTools
                 )
             }
-
             item {
                 Text(
                     "Tema seçimi için sağ üstteki ◐ simgesini kullanın.",
@@ -826,8 +438,7 @@ private fun RootSettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            item { Spacer(Modifier.height(8.dp)) }
+            item { Spacer(Modifier.padding(4.dp)) }
         }
     }
 }
@@ -848,12 +459,10 @@ private fun RootToolsScreen(
             onLeadingClick = onBackToExams
         )
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            item { Spacer(Modifier.height(3.dp)) }
+            item { Spacer(Modifier.padding(1.dp)) }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -870,22 +479,12 @@ private fun RootToolsScreen(
                     }
                 }
             }
-            item {
-                ToolActionCard("▣", "Kamera ile Tara", "Aktif optik form ile canlı OMR okuma", onOpenScanner, true)
-            }
-            item {
-                ToolActionCard("▥", "Sonuçlar", "Sınav analizleri ve öğrenci sonuçları", onOpenResults)
-            }
-            item {
-                ToolActionCard("✓", "Cevap Anahtarları", "Sınav cevap anahtarlarını oluştur ve yönet", onOpenAnswerKeys)
-            }
-            item {
-                ToolActionCard("◎", "Optik Formlar", "Aktif, hazır ve kurum formlarını yönet", onOpenActiveTemplate)
-            }
-            item {
-                ToolActionCard("✎", "Form Editörü", "Yeni form oluştur veya yerleşimi düzenle", onOpenDesigner)
-            }
-            item { Spacer(Modifier.height(12.dp)) }
+            item { ToolActionCard("▣", "Kamera ile Tara", "Aktif optik form ile canlı OMR okuma", onOpenScanner, true) }
+            item { ToolActionCard("▥", "Sonuçlar", "Sınav analizleri ve öğrenci sonuçları", onOpenResults) }
+            item { ToolActionCard("✓", "Cevap Anahtarları", "Sınav cevap anahtarlarını oluştur ve yönet", onOpenAnswerKeys) }
+            item { ToolActionCard("◎", "Optik Formlar", "Aktif, hazır ve kurum formlarını yönet", onOpenActiveTemplate) }
+            item { ToolActionCard("✎", "Form Editörü", "Yeni form oluştur veya yerleşimi düzenle", onOpenDesigner) }
+            item { Spacer(Modifier.padding(6.dp)) }
         }
     }
 }
@@ -899,9 +498,7 @@ private fun ToolActionCard(
     primary: Boolean = false
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(17.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
@@ -910,9 +507,7 @@ private fun ToolActionCard(
         elevation = CardDefaults.cardElevation(defaultElevation = if (primary) 0.dp else 1.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
