@@ -22,7 +22,9 @@ object SchoolSubjectMapper {
                 ?.takeIf(String::isNotBlank)
         }
         .distinctBy { it.lowercase(TurkishLocale) }
-        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.lowercase(TurkishLocale) })
+        .sortedWith { first, second ->
+            first.lowercase(TurkishLocale).compareTo(second.lowercase(TurkishLocale))
+        }
 }
 
 class SchoolSubjectSyncService(
