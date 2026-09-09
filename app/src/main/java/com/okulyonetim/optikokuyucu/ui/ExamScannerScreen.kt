@@ -167,6 +167,7 @@ fun ExamScannerScreen(
             "Yeni öğrenci kağıdı sınava bağlanamadı."
         }
         val storedKey = ExamPaperResolution.answerKey(
+            examId = updatedExam.id,
             link = link,
             record = record,
             keys = keyRepository.list()
