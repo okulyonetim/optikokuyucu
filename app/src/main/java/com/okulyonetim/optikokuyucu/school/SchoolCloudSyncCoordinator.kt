@@ -37,15 +37,17 @@ object SchoolCloudFingerprint {
                     append(paper.className).append(':').append(paper.bookletCode).append('|')
                 }
             }
-            keys.sortedWith(compareBy({ it.templateId }, { it.templateVersion }, { it.variantValue ?: "" }))
-                .forEach { key ->
-                    append('K').append(key.templateId).append(':').append(key.templateVersion).append(':')
-                    append(key.variantValue.orEmpty()).append(':').append(key.createdAtEpochMs).append(':')
-                    key.answerKey.answers.toSortedMap().forEach { (question, answer) ->
-                        append(question).append('=').append(answer).append(',')
-                    }
-                    append('|')
+            keys.sortedWith(
+                compareBy<StoredAnswerKey>({ it.examId ?: "" }, { it.templateId }, { it.templateVersion }, { it.variantValue ?: "" })
+            ).forEach { key ->
+                append('K').append(key.examId.orEmpty()).append(':')
+                append(key.templateId).append(':').append(key.templateVersion).append(':')
+                append(key.variantValue.orEmpty()).append(':').append(key.createdAtEpochMs).append(':')
+                key.answerKey.answers.toSortedMap().forEach { (question, answer) ->
+                    append(question).append('=').append(answer).append(',')
                 }
+                append('|')
+            }
             records.sortedBy { it.id }.forEach { record ->
                 append('S').append(record.id).append(':')
                 append(record.templateId).append(':').append(record.templateVersion).append(':')
