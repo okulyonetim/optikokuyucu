@@ -40,8 +40,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import com.okulyonetim.optikokuyucu.R
+import com.okulyonetim.optikokuyucu.exam.ConfiguredExamReport
+import com.okulyonetim.optikokuyucu.exam.ConfiguredExamReportExporter
 import com.okulyonetim.optikokuyucu.exam.Exam
+import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
+import com.okulyonetim.optikokuyucu.exam.ExamReport
+import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
+import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.exam.ReportColumn
+import com.okulyonetim.optikokuyucu.exam.ReportPageOrientation
+import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
+import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.student.EschoolPdfImportPreview
 import com.okulyonetim.optikokuyucu.student.EschoolPdfImporter
 import com.okulyonetim.optikokuyucu.student.FileStudentClassRepository
@@ -51,6 +63,7 @@ import com.okulyonetim.optikokuyucu.student.StudentGender
 import com.okulyonetim.optikokuyucu.student.StudentNumber
 import com.okulyonetim.optikokuyucu.student.StudentRosterEntry
 import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -68,6 +81,27 @@ private data class StudentRosterOverview(
     val latestScanRecordId: String?
 )
 
+private data class StudentExamResult(
+    val exam: Exam,
+    val report: ExamReport,
+    val row: ExamReportRow
+)
+
+private fun matchesRosterStudent(
+    entry: StudentRosterEntry,
+    link: ExamPaperLink,
+    rosterCountByNumber: Map<String, Int>
+): Boolean {
+    val number = StudentNumber.normalize(link.studentNumber)
+    if (number != entry.studentNumber) return false
+    val linkedGrade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
+    return when {
+        linkedGrade != null -> StudentSchoolIdentity.sameInstitution(entry.gradeLevel, linkedGrade)
+        rosterCountByNumber[entry.studentNumber] == 1 -> true
+        else -> false
+    }
+}
+
 private fun buildStudentRosterOverviews(
     roster: List<StudentRosterEntry>,
     exams: List<Exam>
@@ -79,14 +113,7 @@ private fun buildStudentRosterOverviews(
 
     roster.forEach { entry ->
         val matches = linkedPapers.filter { (_, link) ->
-            val number = StudentNumber.normalize(link.studentNumber)
-            if (number != entry.studentNumber) return@filter false
-            val linkedGrade = StudentSchoolIdentity.gradeLevelFromClassName(link.className)
-            when {
-                linkedGrade != null -> StudentSchoolIdentity.sameInstitution(entry.gradeLevel, linkedGrade)
-                rosterCountByNumber[entry.studentNumber] == 1 -> true
-                else -> false
-            }
+            matchesRosterStudent(entry, link, rosterCountByNumber)
         }
         matches.forEach { consumedScanIds += it.second.scanRecordId }
         val latest = matches.maxByOrNull { it.second.linkedAtEpochMs }
@@ -155,6 +182,9 @@ fun StudentRosterScreen(
     val rosterRepository = remember(context) { FileStudentRosterRepository(appContext) }
     val classRepository = remember(context) { FileStudentClassRepository(appContext) }
     val examRepository = remember(context) { FileExamRepository(appContext) }
+    val scanRepository = remember(context) { FileScanRecordRepository(appContext) }
+    val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
+    val reportTypeface = remember(context) { ResourcesCompat.getFont(context, R.font.noto_sans) }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val worker = remember { Executors.newSingleThreadExecutor() }
     val active = remember { AtomicBoolean(true) }
@@ -170,6 +200,8 @@ fun StudentRosterScreen(
     var importSourceLabel by remember { mutableStateOf("e-Okul PDF") }
     var editing by remember { mutableStateOf<StudentRosterOverview?>(null) }
     var pendingDeleteStudent by remember { mutableStateOf<StudentRosterEntry?>(null) }
+    var pendingStudentPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingStudentPdfName by remember { mutableStateOf("ogrenci-raporu.pdf") }
     var guardianName by remember { mutableStateOf("") }
     var guardianPhone by remember { mutableStateOf("") }
     var optionsExpanded by remember { mutableStateOf(false) }
@@ -200,6 +232,25 @@ fun StudentRosterScreen(
         roster = rosterRepository.list()
         storedClasses = classRepository.list()
         exams = examRepository.list()
+    }
+
+    val studentPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ConfiguredExamReportExporter.PDF_MIME_TYPE)
+    ) { uri ->
+        val bytes = pendingStudentPdfBytes
+        pendingStudentPdfBytes = null
+        if (uri == null || bytes == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "PDF çıktı akışı açılamadı." }
+                output.write(bytes)
+                output.flush()
+            }
+        }.onSuccess {
+            feedback.success("Öğrenci raporu PDF olarak kaydedildi.")
+        }.onFailure { error ->
+            feedback.error("PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}")
+        }
     }
 
     val pdfPicker = rememberLauncherForActivityResult(
@@ -524,11 +575,33 @@ fun StudentRosterScreen(
     }
 
     editing?.roster?.let { original ->
+        val rosterCountByNumber = remember(roster) { roster.groupingBy { it.studentNumber }.eachCount() }
+        val studentResults = remember(original, roster, exams) {
+            val records = scanRepository.list()
+            val answerKeys = keyRepository.list()
+            exams.mapNotNull { exam ->
+                val matchingScanIds = exam.papers
+                    .filter { link -> matchesRosterStudent(original, link, rosterCountByNumber) }
+                    .map { it.scanRecordId }
+                    .toSet()
+                if (matchingScanIds.isEmpty()) return@mapNotNull null
+                val report = ExamReportBuilder.build(exam, records, answerKeys)
+                val row = report.rows
+                    .filter { it.scanRecordId in matchingScanIds }
+                    .maxByOrNull { it.capturedAtEpochMs ?: Long.MIN_VALUE }
+                    ?: return@mapNotNull null
+                StudentExamResult(exam, report, row)
+            }.sortedByDescending { it.exam.examDateEpochDay }
+        }
+
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text(original.fullName) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.heightIn(max = 570.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
                         buildString {
                             if (original.schoolName.isNotBlank()) append(original.schoolName).append(" · ")
@@ -557,17 +630,105 @@ fun StudentRosterScreen(
                         label = { Text("Veli Telefon") },
                         singleLine = true
                     )
-                    val latestExamId = editing?.latestExamId
-                    val latestScanRecordId = editing?.latestScanRecordId
-                    if (latestExamId != null && latestScanRecordId != null) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                editing = null
-                                onOpenPaper(latestExamId, latestScanRecordId)
+
+                    Text(
+                        "Öğrenci Raporları",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (studentResults.isEmpty()) {
+                        Text(
+                            "Bu öğrenciye ait henüz sınav sonucu bulunmuyor.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "${studentResults.size} sınav sonucu · Her sınav için optik kağıdı açabilir veya PDF raporu oluşturabilirsiniz.",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        studentResults.forEach { result ->
+                            ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        result.exam.name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val subject = result.exam.subjectName.takeIf(String::isNotBlank)
+                                    Text(
+                                        listOfNotNull(subject, result.row.className.takeIf(String::isNotBlank))
+                                            .joinToString(" · ")
+                                            .ifBlank { result.exam.schoolName },
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "D ${result.row.correct ?: "—"} · Y ${result.row.wrong ?: "—"} · B ${result.row.blank ?: "—"} · Net ${formatStudentResultNumber(result.row.net)} · Puan ${formatStudentResultNumber(result.row.points)}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "Genel sıra ${result.row.overallRank ?: "—"} · Sınıf sırası ${result.row.classRank ?: "—"}",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            modifier = Modifier.weight(1f),
+                                            onClick = {
+                                                editing = null
+                                                onOpenPaper(result.exam.id, result.row.scanRecordId)
+                                            }
+                                        ) { Text("Optik Kağıt", fontSize = 10.sp) }
+                                        OutlinedButton(
+                                            modifier = Modifier.weight(1f),
+                                            onClick = {
+                                                val config = ConfiguredExamReport(
+                                                    report = result.report,
+                                                    rows = listOf(result.row),
+                                                    columns = listOf(
+                                                        ReportColumn.STUDENT,
+                                                        ReportColumn.CLASS,
+                                                        ReportColumn.NUMBER,
+                                                        ReportColumn.SCORE,
+                                                        ReportColumn.NET,
+                                                        ReportColumn.CORRECT,
+                                                        ReportColumn.WRONG,
+                                                        ReportColumn.BLANK,
+                                                        ReportColumn.OVERALL_RANK,
+                                                        ReportColumn.CLASS_RANK,
+                                                        ReportColumn.LESSONS
+                                                    ),
+                                                    orientation = ReportPageOrientation.LANDSCAPE,
+                                                    titleSuffix = "Öğrenci Raporu"
+                                                )
+                                                runCatching {
+                                                    ConfiguredExamReportExporter.exportPdfBytes(config, reportTypeface)
+                                                }.onSuccess { bytes ->
+                                                    pendingStudentPdfBytes = bytes
+                                                    pendingStudentPdfName = studentReportFileName(original.fullName, result.exam.name)
+                                                    studentPdfLauncher.launch(pendingStudentPdfName)
+                                                }.onFailure { error ->
+                                                    feedback.error("PDF hazırlanamadı: ${error.message ?: error.javaClass.simpleName}")
+                                                }
+                                            }
+                                        ) { Text("PDF", fontSize = 10.sp) }
+                                    }
+                                }
                             }
-                        ) { Text("Son Optik Kağıdı Aç") }
+                        }
                     }
+
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -857,4 +1018,17 @@ private fun StudentRosterOverviewCard(
             )
         }
     }
+}
+
+private fun formatStudentResultNumber(value: Double?): String =
+    value?.let { String.format(Locale("tr", "TR"), "%.2f", it) } ?: "—"
+
+private fun studentReportFileName(studentName: String, examName: String): String {
+    fun safe(value: String): String = value
+        .trim()
+        .replace(Regex("[^\\p{L}\\p{N}]+"), "-")
+        .trim('-')
+        .take(36)
+        .ifBlank { "rapor" }
+    return "${safe(studentName)}-${safe(examName)}-rapor.pdf"
 }
