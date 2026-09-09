@@ -49,8 +49,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 99
-        versionName = "0.19.43"
+        versionCode = 100
+        versionName = "0.19.44"
         vectorDrawables { useSupportLibrary = true }
     }
     buildTypes {
@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.opencv)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("net.sourceforge.jexcelapi:jxl:2.6.12")
     testImplementation(libs.junit4)
