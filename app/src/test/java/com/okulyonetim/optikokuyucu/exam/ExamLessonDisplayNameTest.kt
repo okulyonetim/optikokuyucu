@@ -23,6 +23,6 @@ class ExamLessonDisplayNameTest {
 
     @Test
     fun customLessonIdsStillFallBackToHumanizedText() {
-        assertEquals("Geometri Ileri", examLessonDisplayName("geometri-ileri"))
+        assertEquals("Geometri İleri", examLessonDisplayName("geometri-ileri"))
     }
 }
