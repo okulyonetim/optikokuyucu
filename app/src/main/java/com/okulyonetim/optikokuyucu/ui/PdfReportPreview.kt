@@ -47,7 +47,10 @@ fun PdfReportPreview(
     }
 
     DisposableEffect(rendered?.bitmap) {
-        onDispose { rendered?.bitmap?.takeUnless(Bitmap::isRecycled)?.recycle() }
+        onDispose {
+            val bitmap = rendered?.bitmap
+            if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
+        }
     }
 
     Column(
