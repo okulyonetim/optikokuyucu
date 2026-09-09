@@ -172,6 +172,7 @@ class SchoolExamCatalogSyncService(
         val summaries = client.listDocuments(SchoolPortalConfig.TRIAL_EXAMS)
             .asSequence()
             .filter { it.text("kaynak") == "optik-okuyucu" }
+            .filter { it.fields["silindi"] as? Boolean != true }
             .mapNotNull { doc ->
                 val date = runCatching { LocalDate.parse(doc.text("tarih")) }.getOrNull() ?: return@mapNotNull null
                 SchoolExamSummary(
@@ -200,9 +201,43 @@ class SchoolExamCatalogSyncService(
             current.id,
             current.fields + mapOf(
                 "herkeseAcik" to isPublic,
+                "silindi" to false,
                 "guncellenmeTarihi" to Instant.now().toString()
             )
         )
+        refresh()
+    }
+
+    fun delete(examId: String) {
+        val profile = requireNotNull(client.cachedSession()).profile
+        val current = client.getDocument(SchoolPortalConfig.TRIAL_EXAMS, examId)
+            ?: run {
+                refresh()
+                return
+            }
+        val ownerUid = current.text("sahipUid")
+        require(profile.admin || (ownerUid.isNotBlank() && ownerUid == profile.uid)) {
+            "Bu sınavı silme yetkiniz yok."
+        }
+        val tombstone = mapOf(
+            "silindi" to true,
+            "herkeseAcik" to false,
+            "guncellenmeTarihi" to Instant.now().toString()
+        )
+        client.upsertDocument(
+            SchoolPortalConfig.TRIAL_EXAMS,
+            current.id,
+            current.fields + tombstone
+        )
+        runCatching {
+            client.getDocument(SchoolPortalConfig.TRIAL_RESULTS, examId)?.let { result ->
+                client.upsertDocument(
+                    SchoolPortalConfig.TRIAL_RESULTS,
+                    result.id,
+                    result.fields + tombstone
+                )
+            }
+        }
         refresh()
     }
 }

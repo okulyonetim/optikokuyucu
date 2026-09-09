@@ -14,15 +14,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +52,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private enum class ExamListFilter { ALL, READ, WAITING }
+private enum class ExamListSubScreen { LIST, EDIT, REPORT, PARENT_SHARE }
 
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -66,10 +70,14 @@ fun ExamListScreen(
     val profile = account?.profile
     val feedback = LocalAppFeedback.current
     val scope = rememberCoroutineScope()
+
     var localExams by remember { mutableStateOf(repository.list()) }
     var cloudCatalog by remember { mutableStateOf(catalogStore.list()) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(ExamListFilter.ALL) }
+    var subScreen by remember { mutableStateOf(ExamListSubScreen.LIST) }
+    var actionExamId by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf<SchoolExamListItem?>(null) }
 
     fun currentItems(): List<SchoolExamListItem> = if (profile == null) {
         localExams.map { exam -> SchoolExamListItem(SchoolContentAccess.run { exam.toSummary() }, exam) }
@@ -77,32 +85,59 @@ fun ExamListScreen(
         SchoolContentAccess.mergeExamItems(localExams, cloudCatalog, profile)
     }
 
-    val items = currentItems()
-    val normalizedQuery = query.trim().lowercase()
-    val filtered = items.filter { item ->
-        val summary = item.summary
-        val exam = item.localExam
-        val matchesQuery = normalizedQuery.isBlank() ||
-            summary.name.lowercase().contains(normalizedQuery) ||
-            summary.schoolName.lowercase().contains(normalizedQuery) ||
-            exam?.folderName?.lowercase()?.contains(normalizedQuery) == true ||
-            summary.ownerName.lowercase().contains(normalizedQuery)
-        val matchesFilter = when (filter) {
-            ExamListFilter.ALL -> true
-            ExamListFilter.READ -> exam?.status == ExamStatus.READ
-            ExamListFilter.WAITING -> exam == null || exam.status == ExamStatus.WAITING
-        }
-        matchesQuery && matchesFilter
-    }
-
     fun refreshLocal() {
         localExams = repository.list()
         cloudCatalog = catalogStore.list()
     }
 
+    fun returnToList() {
+        actionExamId = null
+        subScreen = ExamListSubScreen.LIST
+        refreshLocal()
+    }
+
+    if (subScreen != ExamListSubScreen.LIST) {
+        val id = actionExamId
+        if (id == null) {
+            subScreen = ExamListSubScreen.LIST
+        } else {
+            when (subScreen) {
+                ExamListSubScreen.EDIT -> NewExamScreen(
+                    examId = id,
+                    onBack = ::returnToList,
+                    onSaved = {
+                        manager.invalidateCloudSync()
+                        returnToList()
+                        scope.launch {
+                            runCatching { withContext(Dispatchers.IO) { manager.syncExamsAndResults(force = true) } }
+                        }
+                    }
+                )
+                ExamListSubScreen.REPORT -> ReportBuilderScreen(
+                    initialExamId = id,
+                    onBack = ::returnToList,
+                    onExamChanged = { actionExamId = it },
+                    onShareParents = { examId ->
+                        actionExamId = examId
+                        subScreen = ExamListSubScreen.PARENT_SHARE
+                    }
+                )
+                ExamListSubScreen.PARENT_SHARE -> ParentResultShareScreen(
+                    examId = id,
+                    onBack = { subScreen = ExamListSubScreen.REPORT }
+                )
+                ExamListSubScreen.LIST -> Unit
+            }
+            return
+        }
+    }
+
     fun togglePublic(item: SchoolExamListItem) {
         val signed = profile ?: return
-        if (!signed.admin) return
+        if (!signed.admin) {
+            feedback.warning("Sınavı herkese açma / özel yapma yetkisi yalnız yöneticidedir.")
+            return
+        }
         val next = !item.summary.isPublic
         val local = item.localExam
         if (local != null) {
@@ -118,8 +153,7 @@ fun ExamListScreen(
                             manager.syncExamsAndResults(force = true)
                             manager.refreshExamCatalog()
                         }
-                    }
-                    refreshLocal()
+                    }.onSuccess { refreshLocal() }
                 }
             }.onFailure { feedback.error(it.message ?: "Sınav paylaşımı değiştirilemedi.") }
         } else {
@@ -135,13 +169,85 @@ fun ExamListScreen(
         }
     }
 
+    fun deleteExam(item: SchoolExamListItem) {
+        val local = item.localExam
+        val canModify = when {
+            profile == null -> local != null
+            local != null -> SchoolContentAccess.canModifyExam(local, profile)
+            else -> profile.admin || item.summary.ownerUid == profile.uid
+        }
+        if (!canModify) {
+            feedback.warning("Bu sınavı silme yetkiniz yok.")
+            return
+        }
+        runCatching {
+            local?.let { repository.delete(it.id) }
+            manager.invalidateCloudSync()
+        }.onFailure {
+            feedback.error(it.message ?: "Sınav silinemedi.")
+            return
+        }
+        localExams = repository.list()
+        cloudCatalog = cloudCatalog.filterNot { it.id == item.summary.id }
+        feedback.success("Sınav silindi.")
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { manager.deleteExamCloudCopy(item.summary.id) }
+            }.onSuccess {
+                cloudCatalog = catalogStore.list()
+            }.onFailure {
+                feedback.warning("Sınav cihazdan silindi; bulut silme işlemi internet geldiğinde yeniden denenebilir.")
+            }
+        }
+    }
+
+    pendingDelete?.let { item ->
+        val paperCount = item.localExam?.papers?.size ?: 0
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Sınav silinsin mi?") },
+            text = {
+                Text(
+                    buildString {
+                        append("${item.summary.name} kalıcı olarak silinecek.")
+                        if (paperCount > 0) append(" Bu sınava bağlı $paperCount öğrenci sonucu da sınav listesinden kaldırılacak.")
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    deleteExam(item)
+                }) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Vazgeç") }
+            }
+        )
+    }
+
+    val allItems = currentItems()
+    val normalizedQuery = query.trim().lowercase()
+    val filtered = allItems.filter { item ->
+        val summary = item.summary
+        val exam = item.localExam
+        val matchesQuery = normalizedQuery.isBlank() ||
+            summary.name.lowercase().contains(normalizedQuery) ||
+            summary.schoolName.lowercase().contains(normalizedQuery) ||
+            exam?.folderName?.lowercase()?.contains(normalizedQuery) == true ||
+            summary.ownerName.lowercase().contains(normalizedQuery)
+        val matchesFilter = when (filter) {
+            ExamListFilter.ALL -> true
+            ExamListFilter.READ -> exam?.status == ExamStatus.READ
+            ExamListFilter.WAITING -> exam == null || exam.status == ExamStatus.WAITING
+        }
+        matchesQuery && matchesFilter
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            ProductTopBar(
-                title = "Sınavlar",
-                showAutomaticBack = false
-            )
+            ProductTopBar(title = "Sınavlar", showAutomaticBack = false)
         }
     ) { innerPadding ->
         Column(
@@ -156,17 +262,10 @@ fun ExamListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("${allItems.size} sınav", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        text = "${items.size} sınav",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = when {
+                        when {
                             profile?.admin == true -> "Tüm kullanıcı sınavları"
                             profile != null -> "Kendi sınavlarınız ve herkese açık sınavlar"
                             else -> "Sınavlarınızı yönetin"
@@ -177,18 +276,13 @@ fun ExamListScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Button(
-                    onClick = onNewExam,
-                    shape = RoundedCornerShape(13.dp)
-                ) {
+                Button(onClick = onNewExam, shape = RoundedCornerShape(13.dp)) {
                     Text("＋ Yeni Sınav", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
             OutlinedTextField(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
@@ -202,66 +296,62 @@ fun ExamListScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ProductFilterPill("Tümü", items.size, filter == ExamListFilter.ALL) {
-                    filter = ExamListFilter.ALL
-                }
+                ProductFilterPill("Tümü", allItems.size, filter == ExamListFilter.ALL) { filter = ExamListFilter.ALL }
                 ProductFilterPill(
                     "Okundu",
-                    items.count { it.localExam?.status == ExamStatus.READ },
+                    allItems.count { it.localExam?.status == ExamStatus.READ },
                     filter == ExamListFilter.READ
-                ) {
-                    filter = ExamListFilter.READ
-                }
+                ) { filter = ExamListFilter.READ }
                 ProductFilterPill(
                     "Bekliyor",
-                    items.count { it.localExam == null || it.localExam.status == ExamStatus.WAITING },
+                    allItems.count { it.localExam == null || it.localExam.status == ExamStatus.WAITING },
                     filter == ExamListFilter.WAITING
-                ) {
-                    filter = ExamListFilter.WAITING
-                }
+                ) { filter = ExamListFilter.WAITING }
             }
 
             if (filtered.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Text(
-                            if (items.isEmpty()) "Henüz görünür sınav yok" else "Filtreye uygun sınav bulunamadı",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            if (items.isEmpty()) "Yeni Sınav ile ilk sınavınızı oluşturabilirsiniz."
-                            else "Arama metnini veya durum filtresini değiştirin.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                ProductEmptyState(
+                    title = if (allItems.isEmpty()) "Henüz görünür sınav yok" else "Filtreye uygun sınav bulunamadı",
+                    body = if (allItems.isEmpty()) "Yeni Sınav ile ilk sınavınızı oluşturabilirsiniz."
+                    else "Arama metnini veya durum filtresini değiştirin."
+                )
             } else {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filtered, key = { it.summary.id }) { item ->
+                        val local = item.localExam
+                        val canModify = when {
+                            profile == null -> local != null
+                            local != null -> SchoolContentAccess.canModifyExam(local, profile)
+                            else -> profile.admin || item.summary.ownerUid == profile.uid
+                        }
                         ExamListCard(
                             item = item,
-                            admin = profile?.admin == true,
+                            canEdit = canModify && local != null,
+                            canDelete = canModify,
+                            canReport = local != null,
+                            canInformParents = canModify && local != null,
+                            canPublish = profile?.admin == true,
                             onClick = {
-                                val local = item.localExam
                                 if (local != null) onOpenExam(local.id)
                                 else feedback.info("Bu sınav başka bir cihazdan geldi; bulut özeti salt okunur.")
                             },
-                            onTogglePublic = if (profile?.admin == true) ({ togglePublic(item) }) else null
+                            onEdit = {
+                                actionExamId = item.summary.id
+                                subScreen = ExamListSubScreen.EDIT
+                            },
+                            onDelete = { pendingDelete = item },
+                            onReport = {
+                                actionExamId = item.summary.id
+                                subScreen = ExamListSubScreen.REPORT
+                            },
+                            onTogglePublic = { togglePublic(item) },
+                            onInformParents = {
+                                actionExamId = item.summary.id
+                                subScreen = ExamListSubScreen.PARENT_SHARE
+                            }
                         )
                     }
                     item { Spacer(Modifier.height(12.dp)) }
@@ -274,26 +364,31 @@ fun ExamListScreen(
 @Composable
 private fun ExamListCard(
     item: SchoolExamListItem,
-    admin: Boolean,
+    canEdit: Boolean,
+    canDelete: Boolean,
+    canReport: Boolean,
+    canInformParents: Boolean,
+    canPublish: Boolean,
     onClick: () -> Unit,
-    onTogglePublic: (() -> Unit)?
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onReport: () -> Unit,
+    onTogglePublic: () -> Unit,
+    onInformParents: () -> Unit
 ) {
     val exam = item.localExam
     val summary = item.summary
     val read = exam?.status == ExamStatus.READ
+    var menuOpen by remember(item.summary.id) { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 13.dp, vertical = 11.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Row(
@@ -310,18 +405,8 @@ private fun ExamListCard(
                         Text("▤", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        summary.name,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(summary.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         buildString {
                             append(formatExamDate(summary.examDateEpochDay))
@@ -333,7 +418,6 @@ private fun ExamListCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
                 ProductStatusBadge(
                     text = when {
                         exam == null -> "BULUT"
@@ -346,13 +430,52 @@ private fun ExamListCard(
                         else -> ProductBadgeTone.ORANGE
                     }
                 )
+                Box {
+                    Surface(
+                        modifier = Modifier.size(36.dp).clickable { menuOpen = true },
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = RoundedCornerShape(11.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("⋮", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Düzenle") },
+                            enabled = canEdit,
+                            onClick = { menuOpen = false; onEdit() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Rapor") },
+                            enabled = canReport,
+                            onClick = { menuOpen = false; onReport() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Veli Bilgilendirme") },
+                            enabled = canInformParents,
+                            onClick = { menuOpen = false; onInformParents() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (summary.isPublic) "Özel Yap" else "Herkese Açık Yap") },
+                            enabled = canPublish,
+                            onClick = { menuOpen = false; onTogglePublic() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Sil", color = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) },
+                            enabled = canDelete,
+                            onClick = { menuOpen = false; onDelete() }
+                        )
+                    }
+                }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     buildString {
                         if (summary.ownerName.isNotBlank()) append(summary.ownerName)
@@ -363,8 +486,7 @@ private fun ExamListCard(
                         if (exam == null) {
                             if (isNotBlank()) append(" · ")
                             append("Bulut")
-                        }
-                        if (exam != null && read) {
+                        } else {
                             if (isNotBlank()) append(" · ")
                             append("${exam.papers.size} kağıt")
                         }
@@ -375,15 +497,7 @@ private fun ExamListCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                if (admin && onTogglePublic != null) {
-                    OutlinedButton(
-                        onClick = onTogglePublic,
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(if (summary.isPublic) "Özel Yap" else "Herkese Aç", fontSize = 10.sp)
-                    }
-                }
+                Text("Seçenekler ⋮", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
