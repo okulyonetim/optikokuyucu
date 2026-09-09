@@ -131,7 +131,9 @@ fun ExamAnswerKeyEditor(
     val worker = remember { Executors.newSingleThreadExecutor() }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
 
-    var keys by remember { mutableStateOf(repository.list()) }
+    fun examKeys(): List<StoredAnswerKey> = repository.list().filter { it.examId == exam.id }
+
+    var keys by remember(exam.id) { mutableStateOf(examKeys()) }
     var booklet by remember(exam.id, bookletChoices) { mutableStateOf(bookletChoices.firstOrNull()) }
     var sectionId by remember(exam.id, sections) { mutableStateOf(sections.firstOrNull()?.id) }
     var answers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -144,7 +146,8 @@ fun ExamAnswerKeyEditor(
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
 
     fun matchingKey(): StoredAnswerKey? = keys.firstOrNull { key ->
-        key.templateId == template.id &&
+        key.examId == exam.id &&
+            key.templateId == template.id &&
             key.templateVersion == template.version &&
             if (booklet.isNullOrBlank()) {
                 key.variantGridId == null && key.variantValue == null
@@ -162,7 +165,7 @@ fun ExamAnswerKeyEditor(
     }
 
     fun refreshKeys(message: String? = null) {
-        keys = repository.list()
+        keys = examKeys()
         message?.let {
             status = it
             feedback.success(it)
@@ -177,19 +180,21 @@ fun ExamAnswerKeyEditor(
                     templateId = template.id,
                     templateVersion = template.version,
                     variantGridId = if (booklet.isNullOrBlank()) null else bookletGridId,
-                    variantValue = booklet
+                    variantValue = booklet,
+                    examId = exam.id
                 )
             } else {
                 StoredAnswerKey(
                     answerKey = AnswerKey(template.id, template.version, updated),
                     variantGridId = if (booklet.isNullOrBlank()) null else bookletGridId,
                     variantValue = booklet,
-                    source = AnswerKeySource.MANUAL
+                    source = AnswerKeySource.MANUAL,
+                    examId = exam.id
                 ).also(repository::save)
             }
         }.onSuccess {
             answers = updated
-            keys = repository.list()
+            keys = examKeys()
             status = "Otomatik kaydedildi · ${updated.size}/${template.bubbleRows.size} soru"
             onChanged()
         }.onFailure { error ->
@@ -239,7 +244,8 @@ fun ExamAnswerKeyEditor(
                         answerKey = requireNotNull(capture.answerKey),
                         variantGridId = if (targetBooklet.isNullOrBlank()) null else bookletGridId,
                         variantValue = targetBooklet,
-                        source = source
+                        source = source,
+                        examId = exam.id
                     ).also(repository::save)
                 } finally {
                     result.bitmap.recycle()
@@ -316,7 +322,8 @@ fun ExamAnswerKeyEditor(
                     answerKey = imported.answerKey,
                     variantGridId = if (targetBooklet.isNullOrBlank()) null else bookletGridId,
                     variantValue = targetBooklet,
-                    source = AnswerKeySource.SPREADSHEET
+                    source = AnswerKeySource.SPREADSHEET,
+                    examId = exam.id
                 ).also(repository::save)
             }.onSuccess { stored ->
                 mainExecutor.execute {
