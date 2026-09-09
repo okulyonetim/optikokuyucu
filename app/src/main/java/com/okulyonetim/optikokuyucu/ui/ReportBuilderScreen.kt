@@ -22,7 +22,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.res.ResourcesCompat
+import com.okulyonetim.optikokuyucu.R
 import com.okulyonetim.optikokuyucu.exam.ConfiguredExamReport
 import com.okulyonetim.optikokuyucu.exam.ConfiguredExamReportExporter
 import com.okulyonetim.optikokuyucu.exam.ExamReport
@@ -55,7 +56,7 @@ private enum class BuilderReportType(val label: String, val description: String)
 
 private enum class BuilderDetail(val label: String, val description: String) {
     SIMPLE("Basit", "Puan, net ve sıralama odaklı sade rapor"),
-    DETAILED("Detaylı", "D/Y/B, kitapçık ve ders bazlı ayrıntılar")
+    DETAILED("Detaylı", "Her ders için D/Y/B/Net ve toplam sonuçları")
 }
 
 private enum class BuilderSort(val label: String) {
@@ -93,22 +94,23 @@ fun ReportBuilderScreen(
     var orientation by remember { mutableStateOf(ReportPageOrientation.PORTRAIT) }
     var columns by remember { mutableStateOf(simpleColumns()) }
     var status by remember { mutableStateOf("") }
-    var pendingPdf by remember { mutableStateOf<ConfiguredExamReport?>(null) }
+    var pendingPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingXlsx by remember { mutableStateOf<ByteArray?>(null) }
 
     val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(ConfiguredExamReportExporter.PDF_MIME_TYPE)
     ) { uri ->
-        val config = pendingPdf
-        pendingPdf = null
-        if (uri == null || config == null) return@rememberLauncherForActivityResult
+        val bytes = pendingPdfBytes
+        pendingPdfBytes = null
+        if (uri == null || bytes == null) return@rememberLauncherForActivityResult
         runCatching {
             context.contentResolver.openOutputStream(uri, "w").use { output ->
                 requireNotNull(output) { "PDF çıktı akışı açılamadı." }
-                ConfiguredExamReportExporter.exportPdf(config, output)
+                output.write(bytes)
+                output.flush()
             }
         }.onSuccess { status = "PDF raporu kaydedildi." }
-            .onFailure { error -> status = "PDF oluşturulamadı: ${error.message ?: error.javaClass.simpleName}" }
+            .onFailure { error -> status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}" }
     }
 
     val xlsxLauncher = rememberLauncherForActivityResult(
@@ -145,7 +147,7 @@ fun ReportBuilderScreen(
         ConfiguredExamReport(
             report = it,
             rows = configuredRows,
-            columns = columns.toList(),
+            columns = columns,
             selectedLessonIds = selectedLessons,
             orientation = orientation,
             titleSuffix = when (reportType) {
@@ -194,6 +196,7 @@ fun ReportBuilderScreen(
                 onSelect = { index ->
                     detail = BuilderDetail.entries[index]
                     columns = if (detail == BuilderDetail.SIMPLE) simpleColumns() else detailedColumns()
+                    if (detail == BuilderDetail.DETAILED) orientation = ReportPageOrientation.LANDSCAPE
                 },
                 onNext = { step = 3 }
             )
@@ -219,9 +222,9 @@ fun ReportBuilderScreen(
             else -> ReportPreviewStep(
                 config = config,
                 status = status,
-                onPdf = {
+                onPdf = { bytes ->
                     val current = config ?: return@ReportPreviewStep
-                    pendingPdf = current
+                    pendingPdfBytes = bytes
                     pdfLauncher.launch(reportFileName(current.report.examName, "pdf"))
                 },
                 onExcel = {
@@ -233,9 +236,7 @@ fun ReportBuilderScreen(
                         }
                         .onFailure { error -> status = "Excel hazırlanamadı: ${error.message ?: error.javaClass.simpleName}" }
                 },
-                onShareParents = {
-                    selectedExamId?.let(onShareParents)
-                }
+                onShareParents = { selectedExamId?.let(onShareParents) }
             )
         }
     }
@@ -333,13 +334,13 @@ private fun ReportCustomizeStep(
     selectedClasses: Set<String>,
     selectedStudents: Set<String>,
     selectedLessons: Set<String>,
-    columns: Set<ReportColumn>,
+    columns: List<ReportColumn>,
     sort: BuilderSort,
     orientation: ReportPageOrientation,
     onClassesChanged: (Set<String>) -> Unit,
     onStudentsChanged: (Set<String>) -> Unit,
     onLessonsChanged: (Set<String>) -> Unit,
-    onColumnsChanged: (Set<ReportColumn>) -> Unit,
+    onColumnsChanged: (List<ReportColumn>) -> Unit,
     onSortChanged: (BuilderSort) -> Unit,
     onOrientationChanged: (ReportPageOrientation) -> Unit,
     onNext: () -> Unit
@@ -351,7 +352,7 @@ private fun ReportCustomizeStep(
     ) {
         item {
             Text("4. Rapor Düzenleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Kapsamı, alanları, sıralamayı ve sayfa yönünü belirleyin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Kapsamı, sütunları, sıralamayı ve sayfa yönünü belirleyin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             ProductSettingsSection("Kapsam", "Boş seçim tüm okulu/sınavı kapsar.") {
@@ -392,7 +393,7 @@ private fun ReportCustomizeStep(
             }
         }
         item {
-            ProductSettingsSection("Raporda Olacak Alanlar", "İstediğiniz sütunları açıp kapatın.") {
+            ProductSettingsSection("Raporda Olacak Alanlar", "Alanları açıp kapatın; dersler seçilirse her ders D/Y/B/Net olarak açılır.") {
                 ReportColumn.entries.chunked(2).forEach { pair ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         pair.forEach { column ->
@@ -400,13 +401,43 @@ private fun ReportCustomizeStep(
                                 modifier = Modifier.weight(1f),
                                 selected = column in columns,
                                 onClick = {
-                                    val updated = columns.toggle(column)
+                                    val updated = if (column in columns) {
+                                        columns.filterNot { it == column }
+                                    } else {
+                                        columns + column
+                                    }
                                     if (updated.isNotEmpty()) onColumnsChanged(updated)
                                 },
                                 label = { Text(column.label, fontSize = 9.sp, maxLines = 1) }
                             )
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        item {
+            ProductSettingsSection("Sütun Sırası", "Ad Soyad varsayılan olarak baştadır. Oklarla sütunların yerini değiştirin.") {
+                columns.forEachIndexed { index, column ->
+                    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("${index + 1}.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(column.label, modifier = Modifier.weight(1f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            OutlinedButton(
+                                enabled = index > 0,
+                                onClick = { onColumnsChanged(columns.move(index, index - 1)) },
+                                shape = RoundedCornerShape(9.dp)
+                            ) { Text("↑", fontSize = 11.sp) }
+                            OutlinedButton(
+                                enabled = index < columns.lastIndex,
+                                onClick = { onColumnsChanged(columns.move(index, index + 1)) },
+                                shape = RoundedCornerShape(9.dp)
+                            ) { Text("↓", fontSize = 11.sp) }
+                        }
                     }
                 }
             }
@@ -425,7 +456,7 @@ private fun ReportCustomizeStep(
             }
         }
         item {
-            ProductSettingsSection("Sayfa", "PDF ve Excel yazdırma yönü.") {
+            ProductSettingsSection("Sayfa", "Çok dersli ayrıntılı raporlar okunabilirlik için gerektiğinde yatay ve çok bölümlü hazırlanır.") {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         modifier = Modifier.weight(1f),
@@ -444,7 +475,7 @@ private fun ReportCustomizeStep(
         }
         item {
             Button(modifier = Modifier.fillMaxWidth(), onClick = onNext, shape = RoundedCornerShape(13.dp)) {
-                Text("Önizleme")
+                Text("PDF Önizleme")
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
@@ -455,16 +486,25 @@ private fun ReportCustomizeStep(
 private fun ReportPreviewStep(
     config: ConfiguredExamReport?,
     status: String,
-    onPdf: () -> Unit,
+    onPdf: (ByteArray) -> Unit,
     onExcel: () -> Unit,
     onShareParents: () -> Unit
 ) {
+    val context = LocalContext.current
+    val reportTypeface = remember(context) { ResourcesCompat.getFont(context, R.font.noto_sans) }
+    val pdfResult = remember(config, reportTypeface) {
+        config?.takeIf { it.rows.isNotEmpty() }?.let { current ->
+            runCatching { ConfiguredExamReportExporter.exportPdfBytes(current, reportTypeface) }
+        }
+    }
+    val pdfBytes = pdfResult?.getOrNull()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {
-            Text("5. Önizleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("5. PDF Önizleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
                 config?.let { "${it.rows.size} kayıt · ${it.columns.size} alan · ${if (it.orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"}" }
                     ?: "Rapor hazırlanamadı.",
@@ -474,26 +514,43 @@ private fun ReportPreviewStep(
         }
         if (config == null || config.rows.isEmpty()) {
             item { ProductEmptyState("Rapor verisi yok", "Seçtiğiniz kapsamda raporlanacak öğrenci bulunamadı.") }
+        } else if (pdfBytes == null) {
+            item {
+                ProductEmptyState(
+                    "PDF oluşturulamadı",
+                    pdfResult?.exceptionOrNull()?.message ?: "Rapor önizlemesi hazırlanamadı."
+                )
+            }
         } else {
             item {
-                ProductSettingsSection("Seçili Alanlar", config.columns.joinToString(" · ") { it.label }) {
+                ProductSettingsSection(
+                    "Gerçek PDF Önizleme",
+                    "Burada gördüğünüz PDF, dışa aktarılacak dosyanın aynısıdır."
+                ) {
+                    PdfReportPreview(pdfBytes = pdfBytes, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            item {
+                ProductSettingsSection("Sütun Sırası", config.columns.joinToString(" → ") { it.label }) {
                     Text(
-                        if (config.selectedLessonIds.isEmpty()) "Ders kapsamı: tüm dersler" else "Ders kapsamı: ${config.selectedLessonIds.joinToString { examLessonDisplayName(it) }}",
+                        if (config.selectedLessonIds.isEmpty()) {
+                            "Ders kapsamı: tüm dersler · Her ders D/Y/B/Net · En sonda Toplam D/Y/B/Net"
+                        } else {
+                            "Ders kapsamı: ${config.selectedLessonIds.joinToString { examLessonDisplayName(it) }} · En sonda Toplam"
+                        },
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            items(config.rows.take(12), key = { it.scanRecordId }) { row ->
-                PreviewRow(row)
-            }
-            if (config.rows.size > 12) {
-                item { Text("+ ${config.rows.size - 12} kayıt daha", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(modifier = Modifier.weight(1f), onClick = onPdf, shape = RoundedCornerShape(12.dp)) { Text("PDF") }
-                    OutlinedButton(modifier = Modifier.weight(1f), onClick = onExcel, shape = RoundedCornerShape(12.dp)) { Text("Excel") }
+                    Button(modifier = Modifier.weight(1f), onClick = { onPdf(pdfBytes) }, shape = RoundedCornerShape(12.dp)) {
+                        Text("PDF Dışa Aktar")
+                    }
+                    OutlinedButton(modifier = Modifier.weight(1f), onClick = onExcel, shape = RoundedCornerShape(12.dp)) {
+                        Text("Excel")
+                    }
                 }
             }
             item {
@@ -509,27 +566,7 @@ private fun ReportPreviewStep(
     }
 }
 
-@Composable
-private fun PreviewRow(row: ExamReportRow) {
-    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz Öğrenci" } }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text("${row.className} · No ${row.studentNumber}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(row.points?.let(::formatBuilderNumber) ?: "—", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("Net ${row.net?.let(::formatBuilderNumber) ?: "—"}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-private fun simpleColumns(): Set<ReportColumn> = linkedSetOf(
+private fun simpleColumns(): List<ReportColumn> = listOf(
     ReportColumn.STUDENT,
     ReportColumn.CLASS,
     ReportColumn.NUMBER,
@@ -539,15 +576,11 @@ private fun simpleColumns(): Set<ReportColumn> = linkedSetOf(
     ReportColumn.CLASS_RANK
 )
 
-private fun detailedColumns(): Set<ReportColumn> = linkedSetOf(
+private fun detailedColumns(): List<ReportColumn> = listOf(
     ReportColumn.STUDENT,
     ReportColumn.CLASS,
     ReportColumn.NUMBER,
     ReportColumn.BOOKLET,
-    ReportColumn.CORRECT,
-    ReportColumn.WRONG,
-    ReportColumn.BLANK,
-    ReportColumn.NET,
     ReportColumn.SCORE,
     ReportColumn.OVERALL_RANK,
     ReportColumn.CLASS_RANK,
@@ -557,6 +590,14 @@ private fun detailedColumns(): Set<ReportColumn> = linkedSetOf(
 private fun <T> Set<T>.toggle(value: T): Set<T> = toMutableSet().apply {
     if (!add(value)) remove(value)
 }.toSet()
+
+private fun <T> List<T>.move(from: Int, to: Int): List<T> {
+    if (from !in indices || to !in indices || from == to) return this
+    return toMutableList().apply {
+        val item = removeAt(from)
+        add(to, item)
+    }
+}
 
 private fun sortRows(rows: List<ExamReportRow>, sort: BuilderSort): List<ExamReportRow> = when (sort) {
     BuilderSort.SCORE_DESC -> rows.sortedWith(compareByDescending<ExamReportRow> { it.points ?: Double.NEGATIVE_INFINITY }.thenBy { it.studentName })
@@ -570,5 +611,3 @@ private fun reportFileName(examName: String, extension: String): String {
     val safe = examName.trim().replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-').take(48).ifBlank { "sinav" }
     return "$safe-rapor.$extension"
 }
-
-private fun formatBuilderNumber(value: Double): String = String.format(Locale("tr", "TR"), "%.2f", value)
