@@ -113,7 +113,7 @@ class Stage15DeviceWorkflowReadinessTest {
 
         val repository = MemoryExamRepository(
             Exam(
-                id = "stage15-exam",
+                id = EXAM_ID,
                 name = "Türkçe Uçtan Uca",
                 schoolName = "Örnek Okul",
                 templateSelection = selection(document),
@@ -122,7 +122,7 @@ class Stage15DeviceWorkflowReadinessTest {
             )
         )
         val linked = ExamPaperRegistrar(repository).register(
-            examId = "stage15-exam",
+            examId = EXAM_ID,
             record = record,
             linkedAtEpochMs = 200L
         )
@@ -135,7 +135,8 @@ class Stage15DeviceWorkflowReadinessTest {
             variantGridId = booklet.id,
             variantValue = DesignerPhysicalTestPack.BOOKLET_CODE,
             createdAtEpochMs = 300L,
-            source = AnswerKeySource.GALLERY
+            source = AnswerKeySource.GALLERY,
+            examId = EXAM_ID
         )
         val row = ExamReportBuilder.build(linked, listOf(record), listOf(key)).rows.single()
 
@@ -176,5 +177,9 @@ class Stage15DeviceWorkflowReadinessTest {
             if (exam?.id == id) exam = null
             return true
         }
+    }
+
+    private companion object {
+        const val EXAM_ID = "stage15-exam"
     }
 }
