@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -270,12 +271,11 @@ fun StudentPaperDetailScreen(
         }
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            modifier = Modifier.fillMaxSize().padding(innerPadding)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ProductFilterPill(
                     label = "İçerik",
@@ -289,25 +289,30 @@ fun StudentPaperDetailScreen(
                 )
             }
 
-            ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
-            LessonScoreSummary(
-                lessons = calculatedRow?.lessons.orEmpty(),
-                lessonNames = lessonNames
-            )
-
             if (tab == StudentPaperTab.CONTENT) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     item {
+                        ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
+                    }
+                    if (!calculatedRow?.lessons.isNullOrEmpty()) {
+                        item {
+                            LessonScoreSummary(
+                                lessons = calculatedRow?.lessons.orEmpty(),
+                                lessonNames = lessonNames
+                            )
+                        }
+                    }
+                    item {
                         Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedTextField(
                                     modifier = Modifier.weight(1f),
@@ -317,9 +322,8 @@ fun StudentPaperDetailScreen(
                                         lookupStudent(studentNumber)
                                     },
                                     label = { Text("Numara") },
-                                    supportingText = { Text("Kayıtlı numara yazılınca ad ve sınıf otomatik dolar") },
                                     singleLine = true,
-                                    shape = RoundedCornerShape(28.dp)
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                                 OutlinedTextField(
                                     modifier = Modifier.weight(1f),
@@ -327,7 +331,7 @@ fun StudentPaperDetailScreen(
                                     onValueChange = { className = it },
                                     label = { Text("Sınıf") },
                                     singleLine = true,
-                                    shape = RoundedCornerShape(28.dp)
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                             }
 
@@ -337,26 +341,25 @@ fun StudentPaperDetailScreen(
                                 onValueChange = { studentName = it },
                                 label = { Text("Ad Soyad") },
                                 singleLine = true,
-                                shape = RoundedCornerShape(28.dp)
+                                shape = RoundedCornerShape(14.dp)
                             )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     OutlinedButton(
                                         modifier = Modifier.fillMaxWidth(),
                                         onClick = { lessonMenuOpen = true },
-                                        shape = RoundedCornerShape(28.dp)
+                                        shape = RoundedCornerShape(14.dp)
                                     ) {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
-                                        ) {
-                                            Text("Ders", style = MaterialTheme.typography.labelSmall)
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Text("Ders", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text(
                                                 selectedLesson?.let { lessonNames[it] ?: humanizeLesson(it) }
-                                                    ?: "Tümü"
+                                                    ?: "Tümü",
+                                                fontSize = 11.sp
                                             )
                                         }
                                     }
@@ -388,15 +391,15 @@ fun StudentPaperDetailScreen(
                                     value = bookletCode,
                                     onValueChange = { bookletCode = it.uppercase().take(2) },
                                     label = { Text("Kitapçık") },
-                                    supportingText = { Text("Değişince puan anında bu kitapçığın anahtarıyla hesaplanır") },
                                     singleLine = true,
-                                    shape = RoundedCornerShape(28.dp)
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                             }
 
                             if (status.isNotBlank()) {
                                 Text(
                                     status,
+                                    fontSize = 10.sp,
                                     color = if (
                                         status.startsWith("Kaydedilemedi") ||
                                         status.startsWith("Silinemedi")
@@ -411,7 +414,7 @@ fun StudentPaperDetailScreen(
                             OutlinedButton(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { deleteDialogOpen = true },
-                                shape = RoundedCornerShape(28.dp)
+                                shape = RoundedCornerShape(14.dp)
                             ) {
                                 Text("Kağıdı Sınavdan Sil", color = MaterialTheme.colorScheme.error)
                             }
@@ -421,11 +424,11 @@ fun StudentPaperDetailScreen(
                     if (visibleAnswers.isEmpty()) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth().padding(18.dp),
-                                shape = RoundedCornerShape(22.dp)
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
-                                    modifier = Modifier.padding(18.dp),
+                                    modifier = Modifier.padding(14.dp),
                                     text = "Bu ders için soru kaydı bulunamadı."
                                 )
                             }
@@ -438,15 +441,20 @@ fun StudentPaperDetailScreen(
                             )
                         }
                     }
-                    item { Spacer(Modifier.height(18.dp)) }
+                    item { Spacer(Modifier.height(14.dp)) }
                 }
             } else {
-                StudentPaperImagePanel(
-                    scanRecordId = scanRecordId,
-                    record = record,
-                    evaluations = evaluations,
-                    templateSelection = currentExam.templateSelection
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
+                    Box(modifier = Modifier.weight(1f)) {
+                        StudentPaperImagePanel(
+                            scanRecordId = scanRecordId,
+                            record = record,
+                            evaluations = evaluations,
+                            templateSelection = currentExam.templateSelection
+                        )
+                    }
+                }
             }
         }
     }
@@ -462,59 +470,47 @@ private fun ScoreHeader(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp
+        tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
                 Text(
                     text = when {
-                        reportRow?.points != null -> "Puan: ${formatNet(reportRow.points)}"
-                        reportRow?.scoreNote?.isNotBlank() == true -> "Puan: —"
-                        resolvedNet != null -> "Toplam Net: ${formatNet(resolvedNet)}"
-                        else -> "Toplam Net: —"
+                        reportRow?.points != null -> "Puan ${formatNet(reportRow.points)}"
+                        reportRow?.scoreNote?.isNotBlank() == true -> "Puan —"
+                        resolvedNet != null -> "Toplam Net ${formatNet(resolvedNet)}"
+                        else -> "Toplam Net —"
                     },
                     color = if (resolvedNet != null) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 17.sp
                 )
-                if (resolvedNet != null) {
-                    Text(
-                        buildString {
-                            append("Net ").append(formatNet(resolvedNet))
-                            reportRow?.overallRank?.let { append(" · Genel ").append(it).append(".") }
-                            reportRow?.classRank?.let { append(" · Sınıf ").append(it).append(".") }
-                        },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
-                    )
-                }
                 Text(
-                    if (hasKey) "Detaylı değerlendirme" else "Cevap anahtarı bekleniyor",
+                    buildString {
+                        if (resolvedNet != null) append("Net ").append(formatNet(resolvedNet))
+                        reportRow?.overallRank?.let {
+                            if (isNotBlank()) append(" · ")
+                            append("Genel ").append(it).append('.')
+                        }
+                        reportRow?.classRank?.let {
+                            if (isNotBlank()) append(" · ")
+                            append("Sınıf ").append(it).append('.')
+                        }
+                        if (isBlank()) append(if (hasKey) "Detaylı değerlendirme" else "Cevap anahtarı bekleniyor")
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp
                 )
-                if (reportRow?.scoreNote?.isNotBlank() == true) {
-                    Text(
-                        reportRow.scoreNote,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 9.sp
-                    )
-                }
             }
             metrics?.let {
-                Text(
-                    "D: ${it.correct}",
-                    color = CorrectGreen,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
+                ProductStatusBadge("${it.correct} DOĞRU", ProductBadgeTone.GREEN)
             }
         }
     }
@@ -528,88 +524,65 @@ private fun LessonScoreSummary(
     if (lessons.isEmpty()) return
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Text(
-                "Ders Bazlı Sonuçlar",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                "Ders Sonuçları",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                "Her dersin doğru, yanlış, boş ve net dağılımı",
+                "Doğru · yanlış · boş · net",
                 fontSize = 9.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(5.dp))
 
-            lessons.forEach { lesson ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            lessons.forEachIndexed { index, lesson ->
+                if (index > 0) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
-                        verticalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             lessonNames[lesson.lessonId] ?: humanizeLesson(lesson.lessonId),
                             fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "D ${lesson.correct} · Y ${lesson.wrong} · B ${lesson.blank}",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(9.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            "Net ${formatNet(lesson.net)}",
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            LessonMetricChip("D", lesson.correct.toString(), CorrectGreen)
-                            LessonMetricChip("Y", lesson.wrong.toString(), WrongRed)
-                            LessonMetricChip("B", lesson.blank.toString(), MaterialTheme.colorScheme.onSurfaceVariant)
-                            LessonMetricChip("N", formatNet(lesson.net), MaterialTheme.colorScheme.primary)
-                        }
-                        if (lesson.standardScore != null || lesson.weightedStandardScore != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
-                            ) {
-                                lesson.standardScore?.let {
-                                    LessonMetricChip("SP", formatNet(it), MaterialTheme.colorScheme.secondary)
-                                }
-                                lesson.weightedStandardScore?.let {
-                                    LessonMetricChip("ASP", formatNet(it), MaterialTheme.colorScheme.tertiary)
-                                }
-                            }
-                        }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LessonMetricChip(label: String, value: String, tone: Color) {
-    Surface(
-        color = tone.copy(alpha = 0.12f),
-        contentColor = tone,
-        shape = RoundedCornerShape(9.dp)
-    ) {
-        Text(
-            text = "$label $value",
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
@@ -637,16 +610,16 @@ private fun QuestionAnswerRow(
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            modifier = Modifier.size(width = 42.dp, height = 44.dp),
+            modifier = Modifier.size(width = 36.dp, height = 40.dp),
             text = "${questionDisplayNumber(answer.questionId)})",
             color = stateColor,
             fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
+            fontSize = 16.sp,
             textAlign = TextAlign.Center
         )
 
@@ -695,13 +668,13 @@ private fun ChoiceBubble(
     }
 
     Surface(
-        modifier = Modifier.size(44.dp),
+        modifier = Modifier.size(40.dp),
         shape = CircleShape,
         color = background,
-        border = BorderStroke(if (expected) 3.dp else 1.dp, borderColor)
+        border = BorderStroke(if (expected) 2.dp else 1.dp, borderColor)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(choice, color = textColor, fontSize = 16.sp)
+            Text(choice, color = textColor, fontSize = 14.sp)
         }
     }
 }
@@ -711,48 +684,21 @@ private fun StudentResultSummaryBar(metrics: ExamPaperMetrics?) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 5.dp
+        tonalElevation = 3.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("D: ${metrics?.correct ?: 0}", color = CorrectGreen, fontSize = 17.sp)
-            Text("Y: ${metrics?.wrong ?: 0}", color = WrongRed, fontSize = 17.sp)
-            Text("B: ${metrics?.blank ?: 0}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 17.sp)
+            Text("D ${metrics?.correct ?: 0}", color = CorrectGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("Y ${metrics?.wrong ?: 0}", color = WrongRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("B ${metrics?.blank ?: 0}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             Text(
-                "N: ${metrics?.let { formatNet(it.net) } ?: "—"}",
+                "N ${metrics?.let { formatNet(it.net) } ?: "—"}",
                 color = CorrectGreen,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
+                fontSize = 13.sp
             )
-        }
-    }
-}
-
-@Composable
-private fun ImageNotStoredState(sourceWidth: Int, sourceHeight: Int) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Resim", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                Text("Kaynak ölçüsü: $sourceWidth × $sourceHeight")
-                Text(
-                    "Bu tarama sürümünde kabul edilen kamera görüntüsü henüz saklanmıyordu. " +
-                        "Yeni taramalarda canonical görüntü bu sekmede gösterilecek.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }

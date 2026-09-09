@@ -208,6 +208,22 @@ object ExamReportBuilder {
 
 fun examLessonDisplayName(lessonId: String): String {
     val normalized = lessonId.trim().lowercase(Locale.ROOT)
+    val structuredIndex = Regex("^answers?[-_ ]?(\\d+)$")
+        .matchEntire(normalized)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toIntOrNull()
+    val structuredName = when (structuredIndex) {
+        1 -> "Türkçe"
+        2 -> "İnkılap Tarihi"
+        3 -> "Din Kültürü"
+        4 -> "Yabancı Dil"
+        5 -> "Matematik"
+        6 -> "Fen Bilimleri"
+        else -> null
+    }
+    if (structuredName != null) return structuredName
+
     return when (normalized) {
         "genel" -> "Genel"
         "turkce" -> "Türkçe"

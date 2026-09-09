@@ -43,14 +43,15 @@ object ConfiguredExamReportExporter {
 
     fun exportPdf(config: ConfiguredExamReport, output: OutputStream) {
         require(config.columns.isNotEmpty()) { "Rapor için en az bir alan seçilmelidir." }
-        val pageWidth = if (config.orientation == ReportPageOrientation.LANDSCAPE) 842 else 595
-        val pageHeight = if (config.orientation == ReportPageOrientation.LANDSCAPE) 595 else 842
+        val orientation = effectiveOrientation(config)
+        val pageWidth = if (orientation == ReportPageOrientation.LANDSCAPE) 842 else 595
+        val pageHeight = if (orientation == ReportPageOrientation.LANDSCAPE) 595 else 842
         val left = 24f
         val right = pageWidth - 24f
-        val top = 96f
+        val top = 132f
         val bottom = pageHeight - 34f
-        val headerHeight = 24f
-        val rowHeight = if (ReportColumn.LESSONS in config.columns) 31f else 24f
+        val headerHeight = 27f
+        val rowHeight = if (ReportColumn.LESSONS in config.columns) 38f else 28f
         val rowsPerPage = ((bottom - top - headerHeight) / rowHeight).toInt().coerceAtLeast(1)
         val pages = config.rows.chunked(rowsPerPage).ifEmpty { listOf(emptyList()) }
         val boundaries = columnBoundaries(config.columns, left, right)
@@ -72,7 +73,8 @@ object ConfiguredExamReportExporter {
                         top = top,
                         headerHeight = headerHeight,
                         rowHeight = rowHeight,
-                        boundaries = boundaries
+                        boundaries = boundaries,
+                        orientation = orientation
                     )
                 } finally {
                     pdf.finishPage(page)
@@ -110,87 +112,155 @@ object ConfiguredExamReportExporter {
         top: Float,
         headerHeight: Float,
         rowHeight: Float,
-        boundaries: FloatArray
+        boundaries: FloatArray,
+        orientation: ReportPageOrientation
     ) {
         canvas.drawColor(Color.WHITE)
+
+        val brand = Color.rgb(22, 90, 70)
+        val brandSoft = Color.rgb(232, 244, 239)
+        val ink = Color.rgb(31, 42, 38)
+        val muted = Color.rgb(92, 105, 100)
+        val line = Color.rgb(205, 216, 211)
+        val alternate = Color.rgb(247, 250, 249)
+
+        val brandPaint = Paint().apply { color = brand; style = Paint.Style.FILL }
+        canvas.drawRect(0f, 0f, pageWidth.toFloat(), 78f, brandPaint)
+
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            textSize = 16f
+            color = Color.WHITE
+            textSize = 18f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.DKGRAY
-            textSize = 8.8f
+            color = Color.rgb(221, 240, 233)
+            textSize = 9f
         }
         val title = buildString {
             append(config.report.examName)
             if (config.titleSuffix.isNotBlank()) append(" · ${config.titleSuffix}")
         }
-        canvas.drawText(fitted(title, titlePaint, pageWidth - 48f), 24f, 40f, titlePaint)
+        canvas.drawText(fitted(title, titlePaint, pageWidth - 48f), 24f, 34f, titlePaint)
         canvas.drawText(
-            fitted(
-                "${config.report.schoolName.ifBlank { "Okul bilgisi yok" }} · ${config.rows.size} kayıt",
-                subtitlePaint,
-                pageWidth - 48f
-            ),
+            fitted(config.report.schoolName.ifBlank { "Okul bilgisi yok" }, subtitlePaint, pageWidth - 48f),
             24f,
-            57f,
-            subtitlePaint
-        )
-        canvas.drawText(
-            "Sayfa ${pageIndex + 1} / $totalPages · ${if (config.orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"}",
-            24f,
-            72f,
+            55f,
             subtitlePaint
         )
 
-        val headerFill = Paint().apply { color = Color.rgb(235, 239, 237); style = Paint.Style.FILL }
+        val scored = config.rows.count { it.status == ExamReportRowStatus.SCORED }
+        val averageScore = config.rows.mapNotNull { it.points }.takeIf { it.isNotEmpty() }?.average()
+        val averageNet = config.rows.mapNotNull { it.net }.takeIf { it.isNotEmpty() }?.average()
+        val summaryLabels = listOf("KAYIT", "PUAN ORT.", "NET ORT.")
+        val summaryValues = listOf(
+            config.rows.size.toString(),
+            averageScore?.let(::number) ?: "—",
+            averageNet?.let(::number) ?: "—"
+        )
+        val summaryGap = 8f
+        val summaryTop = 88f
+        val summaryHeight = 32f
+        val summaryWidth = (pageWidth - 48f - summaryGap * 2f) / 3f
+        val summaryFill = Paint().apply { color = brandSoft; style = Paint.Style.FILL }
+        val summaryLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = muted
+            textSize = 6.8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val summaryValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = brand
+            textSize = 12f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        repeat(3) { index ->
+            val x = 24f + index * (summaryWidth + summaryGap)
+            canvas.drawRoundRect(x, summaryTop, x + summaryWidth, summaryTop + summaryHeight, 6f, 6f, summaryFill)
+            canvas.drawText(summaryLabels[index], x + 8f, summaryTop + 11f, summaryLabelPaint)
+            canvas.drawText(summaryValues[index], x + 8f, summaryTop + 26f, summaryValuePaint)
+        }
+
+        val headerFill = Paint().apply { color = brand; style = Paint.Style.FILL }
         val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(185, 190, 188)
-            strokeWidth = 0.6f
+            color = line
+            strokeWidth = 0.65f
             style = Paint.Style.STROKE
         }
         val headerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            textSize = 7.2f
+            color = Color.WHITE
+            textSize = if (config.columns.size >= 9) 7f else 7.8f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val cellText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            textSize = if (ReportColumn.LESSONS in config.columns) 6.6f else 7.2f
+            color = ink
+            textSize = when {
+                config.columns.size >= 10 -> 6.9f
+                config.columns.size >= 8 -> 7.3f
+                else -> 8f
+            }
         }
+        val alternateFill = Paint().apply { color = alternate; style = Paint.Style.FILL }
 
         canvas.drawRect(boundaries.first(), top, boundaries.last(), top + headerHeight, headerFill)
-        canvas.drawRect(boundaries.first(), top, boundaries.last(), top + headerHeight, border)
-        boundaries.forEach { x -> canvas.drawLine(x, top, x, top + headerHeight, border) }
         config.columns.forEachIndexed { index, column ->
-            drawCell(canvas, column.label, boundaries[index], boundaries[index + 1], top + 16f, headerText)
+            drawCell(
+                canvas = canvas,
+                value = column.label,
+                left = boundaries[index],
+                right = boundaries[index + 1],
+                top = top,
+                height = headerHeight,
+                paint = headerText,
+                maxLines = 1
+            )
         }
 
         rows.forEachIndexed { rowIndex, row ->
             val rowTop = top + headerHeight + rowIndex * rowHeight
             val rowBottom = rowTop + rowHeight
+            if (rowIndex % 2 == 1) {
+                canvas.drawRect(boundaries.first(), rowTop, boundaries.last(), rowBottom, alternateFill)
+            }
             canvas.drawRect(boundaries.first(), rowTop, boundaries.last(), rowBottom, border)
             boundaries.forEach { x -> canvas.drawLine(x, rowTop, x, rowBottom, border) }
             config.columns.forEachIndexed { index, column ->
                 drawCell(
-                    canvas,
-                    columnValue(row, column, config.selectedLessonIds),
-                    boundaries[index],
-                    boundaries[index + 1],
-                    rowTop + rowHeight * 0.64f,
-                    cellText
+                    canvas = canvas,
+                    value = columnValue(row, column, config.selectedLessonIds),
+                    left = boundaries[index],
+                    right = boundaries[index + 1],
+                    top = rowTop,
+                    height = rowHeight,
+                    paint = cellText,
+                    maxLines = if (column == ReportColumn.LESSONS) 2 else 1
                 )
             }
         }
 
+        val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = muted
+            textSize = 7f
+        }
         canvas.drawText(
-            "Optik Okuyucu",
-            pageWidth - 78f,
+            "${pageIndex + 1} / $totalPages · ${if (orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"} · $scored puanlanan",
+            24f,
             pageHeight - 17f,
-            subtitlePaint
+            footerPaint
+        )
+        val brandFooter = "Optik Okuyucu"
+        canvas.drawText(
+            brandFooter,
+            pageWidth - 24f - footerPaint.measureText(brandFooter),
+            pageHeight - 17f,
+            footerPaint
         )
     }
+
+    private fun effectiveOrientation(config: ConfiguredExamReport): ReportPageOrientation =
+        if (config.columns.size >= 8 || ReportColumn.LESSONS in config.columns) {
+            ReportPageOrientation.LANDSCAPE
+        } else {
+            config.orientation
+        }
 
     private fun columnBoundaries(columns: List<ReportColumn>, left: Float, right: Float): FloatArray {
         val total = columns.sumOf { it.weight.toDouble() }.toFloat().coerceAtLeast(1f)
@@ -206,9 +276,56 @@ object ConfiguredExamReportExporter {
         return result
     }
 
-    private fun drawCell(canvas: Canvas, value: String, left: Float, right: Float, baseline: Float, paint: Paint) {
-        val inset = 2.5f
-        canvas.drawText(fitted(value, paint, (right - left - inset * 2).coerceAtLeast(1f)), left + inset, baseline, paint)
+    private fun drawCell(
+        canvas: Canvas,
+        value: String,
+        left: Float,
+        right: Float,
+        top: Float,
+        height: Float,
+        paint: Paint,
+        maxLines: Int
+    ) {
+        if (value.isBlank()) return
+        val inset = 3f
+        val maxWidth = (right - left - inset * 2).coerceAtLeast(1f)
+        val lineHeight = paint.textSize + 2f
+        val lines = if (maxLines <= 1) {
+            listOf(fitted(value, paint, maxWidth))
+        } else {
+            splitForCell(value, paint, maxWidth, maxLines)
+        }
+        val contentHeight = lines.size * lineHeight
+        var baseline = top + (height - contentHeight) / 2f + paint.textSize
+        lines.forEach { lineText ->
+            canvas.drawText(lineText, left + inset, baseline, paint)
+            baseline += lineHeight
+        }
+    }
+
+    private fun splitForCell(value: String, paint: Paint, maxWidth: Float, maxLines: Int): List<String> {
+        if (paint.measureText(value) <= maxWidth) return listOf(value)
+        val chunks = value.split(" | ")
+        val lines = mutableListOf<String>()
+        var current = ""
+        chunks.forEach { chunk ->
+            val candidate = if (current.isBlank()) chunk else "$current | $chunk"
+            if (paint.measureText(candidate) <= maxWidth) {
+                current = candidate
+            } else {
+                if (current.isNotBlank()) lines += current
+                current = chunk
+            }
+        }
+        if (current.isNotBlank()) lines += current
+        if (lines.size <= maxLines) return lines
+        val kept = lines.take(maxLines).toMutableList()
+        kept[kept.lastIndex] = fitted(
+            (kept.last() + " | " + lines.drop(maxLines).joinToString(" | ")).trim(),
+            paint,
+            maxWidth
+        )
+        return kept
     }
 
     private fun fitted(text: String, paint: Paint, maxWidth: Float): String {
@@ -271,7 +388,7 @@ object ConfiguredExamReportExporter {
             append("<autoFilter ref=\"A1:").append(columnName(config.columns.size)).append(config.rows.size + 1).append("\"/>")
         }
         append("<pageSetup orientation=\"")
-            .append(if (config.orientation == ReportPageOrientation.LANDSCAPE) "landscape" else "portrait")
+            .append(if (effectiveOrientation(config) == ReportPageOrientation.LANDSCAPE) "landscape" else "portrait")
             .append("\" paperSize=\"9\"/>")
         append("</worksheet>")
     }

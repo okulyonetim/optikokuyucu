@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -83,46 +82,108 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
         return
     }
 
-    val items = remember(report, roster) {
+    val shareItems = remember(report, roster) {
         report.rows.map { row -> ParentShareItem(row, findRosterEntry(row, roster)) }
     }
-    val classes = items.map { it.row.className }.filter(String::isNotBlank).distinct().sorted()
-    val filtered = items.filter { selectedClass == null || it.row.className == selectedClass }
+    val classes = shareItems.map { it.row.className }.filter(String::isNotBlank).distinct().sorted()
+    val filtered = shareItems.filter { selectedClass == null || it.row.className == selectedClass }
     val phoneReady = filtered.count { !it.roster?.guardianPhone.isNullOrBlank() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(title = "Velilere Sonuç Gönder", leadingText = "‹", onLeadingClick = onBack)
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                ProductSettingsSection(
-                    title = exam.name,
-                    description = "$phoneReady / ${filtered.size} öğrencide veli telefonu hazır"
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    if (classes.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            item {
-                                FilterChip(selected = selectedClass == null, onClick = { selectedClass = null }, label = { Text("Tümü", fontSize = 9.sp) })
-                            }
-                            items(classes) { className ->
-                                FilterChip(
-                                    selected = selectedClass == className,
-                                    onClick = { selectedClass = className },
-                                    label = { Text(className, fontSize = 9.sp) }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(exam.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "$phoneReady / ${filtered.size} veli telefonu hazır",
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                            ProductStatusBadge(
+                                if (phoneReady == filtered.size && filtered.isNotEmpty()) "HAZIR" else "$phoneReady HAZIR",
+                                if (phoneReady > 0) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
+                            )
+                        }
+                        if (classes.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                item {
+                                    FilterChip(
+                                        selected = selectedClass == null,
+                                        onClick = { selectedClass = null },
+                                        label = { Text("Tümü", fontSize = 9.sp) }
+                                    )
+                                }
+                                items(classes) { className ->
+                                    FilterChip(
+                                        selected = selectedClass == className,
+                                        onClick = { selectedClass = className },
+                                        label = { Text(className, fontSize = 9.sp) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
             item {
-                ProductSettingsSection("Mesaj İçeriği", "Her öğrenci için kişisel sonuç mesajı hazırlanır.") {
-                    ParentOption("Puan / Net", includeScore) { includeScore = it }
-                    ParentOption("Genel ve sınıf sırası", includeRank) { includeRank = it }
-                    ParentOption("Doğru / Yanlış / Boş", includeDyb) { includeDyb = it }
-                    ParentOption("Ders bazlı netler", includeLessons) { includeLessons = it }
+                ProductSettingsSection(
+                    title = "Mesajda Göster",
+                    description = "Veli mesajına eklenecek sonuç alanlarını seçin."
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ParentOptionChip(
+                            modifier = Modifier.weight(1f),
+                            label = "Puan / Net",
+                            checked = includeScore,
+                            onChecked = { includeScore = it }
+                        )
+                        ParentOptionChip(
+                            modifier = Modifier.weight(1f),
+                            label = "Sıralama",
+                            checked = includeRank,
+                            onChecked = { includeRank = it }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ParentOptionChip(
+                            modifier = Modifier.weight(1f),
+                            label = "D / Y / B",
+                            checked = includeDyb,
+                            onChecked = { includeDyb = it }
+                        )
+                        ParentOptionChip(
+                            modifier = Modifier.weight(1f),
+                            label = "Ders Netleri",
+                            checked = includeLessons,
+                            onChecked = { includeLessons = it }
+                        )
+                    }
                 }
             }
             if (filtered.isEmpty()) {
@@ -150,11 +211,25 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun ParentOption(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = checked, onCheckedChange = onChecked)
-        Text(label, fontSize = 10.sp)
-    }
+private fun ParentOptionChip(
+    modifier: Modifier,
+    label: String,
+    checked: Boolean,
+    onChecked: (Boolean) -> Unit
+) {
+    FilterChip(
+        modifier = modifier,
+        selected = checked,
+        onClick = { onChecked(!checked) },
+        label = {
+            Text(
+                if (checked) "✓ $label" else label,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    )
 }
 
 @Composable
@@ -183,10 +258,20 @@ private fun ParentResultCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz Öğrenci" } }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz Öğrenci" } },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(
                         listOfNotNull(
                             row.className.takeIf(String::isNotBlank),
@@ -199,9 +284,19 @@ private fun ParentResultCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                ProductStatusBadge(if (ready) "TELEFON HAZIR" else "TELEFON YOK", if (ready) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE)
+                ProductStatusBadge(
+                    if (ready) "TELEFON HAZIR" else "TELEFON YOK",
+                    if (ready) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
+                )
             }
-            Text(message, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            Text(
+                message,
+                fontSize = 9.sp,
+                lineHeight = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Button(
                     modifier = Modifier.weight(1f),
@@ -277,7 +372,11 @@ private fun composeParentMessage(
     }
     if (includeLessons && row.lessons.isNotEmpty()) {
         append(" · ")
-        append(row.lessons.joinToString(" | ") { lesson -> "${examLessonDisplayName(lesson.lessonId)} ${parentNumber(lesson.net)} net" })
+        append(
+            row.lessons.joinToString(" | ") { lesson ->
+                "${examLessonDisplayName(lesson.lessonId)} ${parentNumber(lesson.net)} net"
+            }
+        )
     }
     append(".")
 }
