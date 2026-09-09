@@ -27,21 +27,25 @@ object ExamPaperResolution {
 
     /**
      * A corrected booklet code must never silently score against another booklet's key.
-     * If the corrected variant is missing, only a truly general key may be used.
+     * Answer keys are also exam-scoped: a key from another exam or a legacy unscoped key is ignored.
      */
     fun answerKey(
+        examId: String,
         link: ExamPaperLink,
         record: ScanRecord,
         keys: List<StoredAnswerKey>
     ): StoredAnswerKey? {
+        require(examId.isNotBlank())
         val compatible = keys.filter {
-            it.templateId == record.templateId && it.templateVersion == record.templateVersion
+            it.examId == examId &&
+                it.templateId == record.templateId &&
+                it.templateVersion == record.templateVersion
         }
         if (compatible.isEmpty()) return null
 
         val correctedBooklet = link.bookletCode.trim().takeIf { it.isNotBlank() }
         if (correctedBooklet == null) {
-            return AnswerKeyResolver.resolve(record, compatible)
+            return AnswerKeyResolver.resolve(record, compatible, examId)
         }
 
         val bookletGridId = OmrRecognitionBindingsResolver.fromRecord(record).bookletGridId
