@@ -7,11 +7,11 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageDecoder
 import android.graphics.Paint
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import android.net.Uri
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -21,11 +21,10 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 
 /**
- * On-device Latin OCR. Turkish is handled by the Latin model and all coordinates are preserved
- * so table-like answer keys can be reconstructed instead of flattening everything into plain text.
+ * On-device Latin OCR. Turkish is handled by the Latin model. Element and symbol geometry,
+ * confidence and angle are preserved so answer-key tables can be reconstructed reliably.
  *
- * Handwriting mode and answer-key/printed mode both run a second optimized pass and keep the
- * stronger recognition result. No document is uploaded to a server.
+ * Handwriting mode and answer-key mode may run an optimized second pass. No document is uploaded.
  */
 object OcrTextRecognizer {
     fun recognize(
@@ -109,13 +108,30 @@ object OcrTextRecognizer {
                         val box = element.boundingBox ?: return@forEach
                         val value = element.text.trim()
                         if (value.isNotEmpty()) {
+                            val symbols = element.symbols.mapNotNull { symbol ->
+                                val symbolBox = symbol.boundingBox ?: return@mapNotNull null
+                                OcrSymbol(
+                                    text = symbol.text.trim(),
+                                    left = symbolBox.left,
+                                    top = symbolBox.top,
+                                    right = symbolBox.right,
+                                    bottom = symbolBox.bottom,
+                                    confidence = symbol.confidence,
+                                    angle = symbol.angle,
+                                    cornerPoints = symbol.cornerPoints.orEmpty().map { point -> OcrPoint(point.x, point.y) }
+                                )
+                            }
                             add(
                                 OcrToken(
                                     text = value,
                                     left = box.left,
                                     top = box.top,
                                     right = box.right,
-                                    bottom = box.bottom
+                                    bottom = box.bottom,
+                                    confidence = element.confidence,
+                                    angle = element.angle,
+                                    cornerPoints = element.cornerPoints.orEmpty().map { point -> OcrPoint(point.x, point.y) },
+                                    symbols = symbols
                                 )
                             )
                         }
@@ -136,19 +152,27 @@ object OcrTextRecognizer {
         val usefulChars = result.text.count { it.isLetterOrDigit() }
         val longTokens = result.tokens.count { token -> token.text.count(Char::isLetterOrDigit) >= 2 }
         val suspicious = result.text.count { it == '\uFFFD' }
-        return usefulChars + (longTokens * 3) - (suspicious * 12)
+        val confidentTokens = result.tokens.count { (it.confidence ?: 0f) >= 0.70f }
+        return usefulChars + (longTokens * 3) + (confidentTokens * 2) - (suspicious * 12)
     }
 
-    /** Prefer a pass that actually recovers the tiny number/answer cells of an answer-key table. */
+    /** Prefer a pass that actually recovers tiny number/answer cells with usable confidence. */
     private fun answerKeyQualityScore(result: OcrRecognitionResult): Int {
         var score = qualityScore(result)
         result.tokens.forEach { token ->
             val cleaned = token.text.trim().replace(Regex("[^\\p{L}0-9]"), "")
             val upper = cleaned.uppercase(TURKISH)
+            val confidenceBonus = ((token.confidence ?: 0.45f) * 10f).toInt()
             when {
-                upper in ANSWER_CHOICES -> score += 28
-                cleaned.all(Char::isDigit) && cleaned.toIntOrNull() in 1..99 -> score += 14
-                upper.length >= 3 && SUBJECT_HINTS.any { upper.contains(it) } -> score += 10
+                upper in ANSWER_CHOICES -> score += 24 + confidenceBonus
+                cleaned.all(Char::isDigit) && cleaned.toIntOrNull() in 1..99 -> score += 12 + confidenceBonus
+                upper.length >= 3 && SUBJECT_HINTS.any { upper.contains(it) } -> score += 8 + confidenceBonus
+            }
+            token.symbols.forEach { symbol ->
+                val symbolText = symbol.text.trim().uppercase(TURKISH)
+                if (symbolText in ANSWER_CHOICES && (symbol.confidence ?: 0f) >= 0.50f) {
+                    score += 8 + (((symbol.confidence ?: 0f) * 10f).toInt())
+                }
             }
         }
         return score
@@ -183,9 +207,9 @@ object OcrTextRecognizer {
         return enhanceBitmap(
             context = context,
             uri = uri,
-            targetLargest = 3200,
-            maxScale = 2.6f,
-            contrast = 1.45f,
+            targetLargest = 3400,
+            maxScale = 2.8f,
+            contrast = 1.48f,
             brightness = 18f
         )
     }
