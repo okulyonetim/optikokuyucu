@@ -34,6 +34,9 @@ class SchoolSubjectSyncService(
     private val appContext = context.applicationContext
 
     fun sync(): SchoolSubjectSyncResult {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireSubjectSync(profile)
+
         val documents = client.listDocuments(SCHOOL_SUBJECT_COLLECTION)
         val subjects = SchoolSubjectMapper.names(documents)
         require(subjects.isNotEmpty()) {
