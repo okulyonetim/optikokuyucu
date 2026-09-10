@@ -95,8 +95,8 @@ private val LightProductScheme = lightColorScheme(
     onSurface = Color(0xFF17251F),
     surfaceVariant = Color(0xFFEEF3F0),
     onSurfaceVariant = Color(0xFF51615A),
-    outline = Color(0xFF7D9188),
-    outlineVariant = Color(0xFFD6E1DC),
+    outline = Color(0xFF71857C),
+    outlineVariant = Color(0xFFBCCBC4),
     error = Color(0xFFB3261E),
     onError = Color.White
 )
@@ -185,6 +185,12 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     }
 }
 
+@Composable
+private fun lightControlBorder(): BorderStroke? {
+    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
+    return if (dark) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductTopBar(
@@ -270,25 +276,30 @@ private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
     val actionWidth = 54.dp
     val actionHeight = 44.dp
     if (text != null && onClick != null) {
-        Box(
+        Surface(
             modifier = Modifier
                 .size(width = actionWidth, height = actionHeight)
                 .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
+            color = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.primary,
+            shape = RoundedCornerShape(12.dp),
+            border = lightControlBorder()
         ) {
-            Text(
-                text = text,
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = when {
-                    text.length > 2 -> 13.sp
-                    text == "‹" -> 30.sp
-                    text == "☀" || text == "☾" -> 25.sp
-                    else -> 24.sp
-                },
-                fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Clip
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = text,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = when {
+                        text.length > 2 -> 13.sp
+                        text == "‹" -> 30.sp
+                        text == "☀" || text == "☾" -> 25.sp
+                        else -> 24.sp
+                    },
+                    fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
+            }
         }
     } else {
         Spacer(Modifier.size(width = actionWidth, height = actionHeight))
@@ -338,9 +349,17 @@ private fun ThemeModeButton(
     controller: ProductThemeController
 ) {
     if (controller.mode == mode) {
-        FilledTonalButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
+        FilledTonalButton(
+            modifier = modifier,
+            onClick = { controller.setMode(mode) },
+            border = lightControlBorder()
+        ) { Text(label, fontSize = 12.sp) }
     } else {
-        OutlinedButton(modifier = modifier, onClick = { controller.setMode(mode) }) { Text(label, fontSize = 12.sp) }
+        OutlinedButton(
+            modifier = modifier,
+            onClick = { controller.setMode(mode) },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) { Text(label, fontSize = 12.sp) }
     }
 }
 
@@ -382,14 +401,18 @@ fun ProductCompactCard(
     content: @Composable () -> Unit
 ) {
     val resolvedModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     Surface(
         modifier = resolvedModifier,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(
+            1.dp,
+            if (light) MaterialTheme.colorScheme.outline.copy(alpha = 0.68f) else MaterialTheme.colorScheme.outlineVariant
+        ),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        shadowElevation = if (light) 1.dp else 0.dp
     ) {
         content()
     }
@@ -543,6 +566,7 @@ fun ProductFilterPill(
         Button(
             onClick = onClick,
             shape = RoundedCornerShape(14.dp),
+            border = lightControlBorder(),
             contentPadding = ButtonDefaults.ContentPadding
         ) {
             Text(text, fontSize = 12.sp)
@@ -551,7 +575,7 @@ fun ProductFilterPill(
         OutlinedButton(
             onClick = onClick,
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         ) {
             Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +55,7 @@ import com.okulyonetim.optikokuyucu.omr.template.FileActiveTemplateSelectionRepo
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.ReadyTemplateVisibilityRepository
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
+import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -90,6 +92,10 @@ fun NewExamScreen(
     val roster = remember(context) { FileStudentRosterRepository(appContext).list() }
     val classNames = remember(roster) { roster.map { it.className }.distinct().sorted() }
     val existingExam = remember(examId) { examId?.let(repository::load) }
+    val configuredSchoolName = remember(settingsRepository) { settingsRepository.load().schoolName }
+    val schoolOptions = remember(configuredSchoolName, existingExam?.schoolName) {
+        ExamSchoolSelection.options(configuredSchoolName, existingExam?.schoolName)
+    }
     val subjectOptions = remember(settingsRepository, existingExam?.subjectName) {
         buildList {
             addAll(settingsRepository.load().subjects)
@@ -128,9 +134,13 @@ fun NewExamScreen(
 
     var structureMode by remember { mutableStateOf(initialMode) }
     var examName by remember { mutableStateOf(existingExam?.name.orEmpty()) }
-    var schoolName by remember { mutableStateOf(existingExam?.schoolName ?: settingsRepository.load().schoolName) }
+    var schoolName by remember {
+        mutableStateOf(
+            ExamSchoolSelection.canonicalName(existingExam?.schoolName ?: configuredSchoolName)
+                .ifBlank { StudentSchoolIdentity.MIDDLE_SCHOOL_NAME }
+        )
+    }
     var subjectName by remember { mutableStateOf(existingExam?.subjectName.orEmpty()) }
-    var folderName by remember { mutableStateOf(existingExam?.folderName.orEmpty()) }
     var dateText by remember { mutableStateOf(existingExam?.let { formatExamEditorDate(it.examDateEpochDay) } ?: todayText()) }
     var selectedTemplate by remember { mutableStateOf(initialTemplate) }
 
@@ -175,6 +185,7 @@ fun NewExamScreen(
     var personalizedFormsEnabled by remember { mutableStateOf(existingExam?.personalizedFormsEnabled ?: false) }
 
     var templateMenuOpen by remember { mutableStateOf(false) }
+    var schoolMenuOpen by remember { mutableStateOf(false) }
     var subjectMenuOpen by remember { mutableStateOf(false) }
     var scoringTypeMenuOpen by remember { mutableStateOf(false) }
     var scoreModeMenuOpen by remember { mutableStateOf(false) }
@@ -240,6 +251,31 @@ fun NewExamScreen(
             ?: allowed.first()
     }
 
+    fun applyAutomaticSchool(nextClasses: Set<String>, nextStudentKeys: Set<String>) {
+        val grades = buildList {
+            nextClasses.forEach { className ->
+                StudentSchoolIdentity.gradeLevelFromClassName(className)?.let { add(it) }
+            }
+            roster.forEach { student ->
+                if (student.identityKey in nextStudentKeys) add(student.gradeLevel)
+            }
+        }
+        ExamSchoolSelection.schoolForGrades(grades)?.let { schoolName = it }
+    }
+
+    fun openDatePicker() {
+        val currentDate = parseExamDate(dateText) ?: LocalDate.now()
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                dateText = LocalDate.of(year, month + 1, dayOfMonth).format(ExamDateFormatter)
+            },
+            currentDate.year,
+            currentDate.monthValue - 1,
+            currentDate.dayOfMonth
+        ).show()
+    }
+
     val selectedParticipants = roster.filter { student ->
         student.className in selectedClasses || student.identityKey in selectedStudentKeys
     }
@@ -277,7 +313,7 @@ fun NewExamScreen(
             examName.isBlank() -> warn("Sınav adı zorunludur.")
             schoolName.isBlank() -> warn("Okul alanı zorunludur.")
             singleSubjectExam && subjectName.isBlank() -> warn("Tek ders sınavı için ders seçimi zorunludur.")
-            parsedDate == null -> warn("Tarih GG.AA.YYYY biçiminde olmalıdır.")
+            parsedDate == null -> warn("Geçerli bir sınav tarihi seçin.")
             scaledScore && !officialMebScoring && minimumScore == null -> warn("Taban puan geçerli bir sayı olmalıdır.")
             scaledScore && !officialMebScoring && maximumScore == null -> warn("Tavan puan geçerli bir sayı olmalıdır.")
             scaledScore && !officialMebScoring && minimumScore != null && maximumScore != null && maximumScore <= minimumScore ->
@@ -318,7 +354,6 @@ fun NewExamScreen(
                         templateSelection = selectedTemplate.selection,
                         subjectName = if (singleSubjectExam) subjectName.trim() else "",
                         wrongAnswerPolicy = if (officialMebScoring) WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT else wrongPolicy,
-                        folderName = folderName.trim(),
                         examDateEpochDay = requireNotNull(parsedDate).toEpochDay(),
                         participants = participants,
                         bookletCount = bookletCount,
@@ -331,7 +366,6 @@ fun NewExamScreen(
                         examDateEpochDay = requireNotNull(parsedDate).toEpochDay(),
                         subjectName = if (singleSubjectExam) subjectName else "",
                         wrongAnswerPolicy = if (officialMebScoring) WrongAnswerPolicy.THREE_WRONG_ONE_CORRECT else wrongPolicy,
-                        folderName = folderName,
                         participants = participants,
                         bookletCount = bookletCount,
                         personalizedFormsEnabled = personalizedFormsEnabled,
@@ -376,15 +410,40 @@ fun NewExamScreen(
                 description = if (existingExam == null) "Sınavın adını, okulunu ve tarihini belirleyin." else "Sınav bilgilerini güncelleyin."
             ) {
                 RoundedExamField(examName, { examName = it }, "Sınav Adı *", "✎")
-                RoundedExamField(schoolName, { schoolName = it }, "Okul *", "⌂")
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) {
-                        RoundedExamField(dateText, { dateText = it }, "Tarih", "▣")
-                    }
-                    Box(Modifier.weight(1f)) {
-                        RoundedExamField(folderName, { folderName = it }, "Klasör", "□")
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExamSelectField(
+                        label = "Okul *",
+                        value = schoolName.ifBlank { "Okul seçin" },
+                        symbol = "⌂",
+                        onClick = { schoolMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        expanded = schoolMenuOpen,
+                        onDismissRequest = { schoolMenuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        schoolOptions.forEach { school ->
+                            DropdownMenuItem(
+                                text = { Text(school, style = MaterialTheme.typography.bodySmall) },
+                                onClick = {
+                                    schoolName = school
+                                    schoolMenuOpen = false
+                                }
+                            )
+                        }
                     }
                 }
+                Text(
+                    "1–4. sınıflar seçildiğinde İlkokul, 5–8. sınıflar seçildiğinde Ortaokul otomatik seçilir.",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                ExamSelectField(
+                    label = "Tarih",
+                    value = dateText,
+                    symbol = "▣",
+                    onClick = ::openDatePicker
+                )
             }
 
             ProductSettingsSection(
@@ -393,14 +452,14 @@ fun NewExamScreen(
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StructureModeCard(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(86.dp),
                         mode = ExamStructureMode.SINGLE,
                         selected = structureMode == ExamStructureMode.SINGLE,
                         enabled = !templateLocked,
                         onClick = { setStructureMode(ExamStructureMode.SINGLE) }
                     )
                     StructureModeCard(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(86.dp),
                         mode = ExamStructureMode.MULTI,
                         selected = structureMode == ExamStructureMode.MULTI,
                         enabled = !templateLocked,
@@ -628,7 +687,9 @@ fun NewExamScreen(
                                         }
                                     },
                                     onClick = {
-                                        selectedClasses = if (className in selectedClasses) selectedClasses - className else selectedClasses + className
+                                        val nextClasses = if (className in selectedClasses) selectedClasses - className else selectedClasses + className
+                                        selectedClasses = nextClasses
+                                        applyAutomaticSchool(nextClasses, selectedStudentKeys)
                                     }
                                 )
                             }
@@ -667,9 +728,11 @@ fun NewExamScreen(
                                         }
                                     },
                                     onClick = {
-                                        selectedStudentKeys = if (student.identityKey in selectedStudentKeys) {
+                                        val nextStudentKeys = if (student.identityKey in selectedStudentKeys) {
                                             selectedStudentKeys - student.identityKey
                                         } else selectedStudentKeys + student.identityKey
+                                        selectedStudentKeys = nextStudentKeys
+                                        applyAutomaticSchool(selectedClasses, nextStudentKeys)
                                     }
                                 )
                             }
@@ -733,6 +796,7 @@ private fun StructureModeCard(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val light = !(LocalProductThemeController.current?.isDark ?: false)
     val background = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
     val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Surface(
@@ -741,9 +805,14 @@ private fun StructureModeCard(
         contentColor = content,
         shape = RoundedCornerShape(14.dp),
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-        )
+            if (selected) 1.5.dp else 1.dp,
+            when {
+                selected -> MaterialTheme.colorScheme.primary
+                light -> MaterialTheme.colorScheme.outline
+                else -> MaterialTheme.colorScheme.outlineVariant
+            }
+        ),
+        shadowElevation = if (light) 1.dp else 0.dp
     ) {
         Column(Modifier.padding(horizontal = 11.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
