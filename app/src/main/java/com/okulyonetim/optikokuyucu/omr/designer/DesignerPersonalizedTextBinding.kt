@@ -24,6 +24,12 @@ enum class DesignerPersonalizedField(
         defaultLabel = "Öğrenci No:",
         legacyLabels = setOf("Öğrenci Numarası", "Öğrenci No")
     ),
+    STUDENT_IDENTITY_LINE(
+        idPrefix = "student-identity-line-",
+        displayName = "Ad Soyad · Numara · Sınıf",
+        defaultLabel = "Öğrenci Bilgileri:",
+        legacyLabels = setOf("Öğrenci Bilgileri", "Ad Soyad · Numara · Sınıf")
+    ),
     EXAM_NAME(
         idPrefix = "exam-name-",
         displayName = "Sınav",
