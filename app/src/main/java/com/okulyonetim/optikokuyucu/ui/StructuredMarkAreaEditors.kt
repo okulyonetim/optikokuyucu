@@ -104,6 +104,15 @@ internal fun NumberAreaEditorScreen(
             CompactChoiceGroup("Etiket Hizası") {
                 AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
             }
+            if (normalized.showLabel) {
+                NumberInput(
+                    "Etiket ile Baloncuk Arası",
+                    DesignerEditorLayout.componentLabelGap(normalized),
+                    6.0,
+                    100.0,
+                    1.0
+                ) { update(normalized.copy(labelGap = it)) }
+            }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.numberPatternPresets, onPatternTextChange)
             IntInput("Hane Sayısı", normalized.digits, 1, 16) { update(normalized.copy(digits = it)) }
         }
@@ -191,6 +200,15 @@ internal fun AnswerAreaEditorScreen(
             )
             CompactChoiceGroup("Etiket Hizası") {
                 AlignmentButtons(normalized.labelAlignment) { update(normalized.copy(labelAlignment = it)) }
+            }
+            if (normalized.showLabel) {
+                NumberInput(
+                    "Etiket ile Baloncuk Arası",
+                    DesignerEditorLayout.componentLabelGap(normalized),
+                    6.0,
+                    100.0,
+                    1.0
+                ) { update(normalized.copy(labelGap = it)) }
             }
             PatternField(patternText, patternIssue, DesignerAreaCatalog.answerPatternPresets, onPatternTextChange)
             IntInput("İlk Soru", normalized.startQuestion, 1, 9999) { update(normalized.copy(startQuestion = it)) }
