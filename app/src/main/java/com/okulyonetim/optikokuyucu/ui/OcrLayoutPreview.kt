@@ -12,22 +12,33 @@ import android.provider.MediaStore
 import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.okulyonetim.optikokuyucu.ocr.OcrPageLayout
+import com.okulyonetim.optikokuyucu.ocr.OcrRecognitionPostProcessor
 import com.okulyonetim.optikokuyucu.ocr.OcrRecognitionResult
 import java.util.concurrent.Executors
-import kotlin.math.min
 
 /**
  * Shows the corrected page itself and paints OCR geometry on top of the original positions.
- * The table/document is never rebuilt as a flat text list, so borders, columns and page layout stay intact.
+ * The table/document is never rebuilt as a flat text list unless the user explicitly taps
+ * "Metni Çıkar".
  */
 @Composable
 internal fun OcrLayoutPreview(
@@ -35,15 +46,59 @@ internal fun OcrLayoutPreview(
     modifier: Modifier = Modifier
 ) {
     val pages = recognition.pages
-    if (pages.isEmpty()) {
-        Text(
-            "Belge görüntüsü kullanılamıyor; OCR konumları yine de cevap anahtarı analizinde korunuyor.",
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        return
-    }
+    val clipboard = LocalClipboardManager.current
+    var showExtractedText by remember(recognition) { mutableStateOf(false) }
+    var extractedText by remember(recognition) { mutableStateOf("") }
+
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = recognition.tokens.isNotEmpty(),
+            onClick = {
+                if (!showExtractedText) {
+                    extractedText = OcrRecognitionPostProcessor.extractPlainText(recognition)
+                }
+                showExtractedText = !showExtractedText
+            }
+        ) {
+            Text(if (showExtractedText) "Metni Gizle" else "Metni Çıkar")
+        }
+
+        if (showExtractedText) {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = extractedText,
+                onValueChange = { extractedText = it },
+                minLines = 6,
+                maxLines = 18,
+                label = { Text("Düzenlenebilir metin") }
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = extractedText.isNotBlank(),
+                    onClick = { clipboard.setText(AnnotatedString(extractedText)) }
+                ) {
+                    Text("Kopyala")
+                }
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = { extractedText = OcrRecognitionPostProcessor.extractPlainText(recognition) }
+                ) {
+                    Text("Yeniden Oluştur")
+                }
+            }
+        }
+
+        if (pages.isEmpty()) {
+            Text(
+                "Belge görüntüsü kullanılamıyor; OCR konumları yine de cevap anahtarı analizinde korunuyor.",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@Column
+        }
+
         pages.forEachIndexed { index, page ->
             if (pages.size > 1) {
                 Text("Sayfa ${index + 1}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -72,7 +127,9 @@ private class OcrPageLayoutView(context: Context) : View(context) {
     fun setPage(value: OcrPageLayout) {
         page = value
         if (loadingUri == value.sourceUri && bitmap != null) {
-            requestLayout(); invalidate(); return
+            requestLayout()
+            invalidate()
+            return
         }
         loadingUri = value.sourceUri
         worker.execute {
@@ -83,7 +140,9 @@ private class OcrPageLayoutView(context: Context) : View(context) {
                     bitmap = decoded
                     requestLayout()
                     invalidate()
-                } else decoded?.recycle()
+                } else {
+                    decoded?.recycle()
+                }
             }
         }
     }
@@ -93,7 +152,9 @@ private class OcrPageLayoutView(context: Context) : View(context) {
         val current = page
         val height = if (current != null && current.imageWidth > 0) {
             (width * current.imageHeight.toFloat() / current.imageWidth.toFloat()).toInt().coerceAtLeast(120)
-        } else 220
+        } else {
+            220
+        }
         setMeasuredDimension(width, height)
     }
 
@@ -146,5 +207,7 @@ private class OcrPageLayoutView(context: Context) : View(context) {
         return bitmap
     }
 
-    companion object { private const val MAX_PREVIEW_EDGE = 1800 }
+    companion object {
+        private const val MAX_PREVIEW_EDGE = 1800
+    }
 }
