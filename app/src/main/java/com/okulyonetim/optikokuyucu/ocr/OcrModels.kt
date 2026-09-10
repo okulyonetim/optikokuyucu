@@ -38,12 +38,21 @@ data class OcrToken(
     val height: Int get() = (bottom - top).coerceAtLeast(1)
 }
 
+/** One corrected/scanned page together with OCR coordinates that belong to that exact page. */
+data class OcrPageLayout(
+    val sourceUri: String,
+    val imageWidth: Int,
+    val imageHeight: Int,
+    val tokens: List<OcrToken>
+)
+
 data class OcrRecognitionResult(
     val text: String,
     val tokens: List<OcrToken>,
     val imageWidth: Int,
     val imageHeight: Int,
-    val enhancedForHandwriting: Boolean = false
+    val enhancedForHandwriting: Boolean = false,
+    val pages: List<OcrPageLayout> = emptyList()
 )
 
 data class OcrAnswerRow(
