@@ -41,7 +41,7 @@ object DesignerPreviewSampleData {
         DesignerPersonalizedField.STUDENT_CLASS -> STUDENT_CLASS
         DesignerPersonalizedField.STUDENT_NUMBER -> STUDENT_NUMBER
         DesignerPersonalizedField.STUDENT_IDENTITY_LINE ->
-            "AD SOYAD: $STUDENT_NAME  •  NUMARA: $STUDENT_NUMBER  •  SINIF: $STUDENT_CLASS"
+            DesignerPersonalizedTextBinding.studentIdentityLine(STUDENT_NAME, STUDENT_NUMBER, STUDENT_CLASS)
         DesignerPersonalizedField.EXAM_NAME -> EXAM_NAME
         DesignerPersonalizedField.SCHOOL_NAME -> SCHOOL_NAME
     }
