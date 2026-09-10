@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
+import com.okulyonetim.optikokuyucu.school.SchoolSyncAccessPolicy
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,6 +46,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
     val scope = rememberCoroutineScope()
     val manager = remember(context) { SchoolPortalManager.get(context.applicationContext) }
     val schoolAccount = LocalSchoolAccount.current
+    val teacherAccount = schoolAccount?.profile?.let(SchoolSyncAccessPolicy::isTeacher) == true
     var subjects by remember(repository) { mutableStateOf(repository.load().subjects) }
     var editorOpen by remember { mutableStateOf(false) }
     var newSubject by remember { mutableStateOf("") }
@@ -93,6 +95,10 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
             feedback.warning("Önce Okul Yönetim hesabıyla giriş yapın.")
             return
         }
+        if (teacherAccount) {
+            feedback.warning("Öğretmen hesapları ders listesini Okul Yönetim ile eşitleyemez.")
+            return
+        }
         syncing = true
         scope.launch {
             runCatching {
@@ -111,7 +117,11 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
     ProductSettingsLink(
         symbol = "≡",
         title = "Dersler",
-        description = "${subjects.size} ders · Okul Yönetim ile eşitle veya düzenle",
+        description = if (teacherAccount) {
+            "${subjects.size} ders · cihazdaki ders listesini düzenle"
+        } else {
+            "${subjects.size} ders · Okul Yönetim ile eşitle veya düzenle"
+        },
         onClick = { editorOpen = true }
     )
 
@@ -131,20 +141,26 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
             ) {
                 Text("Dersleri Düzenle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca buluttaki ders listesi cihazdaki listeyle değiştirilir.",
+                    if (teacherAccount) {
+                        "Tek ders sınavlarında bu cihazdaki liste kullanılır. Öğretmen hesaplarında Okul Yönetim ders eşitlemesi yönetici yetkisindedir."
+                    } else {
+                        "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca buluttaki ders listesi cihazdaki listeyle değiştirilir."
+                    },
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                FilledTonalButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !syncing && schoolAccount != null,
-                    onClick = ::syncFromSchoolManagement
-                ) {
-                    Text(
-                        if (syncing) "Okul Yönetim'den aktarılıyor…" else "Okul Yönetim'den Dersleri Getir",
-                        fontSize = 11.sp
-                    )
+                if (!teacherAccount) {
+                    FilledTonalButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !syncing && schoolAccount != null,
+                        onClick = ::syncFromSchoolManagement
+                    ) {
+                        Text(
+                            if (syncing) "Okul Yönetim'den aktarılıyor…" else "Okul Yönetim'den Dersleri Getir",
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 subjects.forEach { subject ->
