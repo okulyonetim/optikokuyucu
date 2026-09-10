@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.school.SchoolSyncAccessPolicy
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,6 +42,8 @@ fun SchoolAccountSettingsCard() {
             return@ProductSettingsSection
         }
 
+        val teacherAccount = SchoolSyncAccessPolicy.isTeacher(account.profile)
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -55,14 +58,22 @@ fun SchoolAccountSettingsCard() {
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+                if (teacherAccount) {
+                    Text(
+                        "Öğretmen hesabı · yalnız sınav sonuçları Okul Yönetim'e gönderilebilir",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        "Öğrenciler: ${account.directoryStatus.ifBlank { "Henüz eşitlenmedi" }}",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
                 Text(
-                    "Öğrenciler: ${account.directoryStatus.ifBlank { "Henüz eşitlenmedi" }}",
-                    fontSize = 9.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-                Text(
-                    "Sınavlar: ${account.cloudStatus.ifBlank { "Henüz eşitlenmedi" }}",
+                    "${if (teacherAccount) "Sonuçlar" else "Sınavlar"}: ${account.cloudStatus.ifBlank { "Henüz eşitlenmedi" }}",
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -75,24 +86,26 @@ fun SchoolAccountSettingsCard() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                enabled = workingAction == null,
-                onClick = {
-                    workingAction = "directory"
-                    actionStatus = ""
-                    scope.launch {
-                        runCatching { account.syncDirectoryNow() }
-                            .onSuccess { actionStatus = it }
-                            .onFailure { actionStatus = it.message ?: "Öğrenciler eşitlenemedi." }
-                        workingAction = null
+            if (!teacherAccount) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = workingAction == null,
+                    onClick = {
+                        workingAction = "directory"
+                        actionStatus = ""
+                        scope.launch {
+                            runCatching { account.syncDirectoryNow() }
+                                .onSuccess { actionStatus = it }
+                                .onFailure { actionStatus = it.message ?: "Öğrenciler eşitlenemedi." }
+                            workingAction = null
+                        }
                     }
+                ) {
+                    Text(
+                        if (workingAction == "directory") "Eşitleniyor…" else "Öğrenciler",
+                        fontSize = 10.sp
+                    )
                 }
-            ) {
-                Text(
-                    if (workingAction == "directory") "Eşitleniyor…" else "Öğrenciler",
-                    fontSize = 10.sp
-                )
             }
 
             OutlinedButton(
@@ -104,13 +117,25 @@ fun SchoolAccountSettingsCard() {
                     scope.launch {
                         runCatching { account.syncCloudNow() }
                             .onSuccess { actionStatus = it }
-                            .onFailure { actionStatus = it.message ?: "Sınav ve sonuçlar eşitlenemedi." }
+                            .onFailure {
+                                actionStatus = it.message ?: if (teacherAccount) {
+                                    "Sonuçlar eşitlenemedi."
+                                } else {
+                                    "Sınav ve sonuçlar eşitlenemedi."
+                                }
+                            }
                         workingAction = null
                     }
                 }
             ) {
                 Text(
-                    if (workingAction == "cloud") "Eşitleniyor…" else "Sınav / Sonuç",
+                    if (workingAction == "cloud") {
+                        "Eşitleniyor…"
+                    } else if (teacherAccount) {
+                        "Sonuçları Eşitle"
+                    } else {
+                        "Sınav / Sonuç"
+                    },
                     fontSize = 10.sp
                 )
             }
