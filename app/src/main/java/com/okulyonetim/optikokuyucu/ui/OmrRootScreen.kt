@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,6 +71,7 @@ fun OmrRootScreen(
     var designerReturnDestination by remember { mutableStateOf(RootDestination.ACTIVE_TEMPLATE) }
     var reportReturnDestination by remember { mutableStateOf(RootDestination.HOME) }
     var ocrReturnDestination by remember { mutableStateOf(RootDestination.TOOLS) }
+    var refreshGeneration by remember { mutableStateOf(0) }
 
     fun openForms(returnTo: RootDestination) {
         formsReturnDestination = returnTo
@@ -140,40 +142,197 @@ fun OmrRootScreen(
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    AppPullToRefresh(
+                        enabled = destination.supportsPullRefresh(),
+                        onRefresh = { refreshGeneration++ }
+                    ) {
+                        key(destination, refreshGeneration) {
+                            when (destination) {
+                                RootDestination.HOME -> ProductHomeScreen(
+                                    onNewExam = { destination = RootDestination.NEW_EXAM },
+                                    onOpenReportBuilder = {
+                                        selectedExamId = null
+                                        reportReturnDestination = RootDestination.HOME
+                                        destination = RootDestination.REPORT_BUILDER
+                                    },
+                                    onOpenMiniAnswerKey = { destination = RootDestination.MINI_ANSWER_KEY },
+                                    onOpenOcr = { openOcr(RootDestination.HOME) },
+                                    onOpenExams = { destination = RootDestination.EXAMS },
+                                    onOpenExam = { examId ->
+                                        selectedExamId = examId
+                                        selectedScanRecordId = null
+                                        destination = RootDestination.EXAM_DETAIL
+                                    }
+                                )
+
+                                RootDestination.EXAMS -> ExamListScreen(
+                                    onNewExam = { destination = RootDestination.NEW_EXAM },
+                                    onOpenExam = { examId ->
+                                        selectedExamId = examId
+                                        selectedScanRecordId = null
+                                        destination = RootDestination.EXAM_DETAIL
+                                    },
+                                    onOpenTools = { destination = RootDestination.TOOLS }
+                                )
+
+                                RootDestination.STUDENTS -> StudentRosterScreen(
+                                    onOpenPaper = { examId, scanRecordId ->
+                                        selectedExamId = examId
+                                        selectedScanRecordId = scanRecordId
+                                        destination = RootDestination.STUDENT_PAPER
+                                    }
+                                )
+
+                                RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
+                                    onBack = { destination = formsReturnDestination },
+                                    onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
+                                )
+
+                                RootDestination.SETTINGS -> RootSettingsScreen()
+
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            AppPullToRefresh(
+                enabled = destination.supportsPullRefresh(),
+                onRefresh = { refreshGeneration++ }
+            ) {
+                key(destination, refreshGeneration) {
                     when (destination) {
-                        RootDestination.HOME -> ProductHomeScreen(
-                            onNewExam = { destination = RootDestination.NEW_EXAM },
-                            onOpenReportBuilder = {
-                                selectedExamId = null
-                                reportReturnDestination = RootDestination.HOME
+                        RootDestination.NEW_EXAM -> NewExamScreen(
+                            onBack = { destination = RootDestination.EXAMS },
+                            onSaved = { examId ->
+                                selectedExamId = examId
+                                selectedScanRecordId = null
+                                destination = RootDestination.EXAM_DETAIL
+                            }
+                        )
+
+                        RootDestination.EXAM_DETAIL -> {
+                            val examId = selectedExamId
+                            if (examId == null) {
+                                destination = RootDestination.EXAMS
+                            } else {
+                                ExamDetailScreen(
+                                    examId = examId,
+                                    onBack = {
+                                        selectedScanRecordId = null
+                                        destination = RootDestination.EXAMS
+                                    },
+                                    onScan = { destination = RootDestination.EXAM_SCANNER },
+                                    onOpenPaper = { scanRecordId ->
+                                        selectedScanRecordId = scanRecordId
+                                        destination = RootDestination.STUDENT_PAPER
+                                    },
+                                    onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
+                                    onOpenReports = {
+                                        reportReturnDestination = RootDestination.EXAM_DETAIL
+                                        destination = RootDestination.REPORT_BUILDER
+                                    }
+                                )
+                            }
+                        }
+
+                        RootDestination.EXAM_SCANNER -> {
+                            val examId = selectedExamId
+                            if (examId == null) {
+                                destination = RootDestination.EXAMS
+                            } else {
+                                ExamScannerScreen(
+                                    examId = examId,
+                                    openCvReady = openCvReady,
+                                    selfTest = selfTest,
+                                    onBack = { destination = RootDestination.EXAM_DETAIL },
+                                    onOpenGalleryBatch = { destination = RootDestination.EXAM_GALLERY_BATCH }
+                                )
+                            }
+                        }
+
+                        RootDestination.EXAM_GALLERY_BATCH -> {
+                            val examId = selectedExamId
+                            if (examId == null) {
+                                destination = RootDestination.EXAMS
+                            } else {
+                                ExamGalleryBatchScreen(
+                                    examId = examId,
+                                    openCvReady = openCvReady,
+                                    onBack = { destination = RootDestination.EXAM_DETAIL }
+                                )
+                            }
+                        }
+
+                        RootDestination.STUDENT_PAPER -> {
+                            val examId = selectedExamId
+                            val scanRecordId = selectedScanRecordId
+                            if (examId == null || scanRecordId == null) {
+                                destination = RootDestination.EXAM_DETAIL
+                            } else {
+                                StudentPaperDetailScreen(
+                                    examId = examId,
+                                    scanRecordId = scanRecordId,
+                                    onBack = { destination = RootDestination.EXAM_DETAIL }
+                                )
+                            }
+                        }
+
+                        RootDestination.REPORT_BUILDER -> ReportBuilderScreen(
+                            initialExamId = selectedExamId,
+                            onBack = { destination = reportReturnDestination },
+                            onExamChanged = { selectedExamId = it },
+                            onShareParents = { examId ->
+                                selectedExamId = examId
+                                destination = RootDestination.PARENT_RESULT_SHARE
+                            }
+                        )
+
+                        RootDestination.PARENT_RESULT_SHARE -> {
+                            val examId = selectedExamId
+                            if (examId == null) {
                                 destination = RootDestination.REPORT_BUILDER
-                            },
-                            onOpenMiniAnswerKey = { destination = RootDestination.MINI_ANSWER_KEY },
-                            onOpenOcr = { openOcr(RootDestination.HOME) },
-                            onOpenExams = { destination = RootDestination.EXAMS },
-                            onOpenExam = { examId ->
-                                selectedExamId = examId
-                                selectedScanRecordId = null
-                                destination = RootDestination.EXAM_DETAIL
+                            } else {
+                                ParentResultShareScreen(
+                                    examId = examId,
+                                    onBack = { destination = RootDestination.REPORT_BUILDER }
+                                )
+                            }
+                        }
+
+                        RootDestination.MINI_ANSWER_KEY -> MiniAnswerKeyScreen(
+                            onBack = { destination = RootDestination.HOME }
+                        )
+
+                        RootDestination.TOOLS -> RootToolsScreen(
+                            onBackToExams = { destination = RootDestination.EXAMS },
+                            onOpenScanner = { destination = RootDestination.SCANNER },
+                            onOpenResults = { destination = RootDestination.RESULTS },
+                            onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
+                            onOpenOcr = { openOcr(RootDestination.TOOLS) },
+                            onOpenActiveTemplate = { openForms(RootDestination.TOOLS) },
+                            onOpenDesigner = { openDesigner(RootDestination.TOOLS) }
+                        )
+
+                        RootDestination.SCANNER -> OmrCameraScreen(
+                            openCvReady = openCvReady,
+                            selfTest = selfTest
+                        )
+
+                        RootDestination.RESULTS -> ScanSessionScreen(
+                            onBack = { destination = RootDestination.HOME }
+                        )
+
+                        RootDestination.ANSWER_KEYS -> AnswerKeyScreen(
+                            openCvReady = openCvReady,
+                            onBack = {
+                                destination = if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
                             }
                         )
 
-                        RootDestination.EXAMS -> ExamListScreen(
-                            onNewExam = { destination = RootDestination.NEW_EXAM },
-                            onOpenExam = { examId ->
-                                selectedExamId = examId
-                                selectedScanRecordId = null
-                                destination = RootDestination.EXAM_DETAIL
-                            },
-                            onOpenTools = { destination = RootDestination.TOOLS }
-                        )
-
-                        RootDestination.STUDENTS -> StudentRosterScreen(
-                            onOpenPaper = { examId, scanRecordId ->
-                                selectedExamId = examId
-                                selectedScanRecordId = scanRecordId
-                                destination = RootDestination.STUDENT_PAPER
-                            }
+                        RootDestination.OCR -> OcrWorkspaceScreen(
+                            onBack = { destination = ocrReturnDestination }
                         )
 
                         RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
@@ -181,170 +340,51 @@ fun OmrRootScreen(
                             onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
                         )
 
-                        RootDestination.SETTINGS -> RootSettingsScreen()
-
-                        else -> Unit
-                    }
-                }
-            }
-        } else {
-            when (destination) {
-                RootDestination.NEW_EXAM -> NewExamScreen(
-                    onBack = { destination = RootDestination.EXAMS },
-                    onSaved = { examId ->
-                        selectedExamId = examId
-                        selectedScanRecordId = null
-                        destination = RootDestination.EXAM_DETAIL
-                    }
-                )
-
-                RootDestination.EXAM_DETAIL -> {
-                    val examId = selectedExamId
-                    if (examId == null) {
-                        destination = RootDestination.EXAMS
-                    } else {
-                        ExamDetailScreen(
-                            examId = examId,
-                            onBack = {
-                                selectedScanRecordId = null
-                                destination = RootDestination.EXAMS
-                            },
-                            onScan = { destination = RootDestination.EXAM_SCANNER },
-                            onOpenPaper = { scanRecordId ->
-                                selectedScanRecordId = scanRecordId
-                                destination = RootDestination.STUDENT_PAPER
-                            },
-                            onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
-                            onOpenReports = {
-                                reportReturnDestination = RootDestination.EXAM_DETAIL
-                                destination = RootDestination.REPORT_BUILDER
-                            }
+                        RootDestination.DESIGNER -> StructuredOmrDesignerScreen(
+                            openCvReady = openCvReady,
+                            onBack = { destination = designerReturnDestination },
+                            onOpenAdvanced = { destination = RootDestination.ADVANCED_DESIGNER }
                         )
-                    }
-                }
 
-                RootDestination.EXAM_SCANNER -> {
-                    val examId = selectedExamId
-                    if (examId == null) {
-                        destination = RootDestination.EXAMS
-                    } else {
-                        ExamScannerScreen(
-                            examId = examId,
+                        RootDestination.ADVANCED_DESIGNER -> OmrDesignerScreen(
                             openCvReady = openCvReady,
                             selfTest = selfTest,
-                            onBack = { destination = RootDestination.EXAM_DETAIL },
-                            onOpenGalleryBatch = { destination = RootDestination.EXAM_GALLERY_BATCH }
+                            onBack = { destination = RootDestination.DESIGNER }
                         )
+
+                        RootDestination.HOME,
+                        RootDestination.EXAMS,
+                        RootDestination.STUDENTS,
+                        RootDestination.SETTINGS -> Unit
                     }
                 }
-
-                RootDestination.EXAM_GALLERY_BATCH -> {
-                    val examId = selectedExamId
-                    if (examId == null) {
-                        destination = RootDestination.EXAMS
-                    } else {
-                        ExamGalleryBatchScreen(
-                            examId = examId,
-                            openCvReady = openCvReady,
-                            onBack = { destination = RootDestination.EXAM_DETAIL }
-                        )
-                    }
-                }
-
-                RootDestination.STUDENT_PAPER -> {
-                    val examId = selectedExamId
-                    val scanRecordId = selectedScanRecordId
-                    if (examId == null || scanRecordId == null) {
-                        destination = RootDestination.EXAM_DETAIL
-                    } else {
-                        StudentPaperDetailScreen(
-                            examId = examId,
-                            scanRecordId = scanRecordId,
-                            onBack = { destination = RootDestination.EXAM_DETAIL }
-                        )
-                    }
-                }
-
-                RootDestination.REPORT_BUILDER -> ReportBuilderScreen(
-                    initialExamId = selectedExamId,
-                    onBack = { destination = reportReturnDestination },
-                    onExamChanged = { selectedExamId = it },
-                    onShareParents = { examId ->
-                        selectedExamId = examId
-                        destination = RootDestination.PARENT_RESULT_SHARE
-                    }
-                )
-
-                RootDestination.PARENT_RESULT_SHARE -> {
-                    val examId = selectedExamId
-                    if (examId == null) {
-                        destination = RootDestination.REPORT_BUILDER
-                    } else {
-                        ParentResultShareScreen(
-                            examId = examId,
-                            onBack = { destination = RootDestination.REPORT_BUILDER }
-                        )
-                    }
-                }
-
-                RootDestination.MINI_ANSWER_KEY -> MiniAnswerKeyScreen(
-                    onBack = { destination = RootDestination.HOME }
-                )
-
-                RootDestination.TOOLS -> RootToolsScreen(
-                    onBackToExams = { destination = RootDestination.EXAMS },
-                    onOpenScanner = { destination = RootDestination.SCANNER },
-                    onOpenResults = { destination = RootDestination.RESULTS },
-                    onOpenAnswerKeys = { destination = RootDestination.ANSWER_KEYS },
-                    onOpenOcr = { openOcr(RootDestination.TOOLS) },
-                    onOpenActiveTemplate = { openForms(RootDestination.TOOLS) },
-                    onOpenDesigner = { openDesigner(RootDestination.TOOLS) }
-                )
-
-                RootDestination.SCANNER -> OmrCameraScreen(
-                    openCvReady = openCvReady,
-                    selfTest = selfTest
-                )
-
-                RootDestination.RESULTS -> ScanSessionScreen(
-                    onBack = { destination = RootDestination.HOME }
-                )
-
-                RootDestination.ANSWER_KEYS -> AnswerKeyScreen(
-                    openCvReady = openCvReady,
-                    onBack = {
-                        destination = if (selectedExamId != null) RootDestination.EXAM_DETAIL else RootDestination.TOOLS
-                    }
-                )
-
-                RootDestination.OCR -> OcrWorkspaceScreen(
-                    onBack = { destination = ocrReturnDestination }
-                )
-
-                RootDestination.ACTIVE_TEMPLATE -> ActiveTemplateScreen(
-                    onBack = { destination = formsReturnDestination },
-                    onCreateForm = { openDesigner(RootDestination.ACTIVE_TEMPLATE) }
-                )
-
-                RootDestination.DESIGNER -> StructuredOmrDesignerScreen(
-                    openCvReady = openCvReady,
-                    onBack = { destination = designerReturnDestination },
-                    onOpenAdvanced = { destination = RootDestination.ADVANCED_DESIGNER }
-                )
-
-                RootDestination.ADVANCED_DESIGNER -> OmrDesignerScreen(
-                    openCvReady = openCvReady,
-                    selfTest = selfTest,
-                    onBack = { destination = RootDestination.DESIGNER }
-                )
-
-                RootDestination.HOME,
-                RootDestination.EXAMS,
-                RootDestination.STUDENTS,
-                RootDestination.SETTINGS -> Unit
             }
         }
     }
+}
+
+private fun RootDestination.supportsPullRefresh(): Boolean = when (this) {
+    RootDestination.HOME,
+    RootDestination.EXAMS,
+    RootDestination.EXAM_DETAIL,
+    RootDestination.STUDENT_PAPER,
+    RootDestination.REPORT_BUILDER,
+    RootDestination.PARENT_RESULT_SHARE,
+    RootDestination.MINI_ANSWER_KEY,
+    RootDestination.STUDENTS,
+    RootDestination.SETTINGS,
+    RootDestination.TOOLS,
+    RootDestination.RESULTS,
+    RootDestination.ANSWER_KEYS,
+    RootDestination.OCR,
+    RootDestination.ACTIVE_TEMPLATE -> true
+
+    RootDestination.NEW_EXAM,
+    RootDestination.EXAM_SCANNER,
+    RootDestination.EXAM_GALLERY_BATCH,
+    RootDestination.SCANNER,
+    RootDestination.DESIGNER,
+    RootDestination.ADVANCED_DESIGNER -> false
 }
 
 private fun RootDestination.toProductTabOrNull(): ProductTab? = when (this) {
