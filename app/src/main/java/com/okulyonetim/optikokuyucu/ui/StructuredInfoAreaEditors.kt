@@ -44,9 +44,11 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerImageElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPageGeometry
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedField
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedTextBinding
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextPresets
 
 @Composable
 internal fun DescriptionAreaEditorScreen(
@@ -57,6 +59,7 @@ internal fun DescriptionAreaEditorScreen(
     onComplete: (DesignerTextElement) -> Unit
 ) {
     val personalizedField = DesignerPersonalizedTextBinding.fieldForId(draft.id)
+    val isNew = document.visualElements.none { it.id == draft.id }
     val issue = DesignerAreaCatalog.descriptionAreaIssue(document, draft)
     InfoAreaScaffold(
         completeEnabled = issue == null,
@@ -64,7 +67,40 @@ internal fun DescriptionAreaEditorScreen(
         onComplete = { onComplete(draft) }
     ) {
         InfoEditorCard {
-            InfoReadOnlyField("Tür", personalizedField?.displayName ?: "Açıklama")
+            InfoReadOnlyField("Tür", personalizedField?.displayName ?: if (draft.id.startsWith("side-text-")) "Kenar Yazısı" else "Açıklama")
+
+            if (isNew) {
+                Text("Hazır Ekleme Seçenekleri", style = MaterialTheme.typography.labelMedium)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    InfoChoiceButton(
+                        Modifier.weight(1f),
+                        "Öğrenci Tek Satır",
+                        personalizedField == DesignerPersonalizedField.STUDENT_IDENTITY_LINE
+                    ) {
+                        onDraftChange(DesignerTextPresets.studentIdentityLine(document, draft))
+                    }
+                    InfoChoiceButton(
+                        Modifier.weight(1f),
+                        "Sol Kenar",
+                        draft.id.startsWith("side-text-") && draft.rotationDegrees == 270
+                    ) {
+                        onDraftChange(DesignerTextPresets.sideText(document, draft, rightSide = false))
+                    }
+                    InfoChoiceButton(
+                        Modifier.weight(1f),
+                        "Sağ Kenar",
+                        draft.id.startsWith("side-text-") && draft.rotationDegrees == 90
+                    ) {
+                        onDraftChange(DesignerTextPresets.sideText(document, draft, rightSide = true))
+                    }
+                }
+                Text(
+                    "Öğrenci Tek Satır; ad soyad, numara ve sınıfı tek satırda otomatik doldurur. Kenar seçenekleri yazıyı köşe kareleri arasına yerleştirir.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             if (personalizedField != null) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -98,6 +134,8 @@ internal fun DescriptionAreaEditorScreen(
                 supportingText = {
                     if (personalizedField == null) {
                         Text("${draft.text.length}/2000")
+                    } else if (personalizedField == DesignerPersonalizedField.STUDENT_IDENTITY_LINE) {
+                        Text("Örnek: AD SOYAD: ALİ YILMAZ • NUMARA: 123456 • SINIF: 8/A")
                     } else {
                         Text(
                             if (draft.showPersonalizedLabel) {
@@ -108,8 +146,8 @@ internal fun DescriptionAreaEditorScreen(
                         )
                     }
                 },
-                minLines = if (personalizedField == null) 4 else 1,
-                maxLines = if (personalizedField == null) 8 else 2,
+                minLines = if (personalizedField == null && draft.rotationDegrees == 0) 4 else 1,
+                maxLines = if (personalizedField == null && draft.rotationDegrees == 0) 8 else 2,
                 shape = RoundedCornerShape(14.dp)
             )
             InfoNumberStepper("Yazı Boyutu", draft.fontSize.toInt(), 8, 72) {
@@ -137,6 +175,18 @@ internal fun DescriptionAreaEditorScreen(
                 InfoChoiceButton(
                     Modifier.weight(1f), "Sağ", draft.alignment == DesignerTextAlignment.END
                 ) { onDraftChange(draft.copy(alignment = DesignerTextAlignment.END)) }
+            }
+            Text("Yazı Yönü", style = MaterialTheme.typography.labelMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                InfoChoiceButton(Modifier.weight(1f), "Yatay", draft.rotationDegrees == 0) {
+                    onDraftChange(draft.copy(rotationDegrees = 0))
+                }
+                InfoChoiceButton(Modifier.weight(1f), "Sol Kenar", draft.rotationDegrees == 270) {
+                    onDraftChange(draft.copy(rotationDegrees = 270))
+                }
+                InfoChoiceButton(Modifier.weight(1f), "Sağ Kenar", draft.rotationDegrees == 90) {
+                    onDraftChange(draft.copy(rotationDegrees = 90))
+                }
             }
         }
         if (issue != null) InfoIssue(issue)

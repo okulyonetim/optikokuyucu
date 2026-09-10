@@ -74,7 +74,6 @@ data class DesignerDocument(
 sealed interface DesignerOmrComponent { val id: String }
 
 enum class QuestionGroupOrientation(val displayName: String) { VERTICAL("Dikey"), HORIZONTAL("Yatay") }
-
 enum class DesignerTextAlignment { START, CENTER, END }
 
 data class QuestionGroupComponent(
@@ -93,7 +92,9 @@ data class QuestionGroupComponent(
     val orientation: QuestionGroupOrientation = QuestionGroupOrientation.VERTICAL,
     val label: String = "Ders",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    /** 0 keeps the legacy automatic label distance. Positive values are canonical units. */
+    val labelGap: Double = 0.0
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -107,6 +108,7 @@ data class QuestionGroupComponent(
         require(choiceGap > 0.0 && rowGap > 0.0 && columnGap > 0.0)
         require('\n' !in questionIdPrefix && '\r' !in questionIdPrefix)
         require('\n' !in label && '\r' !in label)
+        require(labelGap in 0.0..240.0)
     }
 }
 
@@ -124,7 +126,9 @@ data class NumericGridComponent(
     val orientation: NumericGridOrientation = NumericGridOrientation.DIGITS_HORIZONTAL,
     val label: String = "Numara",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    /** 0 keeps the legacy automatic label distance. Positive values are canonical units. */
+    val labelGap: Double = 0.0
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -135,6 +139,7 @@ data class NumericGridComponent(
         require(bubbleRadius > 0.0)
         require(columnGap > 0.0 && rowGap > 0.0)
         require('\n' !in label && '\r' !in label)
+        require(labelGap in 0.0..240.0)
     }
 }
 
@@ -149,7 +154,9 @@ data class SingleChoiceComponent(
     val axis: ChoiceAxis = ChoiceAxis.HORIZONTAL,
     val label: String = "Kitapçık Türü",
     val showLabel: Boolean = true,
-    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START
+    val labelAlignment: DesignerTextAlignment = DesignerTextAlignment.START,
+    /** 0 keeps the legacy automatic label distance. Positive values are canonical units. */
+    val labelGap: Double = 0.0
 ) : DesignerOmrComponent {
     init {
         require(id.isNotBlank())
@@ -159,6 +166,7 @@ data class SingleChoiceComponent(
         require(bubbleRadius > 0.0)
         require(gap > 0.0)
         require('\n' !in label && '\r' !in label)
+        require(labelGap in 0.0..240.0)
     }
 }
 
@@ -172,13 +180,16 @@ data class DesignerTextElement(
     val alignment: DesignerTextAlignment = DesignerTextAlignment.START,
     val bold: Boolean = false,
     override val locked: Boolean = false,
-    val showPersonalizedLabel: Boolean = DesignerPersonalizedTextBinding.isBound(id)
+    val showPersonalizedLabel: Boolean = DesignerPersonalizedTextBinding.isBound(id),
+    /** Clockwise rotation used for side text between corner markers. */
+    val rotationDegrees: Int = 0
 ) : DesignerVisualElement {
     init {
         require(id.isNotBlank())
         // Empty text is allowed while a new description is being drafted. The editor's
         // validation still prevents an empty description from being completed/saved.
         require(fontSize > 0.0)
+        require(rotationDegrees in setOf(0, 90, 180, 270))
     }
 }
 

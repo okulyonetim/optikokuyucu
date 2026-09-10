@@ -61,9 +61,24 @@ object DesignerEditorLayout {
     fun compactAnswerColumnGap(document: DesignerDocument): Double =
         DesignerPageGeometry.safeArea(document.space).width / courseSlotCount(document).toDouble()
 
+    /** Effective label distance. Zero in stored legacy components means use the original automatic spacing. */
+    fun componentLabelGap(component: DesignerOmrComponent): Double {
+        val explicit = when (component) {
+            is QuestionGroupComponent -> component.labelGap
+            is NumericGridComponent -> component.labelGap
+            is SingleChoiceComponent -> component.labelGap
+        }
+        if (explicit > 0.0) return explicit
+        val radius = componentBubbleRadius(component)
+        return if (component is NumericGridComponent && component.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+            radius * 1.25
+        } else {
+            radius * 2.3
+        }
+    }
+
     fun labelAnchor(component: DesignerOmrComponent): TemplatePoint {
         val bounds = DesignerComponentGeometry.bounds(component)
-        val radius = componentBubbleRadius(component)
         val decoratedLeft = if (component is NumericGridComponent && component.orientation == NumericGridOrientation.DIGITS_VERTICAL) {
             numericHeaderBoxes(component).minOfOrNull { it.left } ?: bounds.left
         } else bounds.left
@@ -73,12 +88,12 @@ object DesignerEditorLayout {
             DesignerTextAlignment.CENTER -> (decoratedLeft + decoratedRight) / 2.0
             DesignerTextAlignment.END -> decoratedRight
         }
-        val y = if (component is NumericGridComponent && component.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
-            (numericHeaderBoxes(component).minOfOrNull { it.top } ?: bounds.top) - radius * 1.25
+        val referenceTop = if (component is NumericGridComponent && component.orientation == NumericGridOrientation.DIGITS_HORIZONTAL) {
+            numericHeaderBoxes(component).minOfOrNull { it.top } ?: bounds.top
         } else {
-            bounds.top - radius * 2.3
+            bounds.top
         }
-        return TemplatePoint(x, y)
+        return TemplatePoint(x, referenceTop - componentLabelGap(component))
     }
 
     fun componentLabelAlignment(component: DesignerOmrComponent): DesignerTextAlignment = when (component) {
