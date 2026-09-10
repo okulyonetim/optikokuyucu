@@ -21,6 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,10 +39,12 @@ import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyPdfExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.ManualAnswerKeyBuilder
+import com.okulyonetim.optikokuyucu.omr.scoring.MiniAnswerKeyLayout
 import com.okulyonetim.optikokuyucu.omr.scoring.MiniAnswerKeyPdfExporter
 import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun MiniAnswerKeyScreen(onBack: () -> Unit) {
@@ -58,21 +61,26 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
     var orientation by remember { mutableStateOf(MiniAnswerKeyPdfExporter.Orientation.PORTRAIT) }
     var selectedBooklets by remember { mutableStateOf<Set<String>>(emptySet()) }
     var status by remember { mutableStateOf("") }
-    var pendingEntries by remember { mutableStateOf<List<AnswerKeyPdfExporter.SheetEntry>?>(null) }
+    var previewBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingCopyCount by remember { mutableStateOf(0) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
-        val entries = pendingEntries
-        pendingEntries = null
-        if (uri == null || entries.isNullOrEmpty()) return@rememberLauncherForActivityResult
+        val bytes = pendingPdfBytes
+        val savedCopies = pendingCopyCount
+        pendingPdfBytes = null
+        pendingCopyCount = 0
+        if (uri == null || bytes == null) return@rememberLauncherForActivityResult
         runCatching {
             context.contentResolver.openOutputStream(uri, "w").use { output ->
                 requireNotNull(output) { "PDF çıktı akışı açılamadı." }
-                MiniAnswerKeyPdfExporter.export(entries, copies, orientation, output)
+                output.write(bytes)
+                output.flush()
             }
-        }.onSuccess { status = "Mini cevap anahtarı PDF oluşturuldu · $copies adet" }
-            .onFailure { error -> status = "PDF oluşturulamadı: ${error.message ?: error.javaClass.simpleName}" }
+        }.onSuccess { status = "Mini cevap anahtarı PDF kaydedildi · $savedCopies adet" }
+            .onFailure { error -> status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}" }
     }
 
     val exam = selectedExamId?.let(examRepository::load)
@@ -128,6 +136,19 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
     val effectiveEntries = if (selectedBooklets.isEmpty()) availableEntries else {
         availableEntries.filter { it.key.variantValue in selectedBooklets }
     }
+    val availableCopyCounts = remember(data?.sections, orientation) {
+        data?.let { MiniAnswerKeyLayout.availableCopies(it.sections, orientation) }.orEmpty()
+    }
+    val recommendedCopies = remember(data?.sections, orientation) {
+        data?.let { MiniAnswerKeyLayout.recommendedCopies(it.sections, orientation) } ?: 6
+    }
+
+    LaunchedEffect(selectedExamId, data?.templateId, data?.templateVersion, orientation) {
+        if (data != null) copies = recommendedCopies
+    }
+    LaunchedEffect(selectedExamId, selectedBooklets, copies, orientation, effectiveEntries.size) {
+        previewBytes = null
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(title = "Mini Cevap Anahtarı", leadingText = "‹", onLeadingClick = onBack)
@@ -137,7 +158,11 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text("Sınav seçin", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("Öğrencilere dağıtılacak küçük cevap anahtarlarını tek A4'e çoklu yerleştirin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Soru sayısına göre A4'e mümkün olan en fazla okunaklı mini anahtar otomatik yerleştirilir.",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             if (exams.isEmpty()) {
                 item { ProductEmptyState("Sınav bulunamadı", "Mini cevap anahtarı için önce bir sınav oluşturun.") }
@@ -147,6 +172,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().clickable {
                             selectedExamId = item.id
                             selectedBooklets = emptySet()
+                            previewBytes = null
                             status = ""
                         },
                         shape = RoundedCornerShape(14.dp),
@@ -192,12 +218,23 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                     }
                 }
                 item {
-                    ProductSettingsSection("A4 Yerleşimi", "Sayfa başına kaç mini cevap anahtarı basılacağını seçin.") {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(2, 4, 6, 8).forEach { count ->
+                    ProductSettingsSection(
+                        "A4 Yerleşimi",
+                        "Kısa cevap anahtarlarında kopya sayısı artar; içerik hiçbir zaman hücreleri uzatarak sayfayı doldurmaz."
+                    ) {
+                        if (data != null) {
+                            Text(
+                                "Otomatik öneri: A4 başına $recommendedCopies adet",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(MiniAnswerKeyLayout.supportedCopies) { count ->
                                 FilterChip(
-                                    modifier = Modifier.weight(1f),
                                     selected = copies == count,
+                                    enabled = count in availableCopyCounts,
                                     onClick = { copies = count },
                                     label = { Text(count.toString()) }
                                 )
@@ -221,23 +258,60 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                 }
                 item {
                     ProductSettingsSection("Önizleme Özeti", "Kesim çizgileri PDF üzerinde otomatik oluşturulur.") {
-                        Text("${effectiveEntries.size} kitapçık türü · A4 üzerinde $copies mini anahtar · ${if (orientation == MiniAnswerKeyPdfExporter.Orientation.PORTRAIT) "dikey" else "yatay"}", fontSize = 10.sp)
+                        Text(
+                            "${effectiveEntries.size} kitapçık türü · A4 üzerinde $copies mini anahtar · ${if (orientation == MiniAnswerKeyPdfExporter.Orientation.PORTRAIT) "dikey" else "yatay"}",
+                            fontSize = 10.sp
+                        )
                         if (effectiveEntries.isEmpty()) {
                             Text("Önce sınavın cevap anahtarını kaydedin.", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                        } else if (copies !in availableCopyCounts) {
+                            Text("Bu soru yapısı için daha az kopya seçin.", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
                         }
                     }
                 }
                 item {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = effectiveEntries.isNotEmpty(),
+                        enabled = effectiveEntries.isNotEmpty() && copies in availableCopyCounts,
                         shape = RoundedCornerShape(13.dp),
                         onClick = {
-                            pendingEntries = effectiveEntries
-                            launcher.launch(miniAnswerKeyFileName(exam.name, copies))
+                            runCatching {
+                                ByteArrayOutputStream().use { output ->
+                                    MiniAnswerKeyPdfExporter.export(effectiveEntries, copies, orientation, output)
+                                    output.toByteArray()
+                                }
+                            }.onSuccess { bytes ->
+                                previewBytes = bytes
+                                status = "PDF önizleme hazır · $copies adet"
+                            }.onFailure { error ->
+                                previewBytes = null
+                                status = "PDF önizleme oluşturulamadı: ${error.message ?: error.javaClass.simpleName}"
+                            }
                         }
                     ) {
-                        Text("PDF Oluştur")
+                        Text("PDF Önizle")
+                    }
+                }
+
+                previewBytes?.let { bytes ->
+                    item {
+                        ProductSettingsSection(
+                            "PDF Önizleme",
+                            "Aşağıdaki görüntü kaydedilecek PDF'nin birebir önizlemesidir."
+                        ) {
+                            PdfReportPreview(pdfBytes = bytes, modifier = Modifier.fillMaxWidth())
+                            Button(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(13.dp),
+                                onClick = {
+                                    pendingPdfBytes = bytes
+                                    pendingCopyCount = copies
+                                    launcher.launch(miniAnswerKeyFileName(exam.name, copies))
+                                }
+                            ) {
+                                Text("PDF'yi Kaydet")
+                            }
+                        }
                     }
                 }
             }
