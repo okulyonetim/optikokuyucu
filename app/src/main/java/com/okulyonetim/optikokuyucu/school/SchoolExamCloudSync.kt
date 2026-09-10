@@ -65,7 +65,7 @@ class SchoolExamCloudSyncService(
             } else rawExam
             if (!SchoolContentAccess.canModifyExam(exam, profile)) return@forEach
 
-            if (profile.canEdit("sinavIslemleri")) {
+            if (SchoolSyncAccessPolicy.canSyncExamDefinition(profile)) {
                 runCatching { syncDefinition(exam, profile) }
                     .onSuccess { definitions += 1 }
                     .onFailure { failures += "${exam.name} sınavı: ${it.message ?: "tanım gönderilemedi"}" }
@@ -73,8 +73,8 @@ class SchoolExamCloudSyncService(
                 skippedPermission += 1
             }
 
-            // Live firestore.rules allows denemeSonuclari writes for users who can view this module.
-            if (profile.canView("denemeSonuclari")) {
+            // Teachers may send results only; definition and institution data stays read-only.
+            if (SchoolSyncAccessPolicy.canSyncResults(profile)) {
                 runCatching { syncResults(exam) }
                     .onSuccess { stats ->
                         resultDocs += 1
