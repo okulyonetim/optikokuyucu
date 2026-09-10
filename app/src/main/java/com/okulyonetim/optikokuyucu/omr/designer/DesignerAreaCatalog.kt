@@ -9,6 +9,7 @@ enum class DesignerAreaKind(val displayName: String) {
     NUMBER("Numara"),
     ANSWERS("Cevaplar"),
     BOOKLET("Kitapçık Türü"),
+    STUDENT_IDENTITY_LINE("Ad Soyad • Numara • Sınıf"),
     STUDENT_NAME("Öğrenci Adı Soyadı"),
     STUDENT_CLASS("Sınıfı"),
     STUDENT_NUMBER_TEXT("Öğrenci Numarası"),
@@ -31,6 +32,7 @@ object DesignerAreaCatalog {
         DesignerAreaSection(
             "Öğrenci / Sınav Bilgileri",
             listOf(
+                DesignerAreaKind.STUDENT_IDENTITY_LINE,
                 DesignerAreaKind.STUDENT_NAME,
                 DesignerAreaKind.STUDENT_CLASS,
                 DesignerAreaKind.STUDENT_NUMBER_TEXT,
@@ -38,7 +40,7 @@ object DesignerAreaCatalog {
                 DesignerAreaKind.SCHOOL_NAME
             )
         ),
-        DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE))
+        DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.IMAGE, DesignerAreaKind.DESCRIPTION))
     )
     val allKinds: List<DesignerAreaKind> = sections.flatMap { it.kinds }
     val numberPatternPresets = listOf("0123456789", "AB", "ABC", "ABCD", "ABCDE")
@@ -105,6 +107,9 @@ object DesignerAreaCatalog {
             labelAlignment = DesignerTextAlignment.CENTER
         )
     }
+
+    fun createStudentIdentityLineArea(document: DesignerDocument): DesignerTextElement =
+        DesignerTextPresets.studentIdentityLine(document, createPresetTextArea(document, "identity-source", "Öğrenci Bilgileri"))
 
     fun createStudentNameArea(document: DesignerDocument): DesignerTextElement =
         createPresetTextArea(document, "student-name", "Öğrenci Adı Soyadı")
