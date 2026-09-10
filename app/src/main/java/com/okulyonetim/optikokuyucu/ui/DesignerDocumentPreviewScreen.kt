@@ -37,13 +37,15 @@ internal fun DesignerDocumentPreviewScreen(
 ) {
     val sampleDocument = remember(document) { DesignerPreviewSampleData.document(document) }
     val sampleNumbers = remember(document) { DesignerPreviewSampleData.numericHeaderValues(document) }
-    val bitmapResult = remember(sampleDocument, sampleNumbers, openCvReady) {
+    val sampleNumberMarks = remember(document) { DesignerPreviewSampleData.markedGridChoices(document) }
+    val bitmapResult = remember(sampleDocument, sampleNumbers, sampleNumberMarks, openCvReady) {
         if (!openCvReady) {
             Result.failure<Bitmap>(IllegalStateException("OpenCV hazır değil."))
         } else {
             runCatching {
                 DesignerGalleryTestAsset.render(
                     document = sampleDocument,
+                    markedGridChoices = sampleNumberMarks,
                     numericHeaderValues = sampleNumbers
                 )
             }

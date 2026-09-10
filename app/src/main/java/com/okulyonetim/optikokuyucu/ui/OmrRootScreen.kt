@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
-import com.okulyonetim.optikokuyucu.settings.AppSettings
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 
 private enum class RootDestination {
@@ -408,8 +405,8 @@ private fun ProductTab.toRootDestination(): RootDestination = when (this) {
 private fun RootSettingsScreen() {
     val context = LocalContext.current
     val settingsRepository = remember(context) { AppSettingsRepository(context.applicationContext) }
-    var schoolName by remember { mutableStateOf(settingsRepository.load().schoolName) }
-    var schoolStatus by remember { mutableStateOf("") }
+    val schoolName = settingsRepository.load().schoolName
+    val linkedAccount = LocalSchoolAccount.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(title = "Ayarlar")
@@ -424,42 +421,23 @@ private fun RootSettingsScreen() {
             item {
                 ProductSettingsSection(
                     title = "Kurum Bilgileri",
-                    description = "Okul adı yeni sınav oluştururken otomatik doldurulur."
+                    description = "Okul adı bağlı Okul Yönetim hesabından veya güvenilir kurum kaynağından alınır."
                 ) {
-                    OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = schoolName,
-                        onValueChange = {
-                            schoolName = it
-                            schoolStatus = ""
-                        },
-                        label = { Text("Okul Adı") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(13.dp)
+                    Text(
+                        schoolName.ifBlank { "Okul adı henüz eşitlenmedi." },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            runCatching { settingsRepository.save(AppSettings(schoolName)) }
-                                .onSuccess {
-                                    schoolName = schoolName.trim()
-                                    schoolStatus = "Okul adı kaydedildi."
-                                }
-                                .onFailure { error ->
-                                    schoolStatus = "Kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
-                                }
+                    Text(
+                        if (linkedAccount != null) {
+                            "Bu alan salt okunurdur. Kurum adı Okul Yönetim bağlantısı üzerinden güncellenir."
+                        } else {
+                            "Okul adı elle değiştirilemez. Okul Yönetim bağlantısı kurulduğunda güvenilir kurum bilgisi kullanılır."
                         },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Kaydet", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    if (schoolStatus.isNotBlank()) {
-                        Text(
-                            schoolStatus,
-                            fontSize = 9.sp,
-                            color = if (schoolStatus.startsWith("Kaydedilemedi")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        )
-                    }
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             item { SettingsSubjectsCard(settingsRepository) }

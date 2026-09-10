@@ -103,6 +103,9 @@ class SchoolDirectorySyncService(
     private val client: SchoolPortalClient
 ) {
     fun sync(): SchoolDirectorySyncResult {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireDirectorySync(profile)
+
         val classDocs = client.listDocuments(SchoolPortalConfig.CLASSES)
         val classes = classDocs.associate { doc ->
             val schoolClass = SchoolDirectoryMapper.schoolClass(doc)
@@ -158,6 +161,9 @@ class SchoolPortalManager private constructor(context: Context) {
         return SchoolAccountMigration.claimLegacyAdminExams(appContext, profile)
     }
 
+    fun refreshInstitutionInfo(): SchoolInstitutionInfo =
+        SchoolInstitutionSyncService(appContext, client).refresh()
+
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
@@ -167,26 +173,37 @@ class SchoolPortalManager private constructor(context: Context) {
     fun syncExamsAndResults(force: Boolean = false): SchoolExamCloudSyncResult? =
         cloudCoordinator.syncIfChanged(force)
 
-    fun syncTemplates(): SchoolTemplateSyncResult =
-        SchoolTemplateCloudSyncService(appContext, client).sync()
+    fun syncTemplates(): SchoolTemplateSyncResult {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireTemplateSync(profile)
+        return SchoolTemplateCloudSyncService(appContext, client).sync()
+    }
 
     fun refreshExamCatalog(): List<SchoolExamSummary> =
         SchoolExamCatalogSyncService(appContext, client).refresh()
 
     fun setExamPublic(examId: String, isPublic: Boolean) {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireCloudContentChange(profile)
         SchoolExamCatalogSyncService(appContext, client).setPublic(examId, isPublic)
     }
 
     fun deleteExamCloudCopy(examId: String) {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireCloudContentChange(profile)
         SchoolExamCatalogSyncService(appContext, client).delete(examId)
         cloudCoordinator.invalidate()
     }
 
     fun setTemplatePublic(document: DesignerDocument, isPublic: Boolean) {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireCloudContentChange(profile)
         SchoolTemplateCloudSyncService(appContext, client).setPublic(document, isPublic)
     }
 
     fun deleteTemplateCloudCopy(document: DesignerDocument) {
+        val profile = requireNotNull(client.cachedSession()) { "Okul Yönetim oturumu yok." }.profile
+        SchoolSyncAccessPolicy.requireCloudContentChange(profile)
         SchoolTemplateCloudSyncService(appContext, client).deleteCloudCopy(document)
     }
 
