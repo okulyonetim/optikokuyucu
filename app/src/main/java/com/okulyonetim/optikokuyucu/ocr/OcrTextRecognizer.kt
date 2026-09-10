@@ -16,6 +16,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.min
@@ -24,14 +25,15 @@ import kotlin.math.min
  * On-device Latin OCR. Turkish is handled by the Latin model and all coordinates are preserved
  * so table-like answer keys can be reconstructed instead of flattening everything into plain text.
  *
- * Handwriting mode runs a second, contrast-enhanced pass and keeps the stronger recognition result.
- * It intentionally remains a best-effort image OCR path; no document is uploaded to a server.
+ * Handwriting mode and answer-key mode both run a second optimized pass and keep the stronger
+ * recognition result. No document is uploaded to a server.
  */
 object OcrTextRecognizer {
     fun recognize(
         context: Context,
         uri: Uri,
         handwritingMode: Boolean,
+        answerKeyMode: Boolean = false,
         onResult: (Result<OcrRecognitionResult>) -> Unit
     ) {
         val appContext = context.applicationContext
@@ -55,14 +57,18 @@ object OcrTextRecognizer {
                                 text = recognized,
                                 imageWidth = originalImage.width,
                                 imageHeight = originalImage.height,
-                                enhanced = false
+                                enhancedForHandwriting = false
                             )
-                            if (!handwritingMode) {
+                            if (!handwritingMode && !answerKeyMode) {
                                 finish(Result.success(original))
                                 return@addOnSuccessListener
                             }
 
-                            runCatching { enhanceForHandwriting(appContext, uri) }
+                            val enhancedBitmapResult = runCatching {
+                                if (answerKeyMode) enhanceForAnswerKey(appContext, uri)
+                                else enhanceForHandwriting(appContext, uri)
+                            }
+                            enhancedBitmapResult
                                 .onFailure { finish(Result.success(original)) }
                                 .onSuccess { enhancedBitmap ->
                                     val enhancedImage = InputImage.fromBitmap(enhancedBitmap, 0)
@@ -72,10 +78,12 @@ object OcrTextRecognizer {
                                                 text = enhancedText,
                                                 imageWidth = enhancedBitmap.width,
                                                 imageHeight = enhancedBitmap.height,
-                                                enhanced = true
+                                                enhancedForHandwriting = handwritingMode
                                             )
                                             enhancedBitmap.recycle()
-                                            val best = if (qualityScore(enhanced) > qualityScore(original)) enhanced else original
+                                            val originalScore = if (answerKeyMode) answerKeyQualityScore(original) else qualityScore(original)
+                                            val enhancedScore = if (answerKeyMode) answerKeyQualityScore(enhanced) else qualityScore(enhanced)
+                                            val best = if (enhancedScore > originalScore) enhanced else original
                                             finish(Result.success(best))
                                         }
                                         .addOnFailureListener(worker) {
@@ -93,7 +101,7 @@ object OcrTextRecognizer {
         text: Text,
         imageWidth: Int,
         imageHeight: Int,
-        enhanced: Boolean
+        enhancedForHandwriting: Boolean
     ): OcrRecognitionResult {
         val tokens = buildList {
             text.textBlocks.forEach { block ->
@@ -121,7 +129,7 @@ object OcrTextRecognizer {
             tokens = tokens,
             imageWidth = imageWidth,
             imageHeight = imageHeight,
-            enhancedForHandwriting = enhanced
+            enhancedForHandwriting = enhancedForHandwriting
         )
     }
 
@@ -130,6 +138,21 @@ object OcrTextRecognizer {
         val longTokens = result.tokens.count { token -> token.text.count(Char::isLetterOrDigit) >= 2 }
         val suspicious = result.text.count { it == '\uFFFD' }
         return usefulChars + (longTokens * 3) - (suspicious * 12)
+    }
+
+    /** Prefer a pass that actually recovers the tiny number/answer cells of an answer-key table. */
+    private fun answerKeyQualityScore(result: OcrRecognitionResult): Int {
+        var score = qualityScore(result)
+        result.tokens.forEach { token ->
+            val cleaned = token.text.trim().replace(Regex("[^\\p{L}0-9]"), "")
+            val upper = cleaned.uppercase(TURKISH)
+            when {
+                upper in ANSWER_CHOICES -> score += 28
+                cleaned.all(Char::isDigit) && cleaned.toIntOrNull() in 1..99 -> score += 14
+                upper.length >= 3 && SUBJECT_HINTS.any { upper.contains(it) } -> score += 10
+            }
+        }
+        return score
     }
 
     @Suppress("DEPRECATION")
@@ -147,10 +170,38 @@ object OcrTextRecognizer {
     }
 
     private fun enhanceForHandwriting(context: Context, uri: Uri): Bitmap {
+        return enhanceBitmap(
+            context = context,
+            uri = uri,
+            targetLargest = 2600,
+            maxScale = 2f,
+            contrast = 1.28f,
+            brightness = 10f
+        )
+    }
+
+    private fun enhanceForAnswerKey(context: Context, uri: Uri): Bitmap {
+        return enhanceBitmap(
+            context = context,
+            uri = uri,
+            targetLargest = 3200,
+            maxScale = 2.6f,
+            contrast = 1.45f,
+            brightness = 18f
+        )
+    }
+
+    private fun enhanceBitmap(
+        context: Context,
+        uri: Uri,
+        targetLargest: Int,
+        maxScale: Float,
+        contrast: Float,
+        brightness: Float
+    ): Bitmap {
         val source = decodeBitmap(context, uri)
         val largest = max(source.width, source.height).coerceAtLeast(1)
-        val targetLargest = min(2600, max(1800, largest))
-        val scale = (targetLargest.toFloat() / largest.toFloat()).coerceIn(1f, 2f)
+        val scale = (targetLargest.toFloat() / largest.toFloat()).coerceIn(1f, maxScale)
         val scaled = if (scale > 1.02f) {
             Bitmap.createScaledBitmap(
                 source,
@@ -163,8 +214,7 @@ object OcrTextRecognizer {
         }
 
         val output = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
-        val contrast = 1.28f
-        val translate = (-0.5f * 255f * (contrast - 1f)) + 10f
+        val translate = (-0.5f * 255f * (contrast - 1f)) + brightness
         val matrix = ColorMatrix().apply {
             setSaturation(0f)
             postConcat(
@@ -189,4 +239,8 @@ object OcrTextRecognizer {
         scaled.recycle()
         return output
     }
+
+    private val TURKISH = Locale("tr", "TR")
+    private val ANSWER_CHOICES = setOf("A", "B", "C", "D", "E")
+    private val SUBJECT_HINTS = setOf("TÜRK", "TURK", "MAT", "FEN", "DİN", "DIN", "İNG", "ING", "INK")
 }
