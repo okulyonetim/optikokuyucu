@@ -60,6 +60,7 @@ import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 
 private enum class OcrWorkspaceMode { DOCUMENT_LAYOUT, ANSWER_KEY }
+private enum class OcrWritingMode { PRINTED, HANDWRITING }
 
 private data class OcrExamTarget(
     val exam: Exam,
@@ -77,6 +78,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
 
     var mode by remember { mutableStateOf(OcrWorkspaceMode.DOCUMENT_LAYOUT) }
+    var writingMode by remember { mutableStateOf(OcrWritingMode.PRINTED) }
     var selectedExamId by remember { mutableStateOf<String?>(null) }
     var examMenuOpen by remember { mutableStateOf(false) }
     var recognition by remember { mutableStateOf<OcrRecognitionResult?>(null) }
@@ -95,21 +97,24 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     fun processPages(pageUris: List<android.net.Uri>) {
         if (busy || pageUris.isEmpty()) return
         busy = true
-        status = if (pageUris.size > 1) {
-            "Belge düzeltildi · ${pageUris.size} sayfa yerleşimi korunarak tanınıyor…"
-        } else {
-            "Belge düzeltildi · metinler kendi konumlarında tanınıyor…"
+        status = when {
+            writingMode == OcrWritingMode.HANDWRITING -> "Belge düzeltildi · el yazısı iyileştirilerek yerinde tanınıyor…"
+            pageUris.size > 1 -> "Belge düzeltildi · ${pageUris.size} sayfa yerleşimi korunarak tanınıyor…"
+            else -> "Belge düzeltildi · metinler kendi konumlarında tanınıyor…"
         }
         OcrTextRecognizer.recognizePages(
             context = appContext,
             uris = pageUris,
-            handwritingMode = false,
+            handwritingMode = writingMode == OcrWritingMode.HANDWRITING,
             answerKeyMode = mode == OcrWorkspaceMode.ANSWER_KEY
         ) { result ->
             busy = false
             result.onSuccess { value ->
                 recognition = value
-                status = "OCR tamamlandı · ${value.tokens.size} konumlu öğe · belge düzeni korundu"
+                status = buildString {
+                    append("OCR tamamlandı · ${value.tokens.size} konumlu öğe · belge düzeni korundu")
+                    if (value.enhancedForHandwriting) append(" · el yazısı iyileştirmesi")
+                }
             }.onFailure { error ->
                 recognition = null
                 extraction = null
@@ -168,8 +173,20 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                             mode == OcrWorkspaceMode.ANSWER_KEY
                         ) { mode = OcrWorkspaceMode.ANSWER_KEY }
                     }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "Basılı Metin",
+                            writingMode == OcrWritingMode.PRINTED
+                        ) { writingMode = OcrWritingMode.PRINTED }
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "El Yazısı",
+                            writingMode == OcrWritingMode.HANDWRITING
+                        ) { writingMode = OcrWritingMode.HANDWRITING }
+                    }
                     Text(
-                        "İşlem sırası: kenar/perspektif düzeltme → kırpma/filtre → aynı görüntü üzerinde konumlu OCR.",
+                        "İşlem sırası: kenar/perspektif düzeltme → kırpma/filtre → aynı görüntü üzerinde konumlu OCR. Türkçe karakterler ve sayfa geometrisi korunur.",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -242,7 +259,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                         onStatus = { status = it }
                     )
                     Text(
-                        "Tarayıcı içinden galeriyi de seçebilirsiniz. Ham görsel doğrudan OCR'a gönderilmez.",
+                        "Tarayıcı içinden galeriyi de seçebilirsiniz. Ham görsel doğrudan OCR'a gönderilmez; düzeltilmiş sayfa üzerinde tanıma yapılır.",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
