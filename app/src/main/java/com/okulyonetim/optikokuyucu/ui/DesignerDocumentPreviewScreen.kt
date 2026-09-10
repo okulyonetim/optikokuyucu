@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerGalleryTestAsset
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerPreviewSampleData
 
 /** Print-like read-only view backed by the same DesignerDocument/DesignerPrintRenderer path as PDF. */
 @Composable
@@ -34,11 +35,18 @@ internal fun DesignerDocumentPreviewScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit
 ) {
-    val bitmapResult = remember(document, openCvReady) {
+    val sampleDocument = remember(document) { DesignerPreviewSampleData.document(document) }
+    val sampleNumbers = remember(document) { DesignerPreviewSampleData.numericHeaderValues(document) }
+    val bitmapResult = remember(sampleDocument, sampleNumbers, openCvReady) {
         if (!openCvReady) {
             Result.failure<Bitmap>(IllegalStateException("OpenCV hazır değil."))
         } else {
-            runCatching { DesignerGalleryTestAsset.render(document) }
+            runCatching {
+                DesignerGalleryTestAsset.render(
+                    document = sampleDocument,
+                    numericHeaderValues = sampleNumbers
+                )
+            }
         }
     }
     val bitmap = bitmapResult.getOrNull()
@@ -67,8 +75,13 @@ internal fun DesignerDocumentPreviewScreen(
         ) {
             Text(document.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                "${document.id} · v${document.version} · baskı görünümü",
+                "${document.id} · v${document.version} · örnek öğrenciyle baskı görünümü",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Önizleme örneği: ${DesignerPreviewSampleData.STUDENT_NAME} · ${DesignerPreviewSampleData.STUDENT_CLASS} · No ${DesignerPreviewSampleData.STUDENT_NUMBER} · ${DesignerPreviewSampleData.SCHOOL_NAME} · ${DesignerPreviewSampleData.EXAM_NAME}",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
@@ -102,6 +115,7 @@ internal fun DesignerDocumentPreviewScreen(
                 Text("Bu Formu Düzenle")
             }
 
+            // PDF export still uses the original template. Example values exist only in preview.
             DesignerPdfExportCard(document = document, openCvReady = openCvReady)
         }
     }
