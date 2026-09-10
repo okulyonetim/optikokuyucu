@@ -21,7 +21,7 @@ object OcrAnswerKeyParser {
         val tokens = recognition.tokens.filter { it.text.isNotBlank() }
         val warnings = mutableListOf<String>()
         val headerMatches = sections.mapIndexed { index, section ->
-            val match = findHeader(tokens, section.label)
+            val match = findHeader(tokens, section.label, recognition.imageHeight)
             HeaderMatch(section, index, match?.first, match?.second ?: 0f)
         }
 
@@ -38,16 +38,24 @@ object OcrAnswerKeyParser {
             val right = if (index == centers.lastIndex) recognition.imageWidth.toFloat() else (center + centers[index + 1]) / 2f
             left to right
         }
+        val tableTokens = tokens.filter { it.centerY > headerBottom }
+        val rowModel = buildGlobalRowModel(
+            tokens = tableTokens,
+            maxQuestions = sections.maxOf { it.questionIds.size }
+        )
+        if (rowModel == null) {
+            warnings += "Tablo satır aralığı güvenilir biçimde belirlenemedi; soru numaraları OCR sonucundan eşleştirildi."
+        }
 
         val allRows = mutableListOf<OcrAnswerRow>()
         val answers = linkedMapOf<String, String>()
 
         sections.forEachIndexed { sectionIndex, section ->
             val (left, right) = ranges[sectionIndex]
-            val sectionTokens = tokens.filter { token ->
-                token.centerX >= left && token.centerX < right && token.centerY > headerBottom
+            val sectionTokens = tableTokens.filter { token ->
+                token.centerX >= left && token.centerX < right
             }
-            val detectedByNumber = findQuestionAnswers(sectionTokens, section)
+            val detectedByNumber = findQuestionAnswers(sectionTokens, section, rowModel)
             val missing = mutableListOf<Int>()
 
             section.questionIds.forEachIndexed { index, questionId ->
@@ -92,9 +100,22 @@ object OcrAnswerKeyParser {
         val score: Float
     )
 
-    private fun findHeader(tokens: List<OcrToken>, label: String): Pair<OcrToken, Float>? {
+    private data class RowModel(
+        val firstCenterY: Float,
+        val step: Float,
+        val observedCenters: Map<Int, Float>
+    ) {
+        fun centerFor(questionNumber: Int): Float {
+            val fitted = firstCenterY + ((questionNumber - 1) * step)
+            val observed = observedCenters[questionNumber] ?: return fitted
+            return if (abs(observed - fitted) <= step * 0.42f) observed else fitted
+        }
+    }
+
+    private fun findHeader(tokens: List<OcrToken>, label: String, imageHeight: Int): Pair<OcrToken, Float>? {
         val aliases = subjectAliases(label)
-        val candidates = phraseCandidates(tokens)
+        val upperTokens = tokens.filter { it.centerY <= imageHeight * 0.55f }
+        val candidates = phraseCandidates(upperTokens.ifEmpty { tokens })
         return candidates
             .map { candidate -> candidate to aliases.maxOf { alias -> similarity(normalize(candidate.text), alias) } }
             .filter { (_, score) -> score >= 0.35f }
@@ -147,9 +168,49 @@ object OcrAnswerKeyParser {
         return result
     }
 
+    /**
+     * Builds one shared row model from every readable question number in the table.
+     * This is deliberately global: if one subject loses e.g. question 9 during OCR, the row can
+     * still be recovered from the same horizontal row in another subject column.
+     */
+    private fun buildGlobalRowModel(tokens: List<OcrToken>, maxQuestions: Int): RowModel? {
+        if (maxQuestions < 2) return null
+        val numbered = tokens.mapNotNull { token ->
+            if (!token.text.any(Char::isDigit)) return@mapNotNull null
+            val number = cleanNumber(token.text) ?: return@mapNotNull null
+            number.takeIf { it in 1..maxQuestions }?.let { it to token.centerY }
+        }
+        if (numbered.size < 2) return null
+
+        val observed = numbered
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, values) -> median(values) }
+        if (observed.size < 2) return null
+
+        val points = observed.entries.sortedBy { it.key }
+        val slopes = buildList {
+            for (i in points.indices) {
+                for (j in (i + 1) until points.size) {
+                    val numberDelta = points[j].key - points[i].key
+                    val yDelta = points[j].value - points[i].value
+                    if (numberDelta > 0 && yDelta > 0f) {
+                        val slope = yDelta / numberDelta.toFloat()
+                        if (slope in MIN_ROW_STEP..MAX_ROW_STEP) add(slope)
+                    }
+                }
+            }
+        }
+        if (slopes.isEmpty()) return null
+
+        val step = median(slopes)
+        val firstCenter = median(points.map { (number, y) -> y - ((number - 1) * step) })
+        return RowModel(firstCenterY = firstCenter, step = step, observedCenters = observed)
+    }
+
     private fun findQuestionAnswers(
         tokens: List<OcrToken>,
-        section: ManualAnswerSection
+        section: ManualAnswerSection,
+        rowModel: RowModel?
     ): Map<Int, String> {
         val allowed = section.allowedChoices.map(::normalizeChoice).toSet()
         val numbers = tokens.mapNotNull { token ->
@@ -157,24 +218,51 @@ object OcrAnswerKeyParser {
         }
         val answerTokens = tokens.mapNotNull { token ->
             val choice = normalizeChoice(token.text)
-            choice.takeIf { it in allowed }?.let { choice to token }
+            choice.takeIf { it in allowed }?.let { AnswerCandidate(choice, token) }
         }
         val found = linkedMapOf<Int, String>()
+        val usedAnswerTokens = mutableSetOf<OcrToken>()
 
+        // Exact number + answer pairing remains the strongest signal when both cells are readable.
         numbers.sortedBy { it.second.centerY }.forEach { (number, numberToken) ->
             val best = answerTokens
                 .asSequence()
-                .filter { (_, token) -> token.centerX > numberToken.centerX }
-                .filter { (_, token) ->
-                    abs(token.centerY - numberToken.centerY) <= max(token.height, numberToken.height) * 0.90f
+                .filter { candidate -> candidate.token !in usedAnswerTokens }
+                .filter { candidate -> candidate.token.centerX > numberToken.centerX }
+                .filter { candidate ->
+                    abs(candidate.token.centerY - numberToken.centerY) <= max(candidate.token.height, numberToken.height) * 0.95f
                 }
-                .minByOrNull { (_, token) ->
-                    abs(token.centerX - numberToken.centerX) + abs(token.centerY - numberToken.centerY) * 2f
+                .minByOrNull { candidate ->
+                    abs(candidate.token.centerX - numberToken.centerX) + abs(candidate.token.centerY - numberToken.centerY) * 2f
                 }
-            if (best != null) found.putIfAbsent(number, best.first)
+            if (best != null && number !in found) {
+                found[number] = best.choice
+                usedAnswerTokens += best.token
+            }
+        }
+
+        // Recover rows whose printed number was missed by OCR using the shared table geometry.
+        if (rowModel != null && answerTokens.isNotEmpty()) {
+            val medianHeight = median(answerTokens.map { it.token.height.toFloat() })
+            val tolerance = max(rowModel.step * 0.44f, medianHeight * 1.25f)
+            for (number in 1..section.questionIds.size) {
+                if (number in found) continue
+                val expectedY = rowModel.centerFor(number)
+                val best = answerTokens
+                    .asSequence()
+                    .filter { candidate -> candidate.token !in usedAnswerTokens }
+                    .filter { candidate -> abs(candidate.token.centerY - expectedY) <= tolerance }
+                    .minByOrNull { candidate -> abs(candidate.token.centerY - expectedY) }
+                if (best != null) {
+                    found[number] = best.choice
+                    usedAnswerTokens += best.token
+                }
+            }
         }
         return found
     }
+
+    private data class AnswerCandidate(val choice: String, val token: OcrToken)
 
     private fun cleanNumber(value: String): Int? {
         val cleaned = value.trim().replace(Regex("[^0-9]"), "")
@@ -230,7 +318,6 @@ object OcrAnswerKeyParser {
     private fun normalize(value: String): String {
         val upper = value.uppercase(TURKISH)
             .replace('İ', 'I')
-            .replace('I', 'I')
             .replace('Ş', 'S')
             .replace('Ğ', 'G')
             .replace('Ü', 'U')
@@ -295,7 +382,16 @@ object OcrAnswerKeyParser {
         return parts.joinToString(", ")
     }
 
+    private fun median(values: List<Float>): Float {
+        if (values.isEmpty()) return 0f
+        val sorted = values.sorted()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 1) sorted[middle] else (sorted[middle - 1] + sorted[middle]) / 2f
+    }
+
     private val TURKISH = Locale("tr", "TR")
     private val STOP_WORDS = setOf("VE", "ILE", "BILGISI", "TARIHI", "EGITIMI")
     private const val MIN_HEADER_SCORE = 0.55f
+    private const val MIN_ROW_STEP = 8f
+    private const val MAX_ROW_STEP = 220f
 }
