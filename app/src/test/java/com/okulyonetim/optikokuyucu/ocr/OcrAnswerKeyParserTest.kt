@@ -53,7 +53,59 @@ class OcrAnswerKeyParserTest {
     }
 
     @Test
-    fun `missing question numbers are reconstructed from shared table rows`() {
+    fun `two dimensional subject blocks stay in their own table regions`() {
+        val sections = listOf(
+            section("tr", "Türkçe", "tr:1", "tr:2"),
+            section("ink", "T.C. İnkılap Tarihi", "ink:1", "ink:2"),
+            section("din", "Din Kültürü ve Ahlak Bilgisi", "din:1", "din:2"),
+            section("eng", "İngilizce", "eng:1", "eng:2"),
+            section("mat", "Matematik", "mat:1", "mat:2"),
+            section("fen", "Fen Bilimleri", "fen:1", "fen:2")
+        )
+        val tokens = mutableListOf<OcrToken>()
+        val headers = listOf(
+            Triple("TÜRKÇE", 100, 50),
+            Triple("TC. İnk. Tarh", 300, 50),
+            Triple("DİN", 500, 50),
+            Triple("İngilizce", 100, 280),
+            Triple("Matematik", 300, 280),
+            Triple("Fen Bilimleri", 500, 280)
+        )
+        val answerPairs = listOf(
+            listOf("C", "D"), listOf("A", "B"), listOf("B", "C"),
+            listOf("D", "A"), listOf("C", "B"), listOf("A", "D")
+        )
+        headers.forEachIndexed { index, (label, x, y) ->
+            tokens += token(label, x - 55, y, x + 55, y + 22)
+            answerPairs[index].forEachIndexed { row, answer ->
+                val rowY = y + 62 + row * 42
+                tokens += token((row + 1).toString(), x - 42, rowY, x - 23, rowY + 20)
+                tokens += token(answer, x + 18, rowY, x + 37, rowY + 20)
+            }
+        }
+
+        val parsed = OcrAnswerKeyParser.parse(
+            OcrRecognitionResult(
+                text = "ÖZDEBİR LGS GENEL DENEME SINAVI 2 A GRUBU",
+                tokens = tokens,
+                imageWidth = 600,
+                imageHeight = 520
+            ),
+            sections,
+            listOf("A", "B")
+        )
+
+        assertEquals(12, parsed.answers.size)
+        assertEquals("C", parsed.answers["tr:1"])
+        assertEquals("B", parsed.answers["ink:2"])
+        assertEquals("C", parsed.answers["din:2"])
+        assertEquals("D", parsed.answers["eng:1"])
+        assertEquals("B", parsed.answers["mat:2"])
+        assertEquals("D", parsed.answers["fen:2"])
+    }
+
+    @Test
+    fun `missing question numbers are reconstructed from table rows`() {
         val sections = listOf(
             section("tr", "Türkçe", "tr:1", "tr:2", "tr:3", "tr:4", "tr:5"),
             section("fen", "Fen Bilimleri", "fen:1", "fen:2", "fen:3", "fen:4", "fen:5")

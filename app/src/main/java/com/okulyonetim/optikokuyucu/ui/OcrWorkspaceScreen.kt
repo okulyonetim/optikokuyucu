@@ -1,11 +1,6 @@
 package com.okulyonetim.optikokuyucu.ui
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +24,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,15 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.ocr.OcrAnswerKeyExtraction
@@ -68,11 +58,9 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
-import java.io.File
 
-private enum class OcrWorkspaceMode { TEXT, ANSWER_KEY }
+private enum class OcrWorkspaceMode { DOCUMENT_LAYOUT, ANSWER_KEY }
 private enum class OcrWritingMode { PRINTED, HANDWRITING }
-private enum class OcrImageSource { GALLERY, CAMERA, SCANNER }
 
 private data class OcrExamTarget(
     val exam: Exam,
@@ -86,76 +74,48 @@ private data class OcrExamTarget(
 fun OcrWorkspaceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val clipboard = LocalClipboardManager.current
     val exams = remember(context) { FileExamRepository(appContext).list() }
     val keyRepository = remember(context) { FileAnswerKeyRepository(appContext) }
 
-    var mode by remember { mutableStateOf(OcrWorkspaceMode.TEXT) }
+    var mode by remember { mutableStateOf(OcrWorkspaceMode.DOCUMENT_LAYOUT) }
     var writingMode by remember { mutableStateOf(OcrWritingMode.PRINTED) }
     var selectedExamId by remember { mutableStateOf<String?>(null) }
     var examMenuOpen by remember { mutableStateOf(false) }
     var recognition by remember { mutableStateOf<OcrRecognitionResult?>(null) }
     var extraction by remember { mutableStateOf<OcrAnswerKeyExtraction?>(null) }
-    var editableText by remember { mutableStateOf("") }
     var editedAnswers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var selectedBooklet by remember { mutableStateOf<String?>(null) }
     var bookletMenuOpen by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-    var lastSource by remember { mutableStateOf(OcrImageSource.GALLERY) }
 
     val selectedExam = remember(selectedExamId, exams) { exams.firstOrNull { it.id == selectedExamId } }
     val target = remember(selectedExam?.id, selectedExam?.templateSelection) {
         selectedExam?.let { loadOcrExamTarget(appContext, it) }
     }
 
-    fun applyRecognition(value: OcrRecognitionResult) {
-        recognition = value
-        editableText = value.text
-        status = buildString {
-            append("OCR tamamlandı · ${value.tokens.size} öğe")
-            if (value.enhancedForHandwriting) append(" · el yazısı iyileştirmesi kullanıldı")
-        }
-    }
-
-    fun process(uri: Uri, source: OcrImageSource) {
-        if (busy) return
+    fun processPages(pageUris: List<android.net.Uri>) {
+        if (busy || pageUris.isEmpty()) return
         busy = true
-        lastSource = source
         status = when {
-            mode == OcrWorkspaceMode.ANSWER_KEY -> "Cevap anahtarı yüksek çözünürlükte analiz ediliyor…"
-            writingMode == OcrWritingMode.HANDWRITING -> "El yazısı için iki aşamalı OCR uygulanıyor…"
-            else -> "Türkçe metin okunuyor…"
+            writingMode == OcrWritingMode.HANDWRITING -> "Belge düzeltildi · el yazısı iyileştirilerek yerinde tanınıyor…"
+            pageUris.size > 1 -> "Belge düzeltildi · ${pageUris.size} sayfa yerleşimi korunarak tanınıyor…"
+            else -> "Belge düzeltildi · metinler kendi konumlarında tanınıyor…"
         }
-        OcrTextRecognizer.recognize(
-            context = appContext,
-            uri = uri,
-            handwritingMode = writingMode == OcrWritingMode.HANDWRITING,
-            answerKeyMode = mode == OcrWorkspaceMode.ANSWER_KEY
-        ) { result ->
-            busy = false
-            result.onSuccess(::applyRecognition).onFailure { error ->
-                recognition = null
-                extraction = null
-                status = "OCR başarısız: ${error.message ?: error.javaClass.simpleName}"
-            }
-        }
-    }
-
-    fun processPages(uris: List<Uri>, source: OcrImageSource) {
-        if (busy || uris.isEmpty()) return
-        busy = true
-        lastSource = source
-        status = if (uris.size > 1) "${uris.size} sayfa OCR ile okunuyor…" else "Taranan belge OCR ile okunuyor…"
         OcrTextRecognizer.recognizePages(
             context = appContext,
-            uris = uris,
+            uris = pageUris,
             handwritingMode = writingMode == OcrWritingMode.HANDWRITING,
             answerKeyMode = mode == OcrWorkspaceMode.ANSWER_KEY
         ) { result ->
             busy = false
-            result.onSuccess(::applyRecognition).onFailure { error ->
+            result.onSuccess { value ->
+                recognition = value
+                status = buildString {
+                    append("OCR tamamlandı · ${value.tokens.size} konumlu öğe · belge düzeni korundu")
+                    if (value.enhancedForHandwriting) append(" · el yazısı iyileştirmesi")
+                }
+            }.onFailure { error ->
                 recognition = null
                 extraction = null
                 status = "OCR başarısız: ${error.message ?: error.javaClass.simpleName}"
@@ -164,7 +124,12 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(mode, recognition, target?.exam?.id) {
-        if (mode != OcrWorkspaceMode.ANSWER_KEY) return@LaunchedEffect
+        if (mode != OcrWorkspaceMode.ANSWER_KEY) {
+            extraction = null
+            editedAnswers = emptyMap()
+            selectedBooklet = null
+            return@LaunchedEffect
+        }
         val currentRecognition = recognition
         val currentTarget = target
         if (currentRecognition == null || currentTarget == null) {
@@ -181,45 +146,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
         extraction = parsed
         editedAnswers = parsed.answers
         selectedBooklet = parsed.detectedBooklet ?: currentTarget.bookletChoices.singleOrNull()
-        status = "${parsed.answers.size}/${currentTarget.sections.sumOf { it.questionIds.size }} cevap algılandı"
-    }
-
-    val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) process(uri, OcrImageSource.GALLERY)
-    }
-
-    fun createCameraUri(): Uri {
-        val directory = File(context.cacheDir, "ocr-camera").apply { mkdirs() }
-        val file = File(directory, "ocr-${System.currentTimeMillis()}.jpg")
-        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val uri = pendingCameraUri
-        pendingCameraUri = null
-        if (success && uri != null) process(uri, OcrImageSource.CAMERA)
-        else if (!success) status = "Kamera işlemi iptal edildi."
-    }
-
-    fun launchCamera() {
-        runCatching { createCameraUri() }
-            .onSuccess { uri ->
-                pendingCameraUri = uri
-                cameraLauncher.launch(uri)
-            }
-            .onFailure { error -> status = "Kamera açılamadı: ${error.message ?: error.javaClass.simpleName}" }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchCamera() else status = "Kamera izni verilmedi."
-    }
-
-    fun requestCamera() {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            launchCamera()
-        } else {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
+        status = "${parsed.answers.size}/${currentTarget.sections.sumOf { it.questionIds.size }} cevap konumlarından algılandı"
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -232,31 +159,37 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
             item {
                 OcrSectionCard(
                     title = "OCR Modu",
-                    subtitle = "Türkçe belgeyi metne çevirin veya cevap anahtarını sınava aktarın."
+                    subtitle = "Belge görüntüsü korunur; OCR metni sayfadan koparıp düz listeye dönüştürmez."
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OcrChoiceButton(Modifier.weight(1f), "Belgeden Metin", mode == OcrWorkspaceMode.TEXT) {
-                            mode = OcrWorkspaceMode.TEXT
-                        }
-                        OcrChoiceButton(Modifier.weight(1f), "Cevap Anahtarı", mode == OcrWorkspaceMode.ANSWER_KEY) {
-                            mode = OcrWorkspaceMode.ANSWER_KEY
-                        }
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "Belge Düzeni",
+                            mode == OcrWorkspaceMode.DOCUMENT_LAYOUT
+                        ) { mode = OcrWorkspaceMode.DOCUMENT_LAYOUT }
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "Cevap Anahtarı",
+                            mode == OcrWorkspaceMode.ANSWER_KEY
+                        ) { mode = OcrWorkspaceMode.ANSWER_KEY }
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OcrChoiceButton(Modifier.weight(1f), "Basılı Metin", writingMode == OcrWritingMode.PRINTED) {
-                            writingMode = OcrWritingMode.PRINTED
-                        }
-                        OcrChoiceButton(Modifier.weight(1f), "El Yazısı", writingMode == OcrWritingMode.HANDWRITING) {
-                            writingMode = OcrWritingMode.HANDWRITING
-                        }
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "Basılı Metin",
+                            writingMode == OcrWritingMode.PRINTED
+                        ) { writingMode = OcrWritingMode.PRINTED }
+                        OcrChoiceButton(
+                            Modifier.weight(1f),
+                            "El Yazısı",
+                            writingMode == OcrWritingMode.HANDWRITING
+                        ) { writingMode = OcrWritingMode.HANDWRITING }
                     }
-                    if (writingMode == OcrWritingMode.HANDWRITING) {
-                        Text(
-                            "El yazısında büyütme ve kontrast iyileştirme ile ikinci OCR geçişi uygulanır. Sonucu kaydetmeden önce kontrol edin.",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        "İşlem sırası: kenar/perspektif düzeltme → kırpma/filtre → aynı görüntü üzerinde konumlu OCR. Türkçe karakterler ve sayfa geometrisi korunur.",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -264,7 +197,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                 item {
                     OcrSectionCard(
                         title = "Hedef Sınav",
-                        subtitle = "Dersler ve soru sırası seçili sınavın optik formundan alınır."
+                        subtitle = "Ders ve soru yapısı seçilen sınavın optik formundan alınır."
                     ) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(
@@ -314,37 +247,19 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
             }
 
             item {
-                val canRead = !busy && (mode == OcrWorkspaceMode.TEXT || target != null)
+                val canRead = !busy && (mode == OcrWorkspaceMode.DOCUMENT_LAYOUT || target != null)
                 OcrSectionCard(
-                    title = "Belgeyi / Görseli Oku",
-                    subtitle = if (mode == OcrWorkspaceMode.ANSWER_KEY) {
-                        "Akıllı tarama kenarları bulur, perspektifi düzeltir ve tabloyu OCR'a hazırlar."
-                    } else {
-                        "Akıllı tarama kırpma, perspektif düzeltme ve filtreleri uygular; çok sayfalı belgeler desteklenir."
-                    }
+                    title = "Belgeyi Düzelt ve Tanı",
+                    subtitle = "Kamera veya galeriden alınan belge önce Google Document Scanner ile düzeltilir."
                 ) {
                     OcrDocumentScannerButton(
                         enabled = canRead,
                         pageLimit = if (mode == OcrWorkspaceMode.ANSWER_KEY) 1 else 10,
-                        onPagesReady = { pages -> processPages(pages, OcrImageSource.SCANNER) },
+                        onPagesReady = ::processPages,
                         onStatus = { status = it }
                     )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = canRead,
-                            onClick = { galleryPicker.launch("image/*") },
-                            shape = RoundedCornerShape(13.dp)
-                        ) { Text(if (busy) "Okunuyor…" else "Galeriden Seç") }
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            enabled = canRead,
-                            onClick = ::requestCamera,
-                            shape = RoundedCornerShape(13.dp)
-                        ) { Text("Hızlı Kamera") }
-                    }
                     Text(
-                        "Cevap anahtarında sembol düzeyi A/B/C/D okuma, güven puanı ve satır geometrisi birlikte kullanılır.",
+                        "Tarayıcı içinden galeriyi de seçebilirsiniz. Ham görsel doğrudan OCR'a gönderilmez; düzeltilmiş sayfa üzerinde tanıma yapılır.",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -352,37 +267,21 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                         Text(
                             status,
                             fontSize = 10.sp,
-                            color = if (
-                                status.startsWith("OCR başarısız") ||
-                                status.startsWith("Kamera açılamadı") ||
-                                status.startsWith("Akıllı belge tarayıcı açılamadı")
-                            ) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            color = if (status.startsWith("OCR başarısız") || status.startsWith("Akıllı belge tarayıcı açılamadı")) {
+                                MaterialTheme.colorScheme.error
+                            } else MaterialTheme.colorScheme.primary
                         )
                     }
                 }
             }
 
-            if (mode == OcrWorkspaceMode.TEXT && recognition != null) {
+            recognition?.let { currentRecognition ->
                 item {
-                    OcrSectionCard("Düzenlenebilir Metin", "OCR sonucunu burada düzeltebilir ve kopyalayabilirsiniz.") {
-                        OutlinedTextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = editableText,
-                            onValueChange = { editableText = it },
-                            minLines = 10,
-                            maxLines = 24,
-                            shape = RoundedCornerShape(13.dp),
-                            label = { Text("Metin") }
-                        )
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = editableText.isNotBlank(),
-                            onClick = {
-                                clipboard.setText(AnnotatedString(editableText))
-                                status = "Metin panoya kopyalandı."
-                            },
-                            shape = RoundedCornerShape(13.dp)
-                        ) { Text("Metni Kopyala") }
+                    OcrSectionCard(
+                        title = "Düzeni Korunan OCR",
+                        subtitle = "Tablo tablo olarak, metin kendi sayfa konumunda kalır. Yeşil çerçeveler tanınan alanları gösterir."
+                    ) {
+                        OcrLayoutPreview(currentRecognition)
                     }
                 }
             }
@@ -392,7 +291,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
             if (mode == OcrWorkspaceMode.ANSWER_KEY && parsed != null && currentTarget != null) {
                 if (parsed.warnings.isNotEmpty()) {
                     item {
-                        OcrSectionCard("Kontrol Gerekenler", "Şüpheli veya düşük güvenli hücreler kullanıcıya gösterilir.") {
+                        OcrSectionCard("Kontrol Gerekenler", "Belirsiz hücreler otomatik olarak doğru kabul edilmez.") {
                             parsed.warnings.forEach { warning ->
                                 Text("• $warning", fontSize = 10.sp, color = MaterialTheme.colorScheme.error)
                             }
@@ -402,7 +301,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 
                 if (currentTarget.bookletChoices.isNotEmpty()) {
                     item {
-                        OcrSectionCard("Kitapçık", "Görselden algılanan kitapçığı doğrulayın.") {
+                        OcrSectionCard("Kitapçık", "Görseldeki kitapçık bilgisini doğrulayın.") {
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedButton(
                                     modifier = Modifier.fillMaxWidth(),
@@ -466,14 +365,11 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                         ),
                                         variantGridId = if (variant == null) null else currentTarget.bookletGridId,
                                         variantValue = variant,
-                                        source = if (lastSource == OcrImageSource.GALLERY) AnswerKeySource.GALLERY else AnswerKeySource.CAMERA,
+                                        source = AnswerKeySource.CAMERA,
                                         examId = currentTarget.exam.id
                                     ).also(keyRepository::save)
                                 }.onSuccess {
-                                    status = buildString {
-                                        append("${expected.size} soruluk OCR cevap anahtarı sınava kaydedildi")
-                                        selectedBooklet?.let { append(" · Kitapçık $it") }
-                                    }
+                                    status = "${expected.size} soruluk cevap anahtarı sınava kaydedildi"
                                 }.onFailure { error ->
                                     status = "Cevap anahtarı kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
                                 }
@@ -528,7 +424,7 @@ private fun OcrAnswerSection(
     answers: Map<String, String>,
     onAnswerChange: (String, String) -> Unit
 ) {
-    OcrSectionCard(section.label, "${section.questionIds.size} soru · OCR sonucunu kontrol edin") {
+    OcrSectionCard(section.label, "${section.questionIds.size} soru · görsel konumlarından okundu") {
         section.questionIds.forEachIndexed { index, questionId ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
