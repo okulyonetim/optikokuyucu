@@ -137,10 +137,19 @@ internal fun DrawScope.drawDesignerTextElement(
     val averageScale = (scaleX + scaleY) / 2f
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas
-        val left = element.bounds.left.toFloat() * scaleX
-        val top = element.bounds.top.toFloat() * scaleY
-        val right = element.bounds.right.toFloat() * scaleX
-        val bottom = element.bounds.bottom.toFloat() * scaleY
+        val physicalLeft = element.bounds.left.toFloat() * scaleX
+        val physicalTop = element.bounds.top.toFloat() * scaleY
+        val physicalRight = element.bounds.right.toFloat() * scaleX
+        val physicalBottom = element.bounds.bottom.toFloat() * scaleY
+        val centerX = (physicalLeft + physicalRight) / 2f
+        val centerY = (physicalTop + physicalBottom) / 2f
+        val rotatedQuarterTurn = element.rotationDegrees == 90 || element.rotationDegrees == 270
+        val logicalWidth = if (rotatedQuarterTurn) physicalBottom - physicalTop else physicalRight - physicalLeft
+        val logicalHeight = if (rotatedQuarterTurn) physicalRight - physicalLeft else physicalBottom - physicalTop
+        val left = centerX - logicalWidth / 2f
+        val right = centerX + logicalWidth / 2f
+        val top = centerY - logicalHeight / 2f
+        val bottom = centerY + logicalHeight / 2f
         val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
             color = AndroidColor.BLACK
             textSize = (element.fontSize.toFloat() * averageScale).coerceAtLeast(7f)
@@ -159,6 +168,9 @@ internal fun DrawScope.drawDesignerTextElement(
         val lineHeight = paint.textSize * 1.22f
         var baseline = top + paint.textSize
         native.save()
+        if (element.rotationDegrees != 0) {
+            native.rotate(element.rotationDegrees.toFloat(), centerX, centerY)
+        }
         native.clipRect(left, top, right, bottom)
         element.text.split('\n').forEach { line ->
             if (baseline <= bottom + paint.textSize * 0.2f) {
