@@ -11,6 +11,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import com.okulyonetim.optikokuyucu.school.SchoolOfflineSessionPolicy
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
+import com.okulyonetim.optikokuyucu.school.SchoolSyncAccessPolicy
 import com.okulyonetim.optikokuyucu.school.SchoolUserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -69,20 +70,35 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
     }
 
     LaunchedEffect(profile?.uid) {
-        if (profile == null) return@LaunchedEffect
-        runCatching {
+        val initialProfile = profile ?: return@LaunchedEffect
+        val activeProfile = runCatching {
             withContext(Dispatchers.IO) { manager.refreshProfile() }
         }.onSuccess { refreshed ->
             profile = refreshed.profile
-        }
+        }.getOrNull()?.profile ?: initialProfile
+
         runCatching {
-            withContext(Dispatchers.IO) { manager.migrateLegacyAdminContent() }
+            withContext(Dispatchers.IO) { manager.refreshInstitutionInfo() }
         }
-        runCatching { syncDirectory() }
-            .onSuccess { directoryStatus = it }
-            .onFailure { directoryStatus = "Çevrimdışı · cihazdaki öğrenci listesi kullanılıyor" }
-        runCatching {
-            withContext(Dispatchers.IO) { manager.syncTemplates() }
+
+        if (activeProfile.admin) {
+            runCatching {
+                withContext(Dispatchers.IO) { manager.migrateLegacyAdminContent() }
+            }
+        }
+
+        if (SchoolSyncAccessPolicy.canSyncDirectory(activeProfile)) {
+            runCatching { syncDirectory() }
+                .onSuccess { directoryStatus = it }
+                .onFailure { directoryStatus = "Çevrimdışı · cihazdaki öğrenci listesi kullanılıyor" }
+        } else {
+            directoryStatus = "Öğretmen hesabında yönetici eşitlemesi kapalı"
+        }
+
+        if (SchoolSyncAccessPolicy.canSyncTemplates(activeProfile)) {
+            runCatching {
+                withContext(Dispatchers.IO) { manager.syncTemplates() }
+            }
         }
         runCatching {
             withContext(Dispatchers.IO) { manager.refreshExamCatalog() }
@@ -119,7 +135,10 @@ fun SchoolPortalGate(content: @Composable () -> Unit) {
             syncCloudNow = {
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        manager.syncTemplates()
+                        manager.refreshInstitutionInfo()
+                        if (SchoolSyncAccessPolicy.canSyncTemplates(signedIn)) {
+                            manager.syncTemplates()
+                        }
                         manager.refreshExamCatalog()
                     }
                     syncCloud(force = true)
