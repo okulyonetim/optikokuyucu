@@ -75,6 +75,7 @@ object DesignerDocumentCodec {
                 out.writeUTF(component.label)
                 out.writeBoolean(component.showLabel)
                 out.writeUTF(component.labelAlignment.name)
+                out.writeDouble(component.labelGap)
             }
             is NumericGridComponent -> {
                 out.writeByte(TYPE_NUMERIC_GRID)
@@ -90,6 +91,7 @@ object DesignerDocumentCodec {
                 out.writeUTF(component.label)
                 out.writeBoolean(component.showLabel)
                 out.writeUTF(component.labelAlignment.name)
+                out.writeDouble(component.labelGap)
             }
             is SingleChoiceComponent -> {
                 out.writeByte(TYPE_SINGLE_CHOICE)
@@ -102,6 +104,7 @@ object DesignerDocumentCodec {
                 out.writeUTF(component.label)
                 out.writeBoolean(component.showLabel)
                 out.writeUTF(component.labelAlignment.name)
+                out.writeDouble(component.labelGap)
             }
         }
     }
@@ -124,7 +127,26 @@ object DesignerDocumentCodec {
             val label = if (schema >= 5) input.readUTF() else "Ders"
             val showLabel = if (schema >= 5) input.readBoolean() else true
             val labelAlignment = if (schema >= 7) DesignerTextAlignment.valueOf(input.readUTF()) else DesignerTextAlignment.START
-            QuestionGroupComponent(id, startQuestion, questionCount, choices, columns, firstChoiceX, topY, bubbleRadius, choiceGap, rowGap, columnGap, questionIdPrefix, orientation, label, showLabel, labelAlignment)
+            val labelGap = if (schema >= 9) input.readDouble() else 0.0
+            QuestionGroupComponent(
+                id = id,
+                startQuestion = startQuestion,
+                questionCount = questionCount,
+                choices = choices,
+                columns = columns,
+                firstChoiceX = firstChoiceX,
+                topY = topY,
+                bubbleRadius = bubbleRadius,
+                choiceGap = choiceGap,
+                rowGap = rowGap,
+                columnGap = columnGap,
+                questionIdPrefix = questionIdPrefix,
+                orientation = orientation,
+                label = label,
+                showLabel = showLabel,
+                labelAlignment = labelAlignment,
+                labelGap = labelGap
+            )
         }
         TYPE_NUMERIC_GRID -> {
             val id = input.readUTF()
@@ -139,7 +161,22 @@ object DesignerDocumentCodec {
             val label = if (schema >= 4) input.readUTF() else "Numara"
             val showLabel = if (schema >= 4) input.readBoolean() else true
             val labelAlignment = if (schema >= 7) DesignerTextAlignment.valueOf(input.readUTF()) else DesignerTextAlignment.START
-            NumericGridComponent(id, digits, startX, topY, bubbleRadius, columnGap, rowGap, values, orientation, label, showLabel, labelAlignment)
+            val labelGap = if (schema >= 9) input.readDouble() else 0.0
+            NumericGridComponent(
+                id = id,
+                digits = digits,
+                startX = startX,
+                topY = topY,
+                bubbleRadius = bubbleRadius,
+                columnGap = columnGap,
+                rowGap = rowGap,
+                values = values,
+                orientation = orientation,
+                label = label,
+                showLabel = showLabel,
+                labelAlignment = labelAlignment,
+                labelGap = labelGap
+            )
         }
         TYPE_SINGLE_CHOICE -> {
             val id = input.readUTF()
@@ -151,7 +188,19 @@ object DesignerDocumentCodec {
             val label = if (schema >= 7) input.readUTF() else "Kitapçık Türü"
             val showLabel = if (schema >= 7) input.readBoolean() else true
             val labelAlignment = if (schema >= 7) DesignerTextAlignment.valueOf(input.readUTF()) else DesignerTextAlignment.START
-            SingleChoiceComponent(id, choices, start, radius, gap, axis, label, showLabel, labelAlignment)
+            val labelGap = if (schema >= 9) input.readDouble() else 0.0
+            SingleChoiceComponent(
+                id = id,
+                choices = choices,
+                start = start,
+                bubbleRadius = radius,
+                gap = gap,
+                axis = axis,
+                label = label,
+                showLabel = showLabel,
+                labelAlignment = labelAlignment,
+                labelGap = labelGap
+            )
         }
         else -> error("Bilinmeyen OMR tasarım bileşeni.")
     }
@@ -161,7 +210,7 @@ object DesignerDocumentCodec {
             is DesignerTextElement -> {
                 out.writeByte(TYPE_TEXT); out.writeUTF(element.id); writeRect(out, element.bounds); out.writeUTF(element.text)
                 out.writeDouble(element.fontSize); out.writeUTF(element.alignment.name); out.writeBoolean(element.locked); out.writeBoolean(element.bold)
-                out.writeBoolean(element.showPersonalizedLabel)
+                out.writeBoolean(element.showPersonalizedLabel); out.writeInt(element.rotationDegrees)
             }
             is DesignerImageElement -> {
                 out.writeByte(TYPE_IMAGE); out.writeUTF(element.id); writeRect(out, element.bounds); out.writeUTF(element.image.mimeType)
@@ -182,7 +231,18 @@ object DesignerDocumentCodec {
             val id = input.readUTF(); val bounds = readRect(input); val text = input.readUTF(); val fontSize = input.readDouble()
             val alignment = DesignerTextAlignment.valueOf(input.readUTF()); val locked = input.readBoolean(); val bold = if (schema >= 2) input.readBoolean() else false
             val showPersonalizedLabel = if (schema >= 8) input.readBoolean() else DesignerPersonalizedTextBinding.isBound(id)
-            DesignerTextElement(id, bounds, text, fontSize, alignment, bold, locked, showPersonalizedLabel)
+            val rotationDegrees = if (schema >= 10) input.readInt() else 0
+            DesignerTextElement(
+                id = id,
+                bounds = bounds,
+                text = text,
+                fontSize = fontSize,
+                alignment = alignment,
+                bold = bold,
+                locked = locked,
+                showPersonalizedLabel = showPersonalizedLabel,
+                rotationDegrees = rotationDegrees
+            )
         }
         TYPE_IMAGE -> {
             require(schema >= 6) { "Bu tasarım sürümü resim alanını desteklemiyor." }
@@ -222,7 +282,7 @@ object DesignerDocumentCodec {
 
     private const val MAGIC = 0x4F4D5244
     private const val MIN_SUPPORTED_SCHEMA = 1
-    private const val SCHEMA_VERSION = 8
+    private const val SCHEMA_VERSION = 10
     private const val TYPE_QUESTION_GROUP = 1
     private const val TYPE_NUMERIC_GRID = 2
     private const val TYPE_SINGLE_CHOICE = 3
