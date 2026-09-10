@@ -95,6 +95,74 @@ object OcrTextRecognizer {
         }
     }
 
+    /** Recognizes scanner pages in order and joins them into one editable OCR document. */
+    fun recognizePages(
+        context: Context,
+        uris: List<Uri>,
+        handwritingMode: Boolean,
+        answerKeyMode: Boolean = false,
+        onResult: (Result<OcrRecognitionResult>) -> Unit
+    ) {
+        val pages = uris.distinct()
+        if (pages.isEmpty()) {
+            onResult(Result.failure(IllegalArgumentException("Taranan belge sayfası bulunamadı.")))
+            return
+        }
+        if (pages.size == 1) {
+            recognize(context, pages.first(), handwritingMode, answerKeyMode, onResult)
+            return
+        }
+
+        val results = mutableListOf<OcrRecognitionResult>()
+        fun readPage(index: Int) {
+            if (index >= pages.size) {
+                onResult(Result.success(mergePages(results)))
+                return
+            }
+            recognize(
+                context = context,
+                uri = pages[index],
+                handwritingMode = handwritingMode,
+                answerKeyMode = answerKeyMode
+            ) { result ->
+                result.onSuccess {
+                    results += it
+                    readPage(index + 1)
+                }.onFailure { onResult(Result.failure(it)) }
+            }
+        }
+        readPage(0)
+    }
+
+    private fun mergePages(results: List<OcrRecognitionResult>): OcrRecognitionResult {
+        var yOffset = 0
+        val mergedTokens = mutableListOf<OcrToken>()
+        results.forEach { page ->
+            page.tokens.forEach { token ->
+                mergedTokens += token.copy(
+                    top = token.top + yOffset,
+                    bottom = token.bottom + yOffset,
+                    cornerPoints = token.cornerPoints.map { it.copy(y = it.y + yOffset) },
+                    symbols = token.symbols.map { symbol ->
+                        symbol.copy(
+                            top = symbol.top + yOffset,
+                            bottom = symbol.bottom + yOffset,
+                            cornerPoints = symbol.cornerPoints.map { it.copy(y = it.y + yOffset) }
+                        )
+                    }
+                )
+            }
+            yOffset += page.imageHeight + PAGE_GAP_PX
+        }
+        return OcrRecognitionResult(
+            text = results.joinToString("\n\n") { it.text },
+            tokens = mergedTokens,
+            imageWidth = results.maxOfOrNull { it.imageWidth } ?: 0,
+            imageHeight = (yOffset - PAGE_GAP_PX).coerceAtLeast(0),
+            enhancedForHandwriting = results.any { it.enhancedForHandwriting }
+        )
+    }
+
     private fun toResult(
         text: Text,
         imageWidth: Int,
@@ -156,7 +224,6 @@ object OcrTextRecognizer {
         return usefulChars + (longTokens * 3) + (confidentTokens * 2) - (suspicious * 12)
     }
 
-    /** Prefer a pass that actually recovers tiny number/answer cells with usable confidence. */
     private fun answerKeyQualityScore(result: OcrRecognitionResult): Int {
         var score = qualityScore(result)
         result.tokens.forEach { token ->
@@ -266,4 +333,5 @@ object OcrTextRecognizer {
     private val TURKISH = Locale("tr", "TR")
     private val ANSWER_CHOICES = setOf("A", "B", "C", "D", "E")
     private val SUBJECT_HINTS = setOf("TÜRK", "TURK", "MAT", "FEN", "DİN", "DIN", "İNG", "ING", "INK")
+    private const val PAGE_GAP_PX = 24
 }
