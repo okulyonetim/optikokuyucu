@@ -33,7 +33,7 @@ data class AppSettings(
     }
 }
 
-/** Device-local application preferences. */
+/** Device-local application preferences. School identity is writable only through trusted sync. */
 class AppSettingsRepository(context: Context) {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
@@ -54,33 +54,22 @@ class AppSettingsRepository(context: Context) {
         ).normalized()
     }
 
+    /** Generic settings writes cannot change institution identity. */
     fun save(settings: AppSettings) {
-        val incoming = settings.normalized()
         val current = load()
-        // Older settings UI constructs AppSettings(schoolName) and therefore supplies default
-        // appearance/subjects. Preserve explicit custom values when only the school field changed.
-        val legacySchoolOnlyUpdate =
-            incoming.schoolName != current.schoolName &&
-                incoming.themeMode == AppThemeMode.SYSTEM &&
-                incoming.subjects == AppSettings.DEFAULT_SUBJECTS &&
-                (current.themeMode != AppThemeMode.SYSTEM || current.subjects != AppSettings.DEFAULT_SUBJECTS)
-        val normalized = if (legacySchoolOnlyUpdate) {
-            incoming.copy(themeMode = current.themeMode, subjects = current.subjects)
-        } else {
-            incoming
-        }
-        check(
-            preferences.edit()
-                .putString(KEY_SCHOOL_NAME, normalized.schoolName)
-                .putString(KEY_THEME_MODE, normalized.themeMode.name)
-                .putString(KEY_SUBJECTS, normalized.subjects.joinToString(SUBJECT_SEPARATOR))
-                .commit()
-        ) { "Ayarlar kaydedilemedi." }
+        persist(settings.normalized().copy(schoolName = current.schoolName))
     }
 
-    /** Updates only the school field without resetting appearance or the configured subject list. */
+    /** Only trusted Okul Yönetim / institution synchronization should call this method. */
+    fun syncTrustedSchoolName(schoolName: String) {
+        val trusted = schoolName.trim().replace(Regex("\\s+"), " ")
+        require(trusted.isNotBlank()) { "Güvenilir okul adı boş olamaz." }
+        persist(load().copy(schoolName = trusted))
+    }
+
+    @Deprecated("Okul adı elle değiştirilemez; güvenilir kurum eşitlemesini kullanın.")
     fun saveSchoolName(schoolName: String) {
-        save(load().copy(schoolName = schoolName))
+        error("Okul adı yalnız bağlı Okul Yönetim hesabından veya güvenilir kurum kaynağından güncellenebilir.")
     }
 
     fun saveThemeMode(themeMode: AppThemeMode) {
@@ -89,6 +78,17 @@ class AppSettingsRepository(context: Context) {
 
     fun saveSubjects(subjects: List<String>) {
         save(load().copy(subjects = subjects))
+    }
+
+    private fun persist(settings: AppSettings) {
+        val normalized = settings.normalized()
+        check(
+            preferences.edit()
+                .putString(KEY_SCHOOL_NAME, normalized.schoolName)
+                .putString(KEY_THEME_MODE, normalized.themeMode.name)
+                .putString(KEY_SUBJECTS, normalized.subjects.joinToString(SUBJECT_SEPARATOR))
+                .commit()
+        ) { "Ayarlar kaydedilemedi." }
     }
 
     private companion object {
