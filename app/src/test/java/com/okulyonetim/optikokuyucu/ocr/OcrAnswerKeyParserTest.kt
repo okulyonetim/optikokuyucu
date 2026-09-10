@@ -67,7 +67,6 @@ class OcrAnswerKeyParserTest {
         val trAnswers = listOf("C", "D", "B", "C", "A")
         val fenAnswers = listOf("D", "C", "B", "A", "D")
 
-        // Question 3 is missing in Türkçe, and Fen has no readable question numbers at all.
         listOf(1, 2, 4, 5).forEach { number ->
             val y = ys[number - 1]
             tokens += token(number.toString(), 55, y, 75, y + 18)
@@ -96,6 +95,44 @@ class OcrAnswerKeyParserTest {
         assertEquals("D", parsed.answers["fen:1"])
         assertEquals("B", parsed.answers["fen:3"])
         assertEquals("D", parsed.answers["fen:5"])
+    }
+
+    @Test
+    fun `high confidence symbol recovers merged answer and low confidence symbol is rejected`() {
+        val sections = listOf(section("fen", "Fen Bilimleri", "fen:1", "fen:2"))
+        val recognition = OcrRecognitionResult(
+            text = "FEN BİLİMLERİ",
+            tokens = listOf(
+                token("Fen", 20, 20, 70, 40), token("Bilimleri", 72, 20, 160, 40),
+                token("1", 30, 80, 45, 100),
+                OcrToken(
+                    text = "xA",
+                    left = 74,
+                    top = 79,
+                    right = 103,
+                    bottom = 101,
+                    confidence = 0.42f,
+                    symbols = listOf(OcrSymbol("A", 84, 80, 98, 100, confidence = 0.94f))
+                ),
+                token("2", 30, 120, 45, 140),
+                OcrToken(
+                    text = "xB",
+                    left = 74,
+                    top = 119,
+                    right = 103,
+                    bottom = 141,
+                    confidence = 0.42f,
+                    symbols = listOf(OcrSymbol("B", 84, 120, 98, 140, confidence = 0.28f))
+                )
+            ),
+            imageWidth = 200,
+            imageHeight = 200
+        )
+
+        val parsed = OcrAnswerKeyParser.parse(recognition, sections)
+
+        assertEquals("A", parsed.answers["fen:1"])
+        assertTrue("fen:2" !in parsed.answers)
     }
 
     @Test
