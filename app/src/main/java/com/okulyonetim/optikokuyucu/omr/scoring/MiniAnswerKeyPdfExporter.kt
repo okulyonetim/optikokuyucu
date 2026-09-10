@@ -7,7 +7,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import java.io.OutputStream
-import kotlin.math.max
+import kotlin.math.min
 
 object MiniAnswerKeyPdfExporter {
     enum class Orientation { PORTRAIT, LANDSCAPE }
@@ -19,10 +19,12 @@ object MiniAnswerKeyPdfExporter {
         output: OutputStream
     ) {
         require(entries.isNotEmpty()) { "PDF için en az bir cevap anahtarı gerekir." }
-        require(copiesPerPage in setOf(2, 4, 6, 8)) { "Sayfa başına kopya 2, 4, 6 veya 8 olmalıdır." }
+        require(copiesPerPage in MiniAnswerKeyLayout.supportedCopies) {
+            "Sayfa başına kopya ${MiniAnswerKeyLayout.supportedCopies.joinToString()} değerlerinden biri olmalıdır."
+        }
         val pageWidth = if (orientation == Orientation.LANDSCAPE) 842 else 595
         val pageHeight = if (orientation == Orientation.LANDSCAPE) 595 else 842
-        val (columns, rows) = grid(copiesPerPage, orientation)
+        val grid = MiniAnswerKeyLayout.grid(copiesPerPage, orientation)
         val sequence = List(copiesPerPage) { index -> entries[index % entries.size] }
         val pdf = PdfDocument()
         try {
@@ -32,9 +34,13 @@ object MiniAnswerKeyPdfExporter {
                 val canvas = page.canvas
                 canvas.drawColor(Color.WHITE)
                 sequence.forEachIndexed { index, entry ->
-                    drawEntry(canvas, entry, slotRect(index, columns, rows, pageWidth, pageHeight))
+                    drawEntry(
+                        canvas,
+                        entry,
+                        slotRect(index, grid.columns, grid.rows, pageWidth, pageHeight)
+                    )
                 }
-                drawCutGuides(canvas, columns, rows, pageWidth, pageHeight)
+                drawCutGuides(canvas, grid.columns, grid.rows, pageWidth, pageHeight)
             } finally {
                 pdf.finishPage(page)
             }
@@ -45,16 +51,9 @@ object MiniAnswerKeyPdfExporter {
         }
     }
 
-    private fun grid(copies: Int, orientation: Orientation): Pair<Int, Int> = when (copies) {
-        2 -> if (orientation == Orientation.LANDSCAPE) 2 to 1 else 1 to 2
-        4 -> 2 to 2
-        6 -> if (orientation == Orientation.LANDSCAPE) 3 to 2 else 2 to 3
-        else -> if (orientation == Orientation.LANDSCAPE) 4 to 2 else 2 to 4
-    }
-
     private fun slotRect(index: Int, columns: Int, rows: Int, pageWidth: Int, pageHeight: Int): RectF {
-        val outer = 16f
-        val gap = 8f
+        val outer = MiniAnswerKeyLayout.OUTER_MARGIN
+        val gap = MiniAnswerKeyLayout.SLOT_GAP
         val usableWidth = pageWidth - outer * 2f - gap * (columns - 1)
         val usableHeight = pageHeight - outer * 2f - gap * (rows - 1)
         val width = usableWidth / columns
@@ -66,11 +65,11 @@ object MiniAnswerKeyPdfExporter {
         return RectF(left, top, left + width, top + height)
     }
 
-    private fun drawEntry(canvas: Canvas, entry: AnswerKeyPdfExporter.SheetEntry, rect: RectF) {
+    private fun drawEntry(canvas: Canvas, entry: AnswerKeyPdfExporter.SheetEntry, slot: RectF) {
         val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(90, 90, 90)
             style = Paint.Style.STROKE
-            strokeWidth = 0.8f
+            strokeWidth = 0.75f
         }
         val headerFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(70, 86, 80)
@@ -80,52 +79,84 @@ object MiniAnswerKeyPdfExporter {
             color = Color.rgb(232, 237, 234)
             style = Paint.Style.FILL
         }
-        val titlePaint = textPaint((rect.width() / 40f).coerceIn(6.8f, 9f), bold = true, color = Color.WHITE)
-        val sectionPaint = textPaint((rect.width() / 48f).coerceIn(5.5f, 7f), bold = true)
-        val cellPaint = textPaint((rect.width() / 52f).coerceIn(5.2f, 6.5f))
+
+        val contentWidth = slot.width() - MiniAnswerKeyLayout.CARD_SIDE_INSET * 2f
+        val maxQuestions = MiniAnswerKeyLayout.maxQuestionsPerBlock(contentWidth)
+        val blocks = buildBlocks(entry, maxQuestions)
+        if (blocks.isEmpty()) return
+
+        val naturalHeight = MiniAnswerKeyLayout.requiredCardHeight(entry.sections, contentWidth)
+        val cardHeight = naturalHeight.coerceAtMost(slot.height())
+        val cardTop = slot.centerY() - cardHeight / 2f
+        val rect = RectF(
+            slot.left + MiniAnswerKeyLayout.CARD_SIDE_INSET,
+            cardTop,
+            slot.right - MiniAnswerKeyLayout.CARD_SIDE_INSET,
+            cardTop + cardHeight
+        )
+
+        val titlePaint = textPaint((rect.width() / 42f).coerceIn(6.2f, 8.8f), bold = true, color = Color.WHITE)
+        val sectionPaint = textPaint((rect.width() / 50f).coerceIn(5.2f, 6.8f), bold = true)
+        val cellPaint = textPaint((rect.width() / 54f).coerceIn(4.9f, 6.3f))
         val variant = entry.key.variantValue?.let { " ($it Kitapçığı)" }.orEmpty()
         val heading = "${entry.title}$variant"
 
         canvas.drawRect(rect, border)
-        val headerHeight = (rect.height() * 0.10f).coerceIn(16f, 23f)
+        val headerHeight = MiniAnswerKeyLayout.HEADER_HEIGHT.coerceAtMost(rect.height())
         canvas.drawRect(rect.left, rect.top, rect.right, rect.top + headerHeight, headerFill)
-        drawCenteredText(canvas, fitted(heading, titlePaint, rect.width() - 8f), rect.centerX(), rect.top + headerHeight / 2f, titlePaint)
+        drawCenteredText(
+            canvas,
+            fitted(heading, titlePaint, rect.width() - 8f),
+            rect.centerX(),
+            rect.top + headerHeight / 2f,
+            titlePaint
+        )
 
-        val maxQuestions = when {
-            rect.width() >= 360f -> 25
-            rect.width() >= 260f -> 20
-            else -> 15
-        }
-        val blocks = entry.sections.flatMap { section ->
-            section.questionIds.chunked(maxQuestions).mapIndexed { index, questionIds ->
-                SectionBlock(
-                    label = if (index == 0) section.label.uppercase() else "${section.label.uppercase()} (DEVAM)",
-                    questionIds = questionIds,
-                    startNumber = index * maxQuestions + 1,
-                    maxColumns = maxQuestions
-                )
-            }
-        }
-        if (blocks.isEmpty()) return
-        val available = rect.height() - headerHeight - 4f
-        val blockHeight = (available / blocks.size).coerceAtLeast(18f)
-        var y = rect.top + headerHeight + 2f
+        val gap = MiniAnswerKeyLayout.BLOCK_GAP
+        val availableHeight = (rect.height() - headerHeight - MiniAnswerKeyLayout.CARD_VERTICAL_PADDING * 2f)
+            .coerceAtLeast(1f)
+        val requestedGaps = gap * (blocks.size - 1).coerceAtLeast(0)
+        val blockHeight = min(
+            MiniAnswerKeyLayout.BLOCK_HEIGHT,
+            ((availableHeight - requestedGaps) / blocks.size).coerceAtLeast(18f)
+        )
+        val totalBlocksHeight = blockHeight * blocks.size + requestedGaps
+        var y = rect.top + headerHeight + (rect.height() - headerHeight - totalBlocksHeight) / 2f
+
         blocks.forEach { block ->
             if (y + blockHeight > rect.bottom + 0.1f) return@forEach
             drawBlock(
                 canvas = canvas,
                 entry = entry,
                 block = block,
-                left = rect.left + 2f,
+                left = rect.left + 1.5f,
                 top = y,
-                right = rect.right - 2f,
+                right = rect.right - 1.5f,
                 height = blockHeight,
                 border = border,
                 sectionFill = sectionFill,
                 sectionPaint = sectionPaint,
                 cellPaint = cellPaint
             )
-            y += blockHeight
+            y += blockHeight + gap
+        }
+    }
+
+    private fun buildBlocks(
+        entry: AnswerKeyPdfExporter.SheetEntry,
+        maxQuestions: Int
+    ): List<SectionBlock> = entry.sections.flatMap { section ->
+        section.questionIds.chunked(maxQuestions).mapIndexed { index, questionIds ->
+            SectionBlock(
+                label = if (index == 0) section.label.uppercase() else "${section.label.uppercase()} (DEVAM)",
+                questionIds = questionIds,
+                startNumber = index * maxQuestions + 1,
+                columnCount = if (section.questionIds.size <= maxQuestions) {
+                    questionIds.size.coerceAtLeast(1)
+                } else {
+                    maxQuestions
+                }
+            )
         }
     }
 
@@ -142,23 +173,41 @@ object MiniAnswerKeyPdfExporter {
         sectionPaint: Paint,
         cellPaint: Paint
     ) {
-        val labelHeight = max(7f, height * 0.30f)
+        val labelHeight = (height * 0.30f).coerceIn(8f, 11.5f)
         val rowHeight = (height - labelHeight) / 2f
         canvas.drawRect(left, top, right, top + labelHeight, sectionFill)
         canvas.drawRect(left, top, right, top + height, border)
         canvas.drawLine(left, top + labelHeight, right, top + labelHeight, border)
         canvas.drawLine(left, top + labelHeight + rowHeight, right, top + labelHeight + rowHeight, border)
-        drawLeftText(canvas, fitted(block.label, sectionPaint, right - left - 4f), left + 2f, top + labelHeight / 2f, sectionPaint)
+        drawLeftText(
+            canvas,
+            fitted(block.label, sectionPaint, right - left - 4f),
+            left + 2f,
+            top + labelHeight / 2f,
+            sectionPaint
+        )
 
-        val cellWidth = (right - left) / block.maxColumns
-        for (column in 0..block.maxColumns) {
+        val cellWidth = (right - left) / block.columnCount
+        for (column in 0..block.columnCount) {
             val x = left + column * cellWidth
             canvas.drawLine(x, top + labelHeight, x, top + height, border)
         }
         block.questionIds.forEachIndexed { index, questionId ->
             val centerX = left + cellWidth * (index + 0.5f)
-            drawCenteredText(canvas, (block.startNumber + index).toString(), centerX, top + labelHeight + rowHeight / 2f, cellPaint)
-            drawCenteredText(canvas, entry.key.answerKey.answers[questionId].orEmpty(), centerX, top + labelHeight + rowHeight + rowHeight / 2f, cellPaint)
+            drawCenteredText(
+                canvas,
+                (block.startNumber + index).toString(),
+                centerX,
+                top + labelHeight + rowHeight / 2f,
+                cellPaint
+            )
+            drawCenteredText(
+                canvas,
+                entry.key.answerKey.answers[questionId].orEmpty(),
+                centerX,
+                top + labelHeight + rowHeight + rowHeight / 2f,
+                cellPaint
+            )
         }
     }
 
@@ -166,7 +215,7 @@ object MiniAnswerKeyPdfExporter {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(180, 180, 180)
             style = Paint.Style.STROKE
-            strokeWidth = 0.55f
+            strokeWidth = 0.5f
         }
         for (column in 1 until columns) {
             val x = pageWidth * column / columns.toFloat()
@@ -209,6 +258,6 @@ object MiniAnswerKeyPdfExporter {
         val label: String,
         val questionIds: List<String>,
         val startNumber: Int,
-        val maxColumns: Int
+        val columnCount: Int
     )
 }
