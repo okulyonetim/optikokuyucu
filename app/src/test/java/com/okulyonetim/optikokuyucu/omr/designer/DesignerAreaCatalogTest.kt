@@ -28,10 +28,19 @@ class DesignerAreaCatalogTest {
             DesignerAreaCatalog.sections[1].kinds
         )
         assertEquals(
-            listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE),
+            listOf(DesignerAreaKind.IMAGE, DesignerAreaKind.DESCRIPTION),
             DesignerAreaCatalog.sections[2].kinds
         )
         assertEquals(DesignerAreaKind.entries.toSet(), DesignerAreaCatalog.allKinds.toSet())
+    }
+
+    @Test
+    fun `image is surfaced before the long information editor entry`() {
+        assertEquals(DesignerAreaKind.IMAGE, DesignerAreaCatalog.sections.last().kinds.first())
+        assertEquals("Resim", DesignerAreaKind.IMAGE.displayName)
+        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Ad Soyad"))
+        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Numara"))
+        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Sınıf"))
     }
 
     @Test
@@ -49,7 +58,7 @@ class DesignerAreaCatalogTest {
                     "Öğrenci Numarası",
                     "Sınav Adı",
                     "Okul Adı",
-                    "Açıklama",
+                    "Ad Soyad • Numara • Sınıf / Açıklama",
                     "Resim"
                 )
             )

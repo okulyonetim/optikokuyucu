@@ -14,7 +14,7 @@ enum class DesignerAreaKind(val displayName: String) {
     STUDENT_NUMBER_TEXT("Öğrenci Numarası"),
     EXAM_NAME("Sınav Adı"),
     SCHOOL_NAME("Okul Adı"),
-    DESCRIPTION("Açıklama"),
+    DESCRIPTION("Ad Soyad • Numara • Sınıf / Açıklama"),
     IMAGE("Resim")
 }
 
@@ -38,7 +38,7 @@ object DesignerAreaCatalog {
                 DesignerAreaKind.SCHOOL_NAME
             )
         ),
-        DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.DESCRIPTION, DesignerAreaKind.IMAGE))
+        DesignerAreaSection("Bilgilendirme Alanı", listOf(DesignerAreaKind.IMAGE, DesignerAreaKind.DESCRIPTION))
     )
     val allKinds: List<DesignerAreaKind> = sections.flatMap { it.kinds }
     val numberPatternPresets = listOf("0123456789", "AB", "ABC", "ABCD", "ABCDE")
