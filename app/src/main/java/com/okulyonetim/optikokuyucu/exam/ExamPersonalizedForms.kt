@@ -38,7 +38,11 @@ object ExamPersonalizedForms {
                 DesignerPersonalizedField.STUDENT_CLASS -> participant.className
                 DesignerPersonalizedField.STUDENT_NUMBER -> participant.studentNumber
                 DesignerPersonalizedField.STUDENT_IDENTITY_LINE ->
-                    "AD SOYAD: ${participant.studentName}  •  NUMARA: ${participant.studentNumber}  •  SINIF: ${participant.className}"
+                    DesignerPersonalizedTextBinding.studentIdentityLine(
+                        participant.studentName,
+                        participant.studentNumber,
+                        participant.className
+                    )
                 DesignerPersonalizedField.EXAM_NAME -> exam.name
                 DesignerPersonalizedField.SCHOOL_NAME -> exam.schoolName
             }

@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.exam
 
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextPresets
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import org.junit.Assert.assertEquals
@@ -52,6 +53,31 @@ class ExamPersonalizedFormsTest {
         assertEquals("16".padStart(numberGrid.digits, '0'), pages[0].numericHeaderValues[numberGrid.id])
         assertEquals(numberGrid.digits, pages[0].filledMarks.size)
         assertTrue(pages[0].filledMarks.any { it.columnId == numberGrid.digits.toString() && it.markId == "6" })
+    }
+
+    @Test
+    fun `combined student identity is rendered without labels`() {
+        var document = DesignerDocument(id = "combined-identity", version = 1, name = "Tek Satır")
+        val source = DesignerAreaCatalog.createDescriptionArea(document)
+        val identity = DesignerTextPresets.studentIdentityLine(document, source).copy(showPersonalizedLabel = true)
+        document = document.copy(visualElements = listOf(identity))
+        val exam = ExamFactory.create(
+            name = "Deneme",
+            schoolName = "Örnek Okulu",
+            templateSelection = ActiveTemplateSelection(
+                ActiveTemplateSource.DESIGNER_DOCUMENT,
+                document.id,
+                document.version
+            ),
+            examDateEpochDay = 21000L,
+            participants = listOf(ExamParticipant("88", "ALİ İMRAN KARAGÖZ", "3/A")),
+            personalizedFormsEnabled = true,
+            createdAtEpochMs = 1L
+        )
+
+        val page = ExamPersonalizedForms.pages(exam, document).single()
+
+        assertEquals("ALİ İMRAN KARAGÖZ - 88 - 3/A", page.textOverrides[identity.id])
     }
 
     @Test

@@ -35,12 +35,10 @@ class DesignerAreaCatalogTest {
     }
 
     @Test
-    fun `image is surfaced before the long information editor entry`() {
+    fun `image and explanation remain separate visible information entries`() {
         assertEquals(DesignerAreaKind.IMAGE, DesignerAreaCatalog.sections.last().kinds.first())
         assertEquals("Resim", DesignerAreaKind.IMAGE.displayName)
-        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Ad Soyad"))
-        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Numara"))
-        assertTrue(DesignerAreaKind.DESCRIPTION.displayName.contains("Sınıf"))
+        assertEquals("Açıklama", DesignerAreaKind.DESCRIPTION.displayName)
     }
 
     @Test
@@ -58,7 +56,7 @@ class DesignerAreaCatalogTest {
                     "Öğrenci Numarası",
                     "Sınav Adı",
                     "Okul Adı",
-                    "Ad Soyad • Numara • Sınıf / Açıklama",
+                    "Açıklama",
                     "Resim"
                 )
             )
