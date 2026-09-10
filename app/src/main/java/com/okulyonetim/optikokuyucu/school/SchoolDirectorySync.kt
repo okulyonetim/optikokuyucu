@@ -161,6 +161,9 @@ class SchoolPortalManager private constructor(context: Context) {
         return SchoolAccountMigration.claimLegacyAdminExams(appContext, profile)
     }
 
+    fun refreshInstitutionInfo(): SchoolInstitutionInfo =
+        SchoolInstitutionSyncService(appContext, client).refresh()
+
     fun syncDirectory(): SchoolDirectorySyncResult =
         SchoolDirectorySyncService(appContext, client).sync()
 
