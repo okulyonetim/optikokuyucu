@@ -13,6 +13,25 @@ class DesignerPreviewSampleDataTest {
         assertEquals("8/A", DesignerPreviewSampleData.STUDENT_CLASS)
         assertEquals("KORUK ORTAOKULU", DesignerPreviewSampleData.SCHOOL_NAME)
         assertEquals("LGS DENEME SINAVI", DesignerPreviewSampleData.EXAM_NAME)
+        assertEquals(
+            "ALİ İMRAN KARAGÖZ - 123 - 8/A",
+            DesignerPreviewSampleData.valueFor(DesignerPersonalizedField.STUDENT_IDENTITY_LINE)
+        )
+    }
+
+    @Test
+    fun `combined identity never adds field labels`() {
+        val element = DesignerTextElement(
+            id = "student-identity-line-test",
+            bounds = com.okulyonetim.optikokuyucu.omr.template.TemplateRect(10.0, 10.0, 300.0, 40.0),
+            text = "Öğrenci Bilgileri",
+            fontSize = 16.0,
+            showPersonalizedLabel = true
+        )
+        val value = DesignerPersonalizedTextBinding.studentIdentityLine("ALİ İMRAN KARAGÖZ", "88", "3/A")
+
+        assertEquals("ALİ İMRAN KARAGÖZ - 88 - 3/A", value)
+        assertEquals(value, DesignerPersonalizedTextBinding.render(element, value))
     }
 
     @Test
