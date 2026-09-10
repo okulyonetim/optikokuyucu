@@ -49,6 +49,7 @@ object OcrAnswerKeyParser {
 
         val allRows = mutableListOf<OcrAnswerRow>()
         val answers = linkedMapOf<String, String>()
+        val lowConfidenceRows = mutableListOf<String>()
 
         sections.forEachIndexed { sectionIndex, section ->
             val (left, right) = ranges[sectionIndex]
@@ -60,8 +61,16 @@ object OcrAnswerKeyParser {
 
             section.questionIds.forEachIndexed { index, questionId ->
                 val number = index + 1
-                val answer = detectedByNumber[number]
-                if (answer == null) missing += number else answers[questionId] = answer
+                val candidate = detectedByNumber[number]
+                val answer = candidate?.choice
+                if (answer == null) {
+                    missing += number
+                } else {
+                    answers[questionId] = answer
+                    if (candidate.confidence < LOW_CONFIDENCE_WARNING) {
+                        lowConfidenceRows += "${section.label} $number"
+                    }
+                }
                 allRows += OcrAnswerRow(
                     sectionId = section.id,
                     subject = section.label,
@@ -78,6 +87,10 @@ object OcrAnswerKeyParser {
             if (missing.isNotEmpty()) {
                 warnings += "${section.label}: okunamayan sorular ${compressNumbers(missing)}."
             }
+        }
+
+        if (lowConfidenceRows.isNotEmpty()) {
+            warnings += "Düşük güvenle okunan cevapları kontrol edin: ${lowConfidenceRows.take(12).joinToString(", ")}${if (lowConfidenceRows.size > 12) "…" else ""}."
         }
 
         val booklet = detectBooklet(recognition.text, knownBooklets)
@@ -117,7 +130,11 @@ object OcrAnswerKeyParser {
         val upperTokens = tokens.filter { it.centerY <= imageHeight * 0.55f }
         val candidates = phraseCandidates(upperTokens.ifEmpty { tokens })
         return candidates
-            .map { candidate -> candidate to aliases.maxOf { alias -> similarity(normalize(candidate.text), alias) } }
+            .map { candidate ->
+                val lexical = aliases.maxOf { alias -> similarity(normalize(candidate.text), alias) }
+                val confidence = candidate.confidence ?: 0.72f
+                candidate to (lexical * (0.82f + confidence.coerceIn(0f, 1f) * 0.18f))
+            }
             .filter { (_, score) -> score >= 0.35f }
             .maxByOrNull { it.second }
     }
@@ -132,6 +149,7 @@ object OcrAnswerKeyParser {
             var top = first.top
             var right = first.right
             var bottom = first.bottom
+            val confidences = mutableListOf<Float>().apply { first.confidence?.let(::add) }
             for (offset in 1..3) {
                 val next = ordered.getOrNull(index + offset) ?: break
                 val sameLine = abs(next.centerY - first.centerY) <= max(first.height, next.height) * 0.85f
@@ -143,7 +161,15 @@ object OcrAnswerKeyParser {
                 top = min(top, next.top)
                 right = max(right, next.right)
                 bottom = max(bottom, next.bottom)
-                result += OcrToken(text, left, top, right, bottom)
+                next.confidence?.let(confidences::add)
+                result += OcrToken(
+                    text = text,
+                    left = left,
+                    top = top,
+                    right = right,
+                    bottom = bottom,
+                    confidence = confidences.takeIf { it.isNotEmpty() }?.average()?.toFloat()
+                )
             }
         }
         return result
@@ -155,7 +181,6 @@ object OcrAnswerKeyParser {
             if (match.token != null && match.score >= MIN_HEADER_SCORE) result[index] = match.token.centerX
         }
 
-        // Preserve the form's subject order even when OCR shifts or misses one header.
         for (i in 1 until result.size) {
             if (result[i] <= result[i - 1]) {
                 result[i] = result[i - 1] + imageWidth.toFloat() / matches.size.coerceAtLeast(1)
@@ -168,11 +193,6 @@ object OcrAnswerKeyParser {
         return result
     }
 
-    /**
-     * Builds one shared row model from every readable question number in the table.
-     * This is deliberately global: if one subject loses e.g. question 9 during OCR, the row can
-     * still be recovered from the same horizontal row in another subject column.
-     */
     private fun buildGlobalRowModel(tokens: List<OcrToken>, maxQuestions: Int): RowModel? {
         if (maxQuestions < 2) return null
         val numbered = tokens.mapNotNull { token ->
@@ -211,58 +231,110 @@ object OcrAnswerKeyParser {
         tokens: List<OcrToken>,
         section: ManualAnswerSection,
         rowModel: RowModel?
-    ): Map<Int, String> {
+    ): Map<Int, AnswerCandidate> {
         val allowed = section.allowedChoices.map(::normalizeChoice).toSet()
         val numbers = tokens.mapNotNull { token ->
             cleanNumber(token.text)?.takeIf { it in 1..section.questionIds.size }?.let { it to token }
         }
-        val answerTokens = tokens.mapNotNull { token ->
-            val choice = normalizeChoice(token.text)
-            choice.takeIf { it in allowed }?.let { AnswerCandidate(choice, token) }
-        }
-        val found = linkedMapOf<Int, String>()
-        val usedAnswerTokens = mutableSetOf<OcrToken>()
+        val answerTokens = buildAnswerCandidates(tokens, allowed)
+        val found = linkedMapOf<Int, AnswerCandidate>()
+        val usedAnswerTokens = mutableSetOf<String>()
 
-        // Exact number + answer pairing remains the strongest signal when both cells are readable.
         numbers.sortedBy { it.second.centerY }.forEach { (number, numberToken) ->
             val best = answerTokens
                 .asSequence()
-                .filter { candidate -> candidate.token !in usedAnswerTokens }
-                .filter { candidate -> candidate.token.centerX > numberToken.centerX }
+                .filter { candidate -> candidate.id !in usedAnswerTokens }
+                .filter { candidate -> candidate.centerX > numberToken.centerX }
                 .filter { candidate ->
-                    abs(candidate.token.centerY - numberToken.centerY) <= max(candidate.token.height, numberToken.height) * 0.95f
+                    abs(candidate.centerY - numberToken.centerY) <= max(candidate.height, numberToken.height) * 0.95f
                 }
                 .minByOrNull { candidate ->
-                    abs(candidate.token.centerX - numberToken.centerX) + abs(candidate.token.centerY - numberToken.centerY) * 2f
+                    val distance = abs(candidate.centerX - numberToken.centerX) + abs(candidate.centerY - numberToken.centerY) * 2f
+                    distance + ((1f - candidate.confidence) * max(candidate.height, numberToken.height) * 1.6f)
                 }
             if (best != null && number !in found) {
-                found[number] = best.choice
-                usedAnswerTokens += best.token
+                found[number] = best
+                usedAnswerTokens += best.id
             }
         }
 
-        // Recover rows whose printed number was missed by OCR using the shared table geometry.
         if (rowModel != null && answerTokens.isNotEmpty()) {
-            val medianHeight = median(answerTokens.map { it.token.height.toFloat() })
+            val medianHeight = median(answerTokens.map { it.height.toFloat() })
             val tolerance = max(rowModel.step * 0.44f, medianHeight * 1.25f)
             for (number in 1..section.questionIds.size) {
                 if (number in found) continue
                 val expectedY = rowModel.centerFor(number)
                 val best = answerTokens
                     .asSequence()
-                    .filter { candidate -> candidate.token !in usedAnswerTokens }
-                    .filter { candidate -> abs(candidate.token.centerY - expectedY) <= tolerance }
-                    .minByOrNull { candidate -> abs(candidate.token.centerY - expectedY) }
+                    .filter { candidate -> candidate.id !in usedAnswerTokens }
+                    .filter { candidate -> abs(candidate.centerY - expectedY) <= tolerance }
+                    .minByOrNull { candidate ->
+                        abs(candidate.centerY - expectedY) + ((1f - candidate.confidence) * tolerance * 0.7f)
+                    }
                 if (best != null) {
-                    found[number] = best.choice
-                    usedAnswerTokens += best.token
+                    found[number] = best
+                    usedAnswerTokens += best.id
                 }
             }
         }
         return found
     }
 
-    private data class AnswerCandidate(val choice: String, val token: OcrToken)
+    private fun buildAnswerCandidates(tokens: List<OcrToken>, allowed: Set<String>): List<AnswerCandidate> {
+        val candidates = mutableListOf<AnswerCandidate>()
+        tokens.forEachIndexed { tokenIndex, token ->
+            val elementChoice = normalizeChoice(token.text)
+            val elementConfidence = token.confidence ?: DEFAULT_ELEMENT_CONFIDENCE
+            if (
+                elementChoice in allowed &&
+                elementConfidence >= MIN_ELEMENT_ANSWER_CONFIDENCE &&
+                abs(token.angle) <= MAX_ANSWER_ANGLE
+            ) {
+                candidates += AnswerCandidate(
+                    id = "e:$tokenIndex",
+                    choice = elementChoice,
+                    centerX = token.centerX,
+                    centerY = token.centerY,
+                    height = token.height,
+                    confidence = elementConfidence.coerceIn(0f, 1f)
+                )
+            }
+
+            token.symbols.forEachIndexed { symbolIndex, symbol ->
+                val symbolChoice = normalizeChoice(symbol.text)
+                val symbolConfidence = symbol.confidence ?: return@forEachIndexed
+                if (
+                    symbolChoice in allowed &&
+                    symbolConfidence >= MIN_SYMBOL_ANSWER_CONFIDENCE &&
+                    abs(symbol.angle) <= MAX_ANSWER_ANGLE
+                ) {
+                    candidates += AnswerCandidate(
+                        id = "s:$tokenIndex:$symbolIndex",
+                        choice = symbolChoice,
+                        centerX = symbol.centerX,
+                        centerY = symbol.centerY,
+                        height = symbol.height,
+                        confidence = symbolConfidence.coerceIn(0f, 1f)
+                    )
+                }
+            }
+        }
+        return candidates
+            .groupBy { candidate ->
+                "${candidate.choice}:${(candidate.centerX / 3f).toInt()}:${(candidate.centerY / 3f).toInt()}"
+            }
+            .values
+            .map { group -> group.maxBy { it.confidence } }
+    }
+
+    private data class AnswerCandidate(
+        val id: String,
+        val choice: String,
+        val centerX: Float,
+        val centerY: Float,
+        val height: Int,
+        val confidence: Float
+    )
 
     private fun cleanNumber(value: String): Int? {
         val cleaned = value.trim().replace(Regex("[^0-9]"), "")
@@ -394,4 +466,9 @@ object OcrAnswerKeyParser {
     private const val MIN_HEADER_SCORE = 0.55f
     private const val MIN_ROW_STEP = 8f
     private const val MAX_ROW_STEP = 220f
+    private const val DEFAULT_ELEMENT_CONFIDENCE = 0.62f
+    private const val MIN_ELEMENT_ANSWER_CONFIDENCE = 0.34f
+    private const val MIN_SYMBOL_ANSWER_CONFIDENCE = 0.52f
+    private const val LOW_CONFIDENCE_WARNING = 0.58f
+    private const val MAX_ANSWER_ANGLE = 18f
 }
