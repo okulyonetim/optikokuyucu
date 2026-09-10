@@ -53,6 +53,52 @@ class OcrAnswerKeyParserTest {
     }
 
     @Test
+    fun `missing question numbers are reconstructed from shared table rows`() {
+        val sections = listOf(
+            section("tr", "Türkçe", "tr:1", "tr:2", "tr:3", "tr:4", "tr:5"),
+            section("fen", "Fen Bilimleri", "fen:1", "fen:2", "fen:3", "fen:4", "fen:5")
+        )
+        val tokens = mutableListOf(
+            token("TÜRKÇE", 45, 50, 135, 70),
+            token("Fen", 245, 50, 280, 70),
+            token("Bilimleri", 282, 50, 355, 70)
+        )
+        val ys = listOf(110, 150, 190, 230, 270)
+        val trAnswers = listOf("C", "D", "B", "C", "A")
+        val fenAnswers = listOf("D", "C", "B", "A", "D")
+
+        // Question 3 is missing in Türkçe, and Fen has no readable question numbers at all.
+        listOf(1, 2, 4, 5).forEach { number ->
+            val y = ys[number - 1]
+            tokens += token(number.toString(), 55, y, 75, y + 18)
+        }
+        trAnswers.forEachIndexed { index, answer ->
+            val y = ys[index]
+            tokens += token(answer, 110, y, 128, y + 18)
+        }
+        fenAnswers.forEachIndexed { index, answer ->
+            val y = ys[index]
+            tokens += token(answer, 310, y, 328, y + 18)
+        }
+
+        val parsed = OcrAnswerKeyParser.parse(
+            OcrRecognitionResult(
+                text = "TÜRKÇE FEN BİLİMLERİ",
+                tokens = tokens,
+                imageWidth = 400,
+                imageHeight = 340
+            ),
+            sections
+        )
+
+        assertEquals(10, parsed.answers.size)
+        assertEquals("B", parsed.answers["tr:3"])
+        assertEquals("D", parsed.answers["fen:1"])
+        assertEquals("B", parsed.answers["fen:3"])
+        assertEquals("D", parsed.answers["fen:5"])
+    }
+
+    @Test
     fun `invalid answer glyph is left for manual review`() {
         val sections = listOf(section("fen", "Fen Bilimleri", "fen:1", "fen:2"))
         val recognition = OcrRecognitionResult(
