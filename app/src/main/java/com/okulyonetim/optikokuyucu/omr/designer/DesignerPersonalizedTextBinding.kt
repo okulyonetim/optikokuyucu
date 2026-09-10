@@ -51,6 +51,12 @@ object DesignerPersonalizedTextBinding {
 
     fun isBound(elementId: String): Boolean = fieldForId(elementId) != null
 
+    fun studentIdentityLine(studentName: String, studentNumber: String, className: String): String =
+        listOf(studentName, studentNumber, className)
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .joinToString(" - ")
+
     fun renderedLabel(element: DesignerTextElement): String {
         val field = requireNotNull(fieldForId(element.id)) { "Bu metin kişiselleştirilmiş bir alana bağlı değil." }
         val raw = element.text.trim()
@@ -58,6 +64,14 @@ object DesignerPersonalizedTextBinding {
         return if (normalized.endsWith(':')) normalized else "$normalized:"
     }
 
-    fun render(element: DesignerTextElement, value: String): String =
-        if (element.showPersonalizedLabel) "${renderedLabel(element)} $value" else value
+    fun render(element: DesignerTextElement, value: String): String {
+        val field = fieldForId(element.id)
+        return if (field == DesignerPersonalizedField.STUDENT_IDENTITY_LINE) {
+            value
+        } else if (element.showPersonalizedLabel) {
+            "${renderedLabel(element)} $value"
+        } else {
+            value
+        }
+    }
 }
