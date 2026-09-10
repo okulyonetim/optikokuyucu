@@ -19,21 +19,20 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * On-device Latin OCR. Turkish is handled by the Latin model and all coordinates are preserved
  * so table-like answer keys can be reconstructed instead of flattening everything into plain text.
  *
- * Handwriting mode and answer-key mode both run a second optimized pass and keep the stronger
- * recognition result. No document is uploaded to a server.
+ * Handwriting mode and answer-key/printed mode both run a second optimized pass and keep the
+ * stronger recognition result. No document is uploaded to a server.
  */
 object OcrTextRecognizer {
     fun recognize(
         context: Context,
         uri: Uri,
         handwritingMode: Boolean,
-        answerKeyMode: Boolean = false,
+        answerKeyMode: Boolean = !handwritingMode,
         onResult: (Result<OcrRecognitionResult>) -> Unit
     ) {
         val appContext = context.applicationContext
