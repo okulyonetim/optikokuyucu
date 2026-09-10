@@ -14,7 +14,7 @@ enum class DesignerAreaKind(val displayName: String) {
     STUDENT_NUMBER_TEXT("Öğrenci Numarası"),
     EXAM_NAME("Sınav Adı"),
     SCHOOL_NAME("Okul Adı"),
-    DESCRIPTION("Ad Soyad • Numara • Sınıf / Açıklama"),
+    DESCRIPTION("Açıklama"),
     IMAGE("Resim")
 }
 
