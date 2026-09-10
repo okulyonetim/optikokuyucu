@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.ChoiceAxis
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaCatalog
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
@@ -86,6 +87,15 @@ internal fun BookletAreaEditorScreen(
                     )
                     Text("Etiket Hizası", style = MaterialTheme.typography.labelMedium)
                     BookletAlignmentButtons(draft.labelAlignment) { onDraftChange(draft.copy(labelAlignment = it)) }
+                    if (draft.showLabel) {
+                        CoordinateButtons(
+                            "Etiket ile Baloncuk Arası",
+                            DesignerEditorLayout.componentLabelGap(draft),
+                            6.0,
+                            100.0,
+                            step = 1.0
+                        ) { onDraftChange(draft.copy(labelGap = it)) }
+                    }
                     Text("Yön", style = MaterialTheme.typography.labelMedium)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BookletChoice(Modifier.weight(1f), "Yatay", draft.axis == ChoiceAxis.HORIZONTAL) { onDraftChange(draft.copy(axis = ChoiceAxis.HORIZONTAL)) }
