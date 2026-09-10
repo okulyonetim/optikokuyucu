@@ -193,7 +193,18 @@ object DesignerPdfExporter {
         transform: CanonicalPageTransform,
         renderedText: String
     ) {
-        val rect = transform.map(element.bounds)
+        val physical = transform.map(element.bounds)
+        val centerX = physical.center.x.toFloat()
+        val centerY = physical.center.y.toFloat()
+        val physicalWidth = (physical.right - physical.left).toFloat()
+        val physicalHeight = (physical.bottom - physical.top).toFloat()
+        val quarterTurn = element.rotationDegrees == 90 || element.rotationDegrees == 270
+        val logicalWidth = if (quarterTurn) physicalHeight else physicalWidth
+        val logicalHeight = if (quarterTurn) physicalWidth else physicalHeight
+        val left = centerX - logicalWidth / 2f
+        val right = centerX + logicalWidth / 2f
+        val top = centerY - logicalHeight / 2f
+        val bottom = centerY + logicalHeight / 2f
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.FILL
@@ -206,16 +217,19 @@ object DesignerPdfExporter {
             }
         }
         val x = when (element.alignment) {
-            DesignerTextAlignment.START -> rect.left.toFloat()
-            DesignerTextAlignment.CENTER -> rect.center.x.toFloat()
-            DesignerTextAlignment.END -> rect.right.toFloat()
+            DesignerTextAlignment.START -> left
+            DesignerTextAlignment.CENTER -> (left + right) / 2f
+            DesignerTextAlignment.END -> right
         }
         val lineHeight = paint.textSize * 1.22f
-        var baseline = rect.top.toFloat() + paint.textSize
+        var baseline = top + paint.textSize
         canvas.save()
-        canvas.clipRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat())
+        if (element.rotationDegrees != 0) {
+            canvas.rotate(element.rotationDegrees.toFloat(), centerX, centerY)
+        }
+        canvas.clipRect(left, top, right, bottom)
         renderedText.split('\n').forEach { line ->
-            if (baseline <= rect.bottom.toFloat() + paint.textSize * 0.2f) {
+            if (baseline <= bottom + paint.textSize * 0.2f) {
                 canvas.drawText(line, x, baseline, paint)
                 baseline += lineHeight
             }
