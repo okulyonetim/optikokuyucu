@@ -21,7 +21,8 @@ object DesignerGalleryTestAsset {
     fun render(
         document: DesignerDocument,
         markedChoicesByRow: Map<String, Set<String>> = emptyMap(),
-        markedGridChoices: Map<String, Map<String, Set<String>>> = emptyMap()
+        markedGridChoices: Map<String, Map<String, Set<String>>> = emptyMap(),
+        numericHeaderValues: Map<String, String> = emptyMap()
     ): Bitmap {
         val renderPlan = DesignerPrintRenderer.render(document)
         val template = renderPlan.template
@@ -35,7 +36,7 @@ object DesignerGalleryTestAsset {
         )
         val canvas = Canvas(bitmap)
         drawVisualLayer(canvas, document)
-        drawComponentDecorations(canvas, document)
+        drawComponentDecorations(canvas, document, numericHeaderValues)
         drawPrintTexts(canvas, renderPlan)
         return bitmap
     }
@@ -111,6 +112,19 @@ object DesignerGalleryTestAsset {
     }
 
     private fun drawText(canvas: Canvas, element: DesignerTextElement) {
+        val physicalLeft = element.bounds.left.toFloat()
+        val physicalTop = element.bounds.top.toFloat()
+        val physicalRight = element.bounds.right.toFloat()
+        val physicalBottom = element.bounds.bottom.toFloat()
+        val centerX = (physicalLeft + physicalRight) / 2f
+        val centerY = (physicalTop + physicalBottom) / 2f
+        val quarterTurn = element.rotationDegrees == 90 || element.rotationDegrees == 270
+        val logicalWidth = if (quarterTurn) physicalBottom - physicalTop else physicalRight - physicalLeft
+        val logicalHeight = if (quarterTurn) physicalRight - physicalLeft else physicalBottom - physicalTop
+        val left = centerX - logicalWidth / 2f
+        val right = centerX + logicalWidth / 2f
+        val top = centerY - logicalHeight / 2f
+        val bottom = centerY + logicalHeight / 2f
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.FILL
@@ -123,19 +137,19 @@ object DesignerGalleryTestAsset {
             }
         }
         val x = when (element.alignment) {
-            DesignerTextAlignment.START -> element.bounds.left.toFloat()
-            DesignerTextAlignment.CENTER -> element.bounds.center.x.toFloat()
-            DesignerTextAlignment.END -> element.bounds.right.toFloat()
+            DesignerTextAlignment.START -> left
+            DesignerTextAlignment.CENTER -> (left + right) / 2f
+            DesignerTextAlignment.END -> right
         }
         val lineHeight = paint.textSize * 1.22f
-        var baseline = element.bounds.top.toFloat() + paint.textSize
+        var baseline = top + paint.textSize
         canvas.save()
-        canvas.clipRect(
-            element.bounds.left.toFloat(), element.bounds.top.toFloat(),
-            element.bounds.right.toFloat(), element.bounds.bottom.toFloat()
-        )
+        if (element.rotationDegrees != 0) {
+            canvas.rotate(element.rotationDegrees.toFloat(), centerX, centerY)
+        }
+        canvas.clipRect(left, top, right, bottom)
         element.text.split('\n').forEach { line ->
-            if (baseline <= element.bounds.bottom.toFloat() + paint.textSize * 0.2f) {
+            if (baseline <= bottom + paint.textSize * 0.2f) {
                 canvas.drawText(line, x, baseline, paint)
                 baseline += lineHeight
             }
@@ -163,7 +177,11 @@ object DesignerGalleryTestAsset {
         }
     }
 
-    private fun drawComponentDecorations(canvas: Canvas, document: DesignerDocument) {
+    private fun drawComponentDecorations(
+        canvas: Canvas,
+        document: DesignerDocument,
+        numericHeaderValues: Map<String, String>
+    ) {
         val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
@@ -189,11 +207,32 @@ object DesignerGalleryTestAsset {
                 }
             }
             if (component is NumericGridComponent) {
-                DesignerEditorLayout.numericHeaderBoxes(component).forEach { box ->
+                val boxes = DesignerEditorLayout.numericHeaderBoxes(component)
+                boxes.forEach { box ->
                     canvas.drawRect(
                         box.left.toFloat(), box.top.toFloat(),
                         box.right.toFloat(), box.bottom.toFloat(), boxPaint
                     )
+                }
+                val headerValue = numericHeaderValues[component.id]
+                if (!headerValue.isNullOrBlank()) {
+                    val normalized = headerValue.filter(Char::isDigit)
+                        .takeLast(component.digits)
+                        .padStart(component.digits, '0')
+                    val digitPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.FILL
+                        textAlign = Paint.Align.CENTER
+                        textSize = max(6.5, component.bubbleRadius * 1.18).toFloat()
+                        DesignerTypography.configurePaint(this, bold = true)
+                    }
+                    val metrics = digitPaint.fontMetrics
+                    boxes.forEachIndexed { index, box ->
+                        normalized.getOrNull(index)?.let { digit ->
+                            val baseline = box.center.y.toFloat() - (metrics.ascent + metrics.descent) / 2f
+                            canvas.drawText(digit.toString(), box.center.x.toFloat(), baseline, digitPaint)
+                        }
+                    }
                 }
             }
         }
