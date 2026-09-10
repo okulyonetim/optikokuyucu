@@ -13,6 +13,7 @@ class DesignerIdentityFieldCatalogTest {
 
         assertEquals(
             listOf(
+                DesignerAreaKind.STUDENT_IDENTITY_LINE,
                 DesignerAreaKind.STUDENT_NAME,
                 DesignerAreaKind.STUDENT_CLASS,
                 DesignerAreaKind.STUDENT_NUMBER_TEXT,
@@ -22,7 +23,14 @@ class DesignerIdentityFieldCatalogTest {
             section.kinds
         )
         assertEquals(
-            listOf("Öğrenci Adı Soyadı", "Sınıfı", "Öğrenci Numarası", "Sınav Adı", "Okul Adı"),
+            listOf(
+                "Ad Soyad • Numara • Sınıf",
+                "Öğrenci Adı Soyadı",
+                "Sınıfı",
+                "Öğrenci Numarası",
+                "Sınav Adı",
+                "Okul Adı"
+            ),
             section.kinds.map { it.displayName }
         )
     }

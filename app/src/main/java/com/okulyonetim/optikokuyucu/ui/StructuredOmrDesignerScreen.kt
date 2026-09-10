@@ -482,6 +482,8 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
                         bookletDraft = it
                         bookletPatternText = DesignerAreaCatalog.bookletPatternText(it.choices)
                     }
+                    DesignerAreaKind.STUDENT_IDENTITY_LINE ->
+                        descriptionDraft = DesignerAreaCatalog.createStudentIdentityLineArea(document)
                     DesignerAreaKind.STUDENT_NAME ->
                         descriptionDraft = DesignerAreaCatalog.createStudentNameArea(document)
                     DesignerAreaKind.STUDENT_CLASS ->
@@ -719,7 +721,10 @@ private fun OpticalFormAreaHeader(onAdd: () -> Unit) {
 private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAreaKind) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -764,7 +769,7 @@ private fun OpticalFormAreaPicker(onDismiss: () -> Unit, onSelected: (DesignerAr
                     }
                 }
             }
-            Spacer(Modifier.size(14.dp))
+            Spacer(Modifier.size(32.dp))
         }
     }
 }
@@ -773,6 +778,7 @@ private fun areaKindSymbol(kind: DesignerAreaKind): String = when (kind) {
     DesignerAreaKind.NUMBER -> "123"
     DesignerAreaKind.ANSWERS -> "AB"
     DesignerAreaKind.BOOKLET -> "A/B"
+    DesignerAreaKind.STUDENT_IDENTITY_LINE -> "A•N"
     DesignerAreaKind.STUDENT_NAME -> "AD"
     DesignerAreaKind.STUDENT_CLASS -> "SNF"
     DesignerAreaKind.STUDENT_NUMBER_TEXT -> "NO"

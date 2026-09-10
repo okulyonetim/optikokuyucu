@@ -19,6 +19,7 @@ class DesignerAreaCatalogTest {
         )
         assertEquals(
             listOf(
+                DesignerAreaKind.STUDENT_IDENTITY_LINE,
                 DesignerAreaKind.STUDENT_NAME,
                 DesignerAreaKind.STUDENT_CLASS,
                 DesignerAreaKind.STUDENT_NUMBER_TEXT,
@@ -44,6 +45,7 @@ class DesignerAreaCatalogTest {
                     "Numara",
                     "Cevaplar",
                     "Kitapçık Türü",
+                    "Ad Soyad • Numara • Sınıf",
                     "Öğrenci Adı Soyadı",
                     "Sınıfı",
                     "Öğrenci Numarası",
@@ -54,6 +56,19 @@ class DesignerAreaCatalogTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun `combined identity area uses the existing personalized binding`() {
+        val document = DesignerPageGeometry.apply(DesignerDocument("identity-line", 1, "Form"))
+        val line = DesignerAreaCatalog.createStudentIdentityLineArea(document)
+
+        assertEquals(
+            DesignerPersonalizedField.STUDENT_IDENTITY_LINE,
+            DesignerPersonalizedTextBinding.fieldForId(line.id)
+        )
+        assertFalse(line.showPersonalizedLabel)
+        assertNull(DesignerAreaCatalog.descriptionAreaIssue(document, line))
     }
 
     @Test
