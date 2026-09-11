@@ -7,15 +7,19 @@ import java.util.Locale
  * Compatibility layer for exams created before scoring configuration was persisted reliably.
  *
  * A legacy exam may still be stored as NORMAL even though its scanned form is the canonical
- * 90-question LGS layout. We only promote NORMAL exams when one complete scan matches the exact
- * six-test LGS question distribution, keeping ordinary/custom exams untouched.
+ * 90-question LGS layout. We only promote NORMAL exams when one complete scan linked to that exam
+ * matches the exact six-test LGS question distribution, keeping ordinary/custom exams untouched.
  */
 object ExamScoringInference {
     fun resolve(exam: Exam, records: List<ScanRecord>): Exam {
         if (exam.scoringConfiguration.type != ExamScoringType.NORMAL) return exam
-        val looksLikeLgs = records.any { record ->
-            looksLikeLgsQuestionIds(record.answers.map { it.questionId })
-        }
+
+        val linkedScanIds = exam.papers.mapTo(hashSetOf()) { it.scanRecordId }
+        if (linkedScanIds.isEmpty()) return exam
+
+        val looksLikeLgs = records.asSequence()
+            .filter { it.id in linkedScanIds }
+            .any { record -> looksLikeLgsQuestionIds(record.answers.map { it.questionId }) }
         if (!looksLikeLgs) return exam
 
         return exam.copy(
