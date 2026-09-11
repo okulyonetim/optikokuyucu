@@ -121,12 +121,17 @@ object ExamReportBuilder {
             }
         }
 
-        val calculatedScores = ExamScoreEngine.calculate(
-            exam = effectiveExam,
-            papers = drafts.mapNotNull { draft ->
-                draft.score?.let { score -> ExamPaperScoreInput(draft.scanRecordId, score) }
-            }
-        )
+        val scoreInputs = drafts.mapNotNull { draft ->
+            draft.score?.let { score -> ExamPaperScoreInput(draft.scanRecordId, score) }
+        }
+        val calculatedScores = if (effectiveExam.scoringConfiguration.type == ExamScoringType.LGS) {
+            LgsReferenceScoreEstimator.calculate(scoreInputs)
+        } else {
+            ExamScoreEngine.calculate(
+                exam = effectiveExam,
+                papers = scoreInputs
+            )
+        }
 
         val baseRows = drafts.map { draft ->
             val score = draft.score
