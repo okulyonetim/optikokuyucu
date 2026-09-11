@@ -41,6 +41,7 @@ import com.okulyonetim.optikokuyucu.exam.ConfiguredExamReportExporter
 import com.okulyonetim.optikokuyucu.exam.ExamReport
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamReportRow
+import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.ReportColumn
 import com.okulyonetim.optikokuyucu.exam.ReportPageOrientation
@@ -55,7 +56,7 @@ private enum class BuilderReportType(val label: String, val description: String)
 }
 
 private enum class BuilderDetail(val label: String, val description: String) {
-    SIMPLE("Basit", "Puan, net ve sıralama odaklı sade rapor"),
+    SIMPLE("Basit", "Sıra, toplam doğru/yanlış/net ve sınav puanı odaklı tek sayfalık rapor"),
     DETAILED("Detaylı", "Her ders için D/Y/B/Net ve toplam sonuçları")
 }
 
@@ -84,7 +85,10 @@ fun ReportBuilderScreen(
     var selectedExamId by remember(initialExamId, exams) {
         mutableStateOf(initialExamId?.takeIf { id -> exams.any { it.id == id } })
     }
-    var step by remember(selectedExamId) { mutableStateOf(if (selectedExamId == null) 0 else 1) }
+    val directExamFlow = initialExamId != null && selectedExamId != null
+    var step by remember(selectedExamId, directExamFlow) {
+        mutableStateOf(if (selectedExamId == null) 0 else if (directExamFlow) 2 else 1)
+    }
     var reportType by remember { mutableStateOf(BuilderReportType.EXAM) }
     var detail by remember { mutableStateOf(BuilderDetail.SIMPLE) }
     var selectedClasses by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -162,9 +166,21 @@ fun ReportBuilderScreen(
             title = "Rapor Oluştur",
             leadingText = "‹",
             onLeadingClick = {
-                if (step > 0) step-- else onBack()
+                when {
+                    directExamFlow && step <= 2 -> onBack()
+                    step > 0 -> step--
+                    else -> onBack()
+                }
             },
-            actionText = "${step + 1}/5"
+            actionText = if (directExamFlow) {
+                when (step) {
+                    2 -> "1/3"
+                    3 -> "2/3"
+                    else -> "3/3"
+                }
+            } else {
+                "${step + 1}/5"
+            }
         )
 
         when (step) {
@@ -189,14 +205,18 @@ fun ReportBuilderScreen(
                 onNext = { step = 2 }
             )
             2 -> ChoiceStep(
-                title = "Rapor Seviyesi",
-                description = "Raporun ayrıntı düzeyini belirleyin.",
+                title = "Rapor Türü",
+                description = selectedExam?.name.orEmpty().ifBlank { "Raporun ayrıntı düzeyini belirleyin." },
                 choices = BuilderDetail.entries.map { it.label to it.description },
                 selectedIndex = detail.ordinal,
                 onSelect = { index ->
                     detail = BuilderDetail.entries[index]
                     columns = if (detail == BuilderDetail.SIMPLE) simpleColumns() else detailedColumns()
-                    if (detail == BuilderDetail.DETAILED) orientation = ReportPageOrientation.LANDSCAPE
+                    orientation = if (detail == BuilderDetail.DETAILED) {
+                        ReportPageOrientation.LANDSCAPE
+                    } else {
+                        ReportPageOrientation.PORTRAIT
+                    }
                 },
                 onNext = { step = 3 }
             )
@@ -351,7 +371,7 @@ private fun ReportCustomizeStep(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text("4. Rapor Düzenleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Rapor Düzenleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Kapsamı, sütunları, sıralamayı ve sayfa yönünü belirleyin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
@@ -408,7 +428,7 @@ private fun ReportCustomizeStep(
                                     }
                                     if (updated.isNotEmpty()) onColumnsChanged(updated)
                                 },
-                                label = { Text(column.label, fontSize = 9.sp, maxLines = 1) }
+                                label = { Text(reportColumnLabel(column, report?.scoringType), fontSize = 9.sp, maxLines = 1) }
                             )
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -417,7 +437,7 @@ private fun ReportCustomizeStep(
             }
         }
         item {
-            ProductSettingsSection("Sütun Sırası", "Ad Soyad varsayılan olarak baştadır. Oklarla sütunların yerini değiştirin.") {
+            ProductSettingsSection("Sütun Sırası", "Oklarla sütunların yerini değiştirin.") {
                 columns.forEachIndexed { index, column ->
                     ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -426,7 +446,7 @@ private fun ReportCustomizeStep(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text("${index + 1}.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(column.label, modifier = Modifier.weight(1f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            Text(reportColumnLabel(column, report?.scoringType), modifier = Modifier.weight(1f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                             OutlinedButton(
                                 enabled = index > 0,
                                 onClick = { onColumnsChanged(columns.move(index, index - 1)) },
@@ -456,7 +476,7 @@ private fun ReportCustomizeStep(
             }
         }
         item {
-            ProductSettingsSection("Sayfa", "Çok dersli ayrıntılı raporlar okunabilirlik için gerektiğinde yatay ve çok bölümlü hazırlanır.") {
+            ProductSettingsSection("Sayfa", "Basit rapor tüm temel sonuçları mümkün olduğunca tek sayfaya sığdırır; ayrıntılı rapor gerektiğinde yatay hazırlanır.") {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         modifier = Modifier.weight(1f),
@@ -504,7 +524,7 @@ private fun ReportPreviewStep(
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {
-            Text("5. PDF Önizleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("PDF Önizleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
                 config?.let { "${it.rows.size} kayıt · ${it.columns.size} alan · ${if (it.orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"}" }
                     ?: "Rapor hazırlanamadı.",
@@ -531,9 +551,14 @@ private fun ReportPreviewStep(
                 }
             }
             item {
-                ProductSettingsSection("Sütun Sırası", config.columns.joinToString(" → ") { it.label }) {
+                ProductSettingsSection(
+                    "Sütun Sırası",
+                    config.columns.joinToString(" → ") { reportColumnLabel(it, config.report.scoringType) }
+                ) {
                     Text(
-                        if (config.selectedLessonIds.isEmpty()) {
+                        if (ReportColumn.LESSONS !in config.columns) {
+                            "Toplam doğru, toplam yanlış, toplam net ve sınav puanı aynı sonuç tablosunda gösterilir."
+                        } else if (config.selectedLessonIds.isEmpty()) {
                             "Ders kapsamı: tüm dersler · Her ders D/Y/B/Net · En sonda Toplam D/Y/B/Net"
                         } else {
                             "Ders kapsamı: ${config.selectedLessonIds.joinToString { examLessonDisplayName(it) }} · En sonda Toplam"
@@ -567,13 +592,14 @@ private fun ReportPreviewStep(
 }
 
 private fun simpleColumns(): List<ReportColumn> = listOf(
+    ReportColumn.OVERALL_RANK,
+    ReportColumn.NUMBER,
     ReportColumn.STUDENT,
     ReportColumn.CLASS,
-    ReportColumn.NUMBER,
-    ReportColumn.SCORE,
+    ReportColumn.CORRECT,
+    ReportColumn.WRONG,
     ReportColumn.NET,
-    ReportColumn.OVERALL_RANK,
-    ReportColumn.CLASS_RANK
+    ReportColumn.SCORE
 )
 
 private fun detailedColumns(): List<ReportColumn> = listOf(
@@ -586,6 +612,13 @@ private fun detailedColumns(): List<ReportColumn> = listOf(
     ReportColumn.CLASS_RANK,
     ReportColumn.LESSONS
 )
+
+private fun reportColumnLabel(column: ReportColumn, scoringType: ExamScoringType?): String = when {
+    column != ReportColumn.SCORE -> column.label
+    scoringType == ExamScoringType.LGS -> "LGS Puanı"
+    scoringType == ExamScoringType.IOKBS -> "İOKBS Puanı"
+    else -> column.label
+}
 
 private fun <T> Set<T>.toggle(value: T): Set<T> = toMutableSet().apply {
     if (!add(value)) remove(value)
@@ -600,7 +633,12 @@ private fun <T> List<T>.move(from: Int, to: Int): List<T> {
 }
 
 private fun sortRows(rows: List<ExamReportRow>, sort: BuilderSort): List<ExamReportRow> = when (sort) {
-    BuilderSort.SCORE_DESC -> rows.sortedWith(compareByDescending<ExamReportRow> { it.points ?: Double.NEGATIVE_INFINITY }.thenBy { it.studentName })
+    BuilderSort.SCORE_DESC -> rows.sortedWith(
+        compareByDescending<ExamReportRow> { it.points ?: Double.NEGATIVE_INFINITY }
+            .thenByDescending { it.net ?: Double.NEGATIVE_INFINITY }
+            .thenByDescending { it.correct ?: Int.MIN_VALUE }
+            .thenBy { it.studentName }
+    )
     BuilderSort.NET_DESC -> rows.sortedWith(compareByDescending<ExamReportRow> { it.net ?: Double.NEGATIVE_INFINITY }.thenBy { it.studentName })
     BuilderSort.NAME -> rows.sortedBy { it.studentName.lowercase(Locale.forLanguageTag("tr-TR")) }
     BuilderSort.NUMBER -> rows.sortedWith(compareBy<ExamReportRow> { it.studentNumber.toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it.studentNumber })
