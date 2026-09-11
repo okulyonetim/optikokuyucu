@@ -35,7 +35,6 @@ import java.util.Locale
 
 private val ResultGreen = Color(0xFF3D9B56)
 private val ResultRed = Color(0xFFD34848)
-private val ResultPurple = Color(0xFF5142B5)
 
 @Composable
 fun StudentResultHero(
@@ -66,31 +65,23 @@ fun StudentResultHero(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        result.scoreLabel,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        result.score?.let(::resultNumber) ?: "—",
-                        fontSize = 27.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (result.score != null) ResultPurple else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Toplam Net", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        result.net?.let(::resultNumber) ?: "—",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ResultGreen
-                    )
-                }
+                ResultHeadlineMetric(
+                    label = result.scoreLabel,
+                    value = result.score?.let(::resultNumber) ?: "—",
+                    accent = MaterialTheme.colorScheme.primary,
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.weight(1.08f)
+                )
+                ResultHeadlineMetric(
+                    label = "Toplam Net",
+                    value = result.net?.let(::resultNumber) ?: "—",
+                    accent = MaterialTheme.colorScheme.primary,
+                    container = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.weight(0.92f)
+                )
             }
 
             Row(
@@ -118,6 +109,43 @@ fun StudentResultHero(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ResultHeadlineMetric(
+    label: String,
+    value: String,
+    accent: Color,
+    container: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = container
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                value,
+                fontSize = 21.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+                maxLines = 1
+            )
         }
     }
 }
@@ -248,7 +276,7 @@ private fun ResultTableRow(
         TableCell(correct, 0.45f, if (!header) ResultGreen else textColor, weight)
         TableCell(wrong, 0.45f, if (!header) ResultRed else textColor, weight)
         TableCell(blank, 0.45f, textColor, weight)
-        TableCell(net, 0.75f, if (!header) ResultPurple else textColor, FontWeight.SemiBold)
+        TableCell(net, 0.75f, if (!header) MaterialTheme.colorScheme.primary else textColor, FontWeight.SemiBold)
         TableCell(rank, 0.78f, textColor, FontWeight.SemiBold)
     }
 }
