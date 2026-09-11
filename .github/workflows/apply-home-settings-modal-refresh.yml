@@ -1,0 +1,36 @@
+name: Apply home settings modal refresh
+
+on:
+  push:
+    branches: [style/home-settings-modal-refresh]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-refresh-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: style/home-settings-modal-refresh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply UI refresh
+        run: python .github/scripts/apply_home_settings_modal_refresh.py
+      - name: Commit UI refresh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/okulyonetim/optikokuyucu/ui/ProductUi.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/ProductHomeScreen.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/SettingsSubjectsCard.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/SchoolAccountSettingsCard.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/OmrRootScreen.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/StudentRosterScreen.kt \
+                  app/build.gradle.kts
+          git rm .github/scripts/apply_home_settings_modal_refresh.py .github/workflows/apply-home-settings-modal-refresh.yml
+          git commit -m "style: polish home settings lessons and dialogs [ui-refresh-applied]"
+          git push
