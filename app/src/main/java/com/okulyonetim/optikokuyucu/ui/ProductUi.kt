@@ -68,8 +68,8 @@ private val ProductPrimary = Color(0xFF534AB7)
 private val ProductPrimaryLight = Color(0xFFEEEDFE)
 private val ProductSecondary = Color(0xFFBA7517)
 private val ProductSecondaryLight = Color(0xFFFAEEDA)
-private val ProductAccent = Color(0xFFD4537E)
-private val ProductAccentLight = Color(0xFFFBEAF0)
+private val ProductAccent = Color(0xFF378ADD)
+private val ProductAccentLight = Color(0xFFE6F2FC)
 private val ProductBackground = Color(0xFFF5F2EA)
 private val ProductSurface = Color(0xFFFFFFFF)
 
@@ -83,13 +83,11 @@ private val ProductRedSoft = Color(0xFFFCEBEB)
 // Kart kenarlıkları, avatarlar ve rozetler için dönen okul temalı gradyan paleti.
 // Her öğe adına göre sabit bir renge eşlenir; rastgele değil, tutarlıdır.
 private val ProductGradientPalette: List<Pair<Color, Color>> = listOf(
-    Color(0xFF7F77DD) to Color(0xFF534AB7), // mor
-    Color(0xFFF0997B) to Color(0xFFD85A30), // mercan
-    Color(0xFF85B7EB) to Color(0xFF378ADD), // mavi
-    Color(0xFFED93B1) to Color(0xFFD4537E), // pembe
-    Color(0xFFFAC775) to Color(0xFFEF9F27), // amber
-    Color(0xFF97C459) to Color(0xFF639922), // yeşil
-    Color(0xFF9FE1CB) to Color(0xFF1D9E75)  // teal
+    Color(0xFF756ED1) to Color(0xFF534AB7), // menekşe
+    Color(0xFF6CA6DE) to Color(0xFF378ADD), // mavi
+    Color(0xFF72C7B0) to Color(0xFF1D9E75), // teal
+    Color(0xFFE8B75E) to Color(0xFFBA7517), // amber
+    Color(0xFF8FBA62) to Color(0xFF639922)  // yeşil
 )
 
 private fun productPaletteIndex(seed: String): Int {
@@ -107,8 +105,8 @@ fun productAccentBrush(seed: String): Brush {
 /** Verilen metne göre sabit bir vurgu rengi üretir (kart kenarlıkları, rozet metinleri için). */
 fun productAccentColor(seed: String): Color = ProductGradientPalette[productPaletteIndex(seed)].second
 
-private val HeroGradientLight = Brush.linearGradient(listOf(Color(0xFF7F77DD), Color(0xFFD4537E)))
-private val HeroGradientDark = Brush.linearGradient(listOf(Color(0xFF534AB7), Color(0xFF993556)))
+private val HeroGradientLight = Brush.linearGradient(listOf(Color(0xFF7367D6), Color(0xFF3E8ED0)))
+private val HeroGradientDark = Brush.linearGradient(listOf(Color(0xFF443985), Color(0xFF235E92)))
 
 private val LightProductScheme = lightColorScheme(
     primary = ProductPrimary,
@@ -144,10 +142,10 @@ private val DarkProductScheme = darkColorScheme(
     onSecondary = Color(0xFF412402),
     secondaryContainer = Color(0xFF633806),
     onSecondaryContainer = Color(0xFFFAEEDA),
-    tertiary = Color(0xFFED93B1),
-    onTertiary = Color(0xFF4B1528),
-    tertiaryContainer = Color(0xFF72243E),
-    onTertiaryContainer = Color(0xFFFBEAF0),
+    tertiary = Color(0xFF85B7EB),
+    onTertiary = Color(0xFF102C46),
+    tertiaryContainer = Color(0xFF244A6B),
+    onTertiaryContainer = Color(0xFFE6F2FC),
     background = Color(0xFF121214),
     onBackground = Color(0xFFEDEDEE),
     surface = Color(0xFF1D1D22),
