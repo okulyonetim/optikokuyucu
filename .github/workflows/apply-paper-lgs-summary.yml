@@ -1,0 +1,33 @@
+name: Apply paper LGS summary patch
+
+on:
+  push:
+    branches:
+      - feat/paper-card-lgs-summary
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/paper-card-lgs-summary
+      - name: Apply patch
+        run: python3 .github/scripts/patch_paper_lgs_summary.py
+      - name: Commit patch when needed
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No patch needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/okulyonetim/optikokuyucu/ui/ExamDetailScreen.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/StudentResultDashboard.kt \
+                  app/build.gradle.kts
+          git commit -m "style: show compact net and LGS score on paper cards [paper-summary-patched]"
+          git push origin HEAD:feat/paper-card-lgs-summary
