@@ -2,6 +2,8 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -57,73 +61,103 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
-// Tek merkezli tasarım sistemi: renkler, ortak yüzeyler, arama, filtreler,
+// Tek merkezli tasarım sistemi: renkler, gradyanlar, ortak yüzeyler, arama, filtreler,
 // özet alanları, ayar grupları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
-private val ProductPrimary = Color(0xFF086B4F)
-private val ProductPrimaryLight = Color(0xFFD9F0E5)
-private val ProductSecondary = Color(0xFF277F62)
-// Tonal butonlar özellikle editör seçimlerinde gerçek bir seçili durum vermeli.
-private val ProductSecondaryLight = Color(0xFF0E7657)
-private val ProductAccent = Color(0xFFF37555)
-private val ProductAccentLight = Color(0xFFFFE4DB)
-private val ProductBackground = Color(0xFFF6F8F6)
+// Okul temalı, renkli kimlik: mor birincil, amber ikincil, mercan/pembe vurgu.
+private val ProductPrimary = Color(0xFF534AB7)
+private val ProductPrimaryLight = Color(0xFFEEEDFE)
+private val ProductSecondary = Color(0xFFBA7517)
+private val ProductSecondaryLight = Color(0xFFFAEEDA)
+private val ProductAccent = Color(0xFFD4537E)
+private val ProductAccentLight = Color(0xFFFBEAF0)
+private val ProductBackground = Color(0xFFF5F2EA)
 private val ProductSurface = Color(0xFFFFFFFF)
 
-private val ProductGreen = Color(0xFF137653)
-private val ProductGreenSoft = Color(0xFFDFF3E9)
-private val ProductOrange = Color(0xFFB87500)
-private val ProductOrangeSoft = Color(0xFFFFEBC2)
-private val ProductRed = Color(0xFFB43A35)
-private val ProductRedSoft = Color(0xFFFFE7E3)
+private val ProductGreen = Color(0xFF3B6D11)
+private val ProductGreenSoft = Color(0xFFEAF3DE)
+private val ProductOrange = Color(0xFF854F0B)
+private val ProductOrangeSoft = Color(0xFFFAEEDA)
+private val ProductRed = Color(0xFFA32D2D)
+private val ProductRedSoft = Color(0xFFFCEBEB)
+
+// Kart kenarlıkları, avatarlar ve rozetler için dönen okul temalı gradyan paleti.
+// Her öğe adına göre sabit bir renge eşlenir; rastgele değil, tutarlıdır.
+private val ProductGradientPalette: List<Pair<Color, Color>> = listOf(
+    Color(0xFF7F77DD) to Color(0xFF534AB7), // mor
+    Color(0xFFF0997B) to Color(0xFFD85A30), // mercan
+    Color(0xFF85B7EB) to Color(0xFF378ADD), // mavi
+    Color(0xFFED93B1) to Color(0xFFD4537E), // pembe
+    Color(0xFFFAC775) to Color(0xFFEF9F27), // amber
+    Color(0xFF97C459) to Color(0xFF639922), // yeşil
+    Color(0xFF9FE1CB) to Color(0xFF1D9E75)  // teal
+)
+
+private fun productPaletteIndex(seed: String): Int {
+    val hash = seed.trim().uppercase().hashCode()
+    val positive = if (hash == Int.MIN_VALUE) 0 else kotlin.math.abs(hash)
+    return positive % ProductGradientPalette.size
+}
+
+/** Verilen metne (isim, başlık vb.) göre sabit, okul temalı bir gradyan üretir. */
+fun productAccentBrush(seed: String): Brush {
+    val (start, end) = ProductGradientPalette[productPaletteIndex(seed)]
+    return Brush.linearGradient(listOf(start, end))
+}
+
+/** Verilen metne göre sabit bir vurgu rengi üretir (kart kenarlıkları, rozet metinleri için). */
+fun productAccentColor(seed: String): Color = ProductGradientPalette[productPaletteIndex(seed)].second
+
+private val HeroGradientLight = Brush.linearGradient(listOf(Color(0xFF7F77DD), Color(0xFFD4537E)))
+private val HeroGradientDark = Brush.linearGradient(listOf(Color(0xFF534AB7), Color(0xFF993556)))
 
 private val LightProductScheme = lightColorScheme(
     primary = ProductPrimary,
     onPrimary = Color.White,
     primaryContainer = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF06392C),
+    onPrimaryContainer = Color(0xFF26215C),
     secondary = ProductSecondary,
     onSecondary = Color.White,
     secondaryContainer = ProductSecondaryLight,
-    onSecondaryContainer = Color.White,
+    onSecondaryContainer = Color(0xFF412402),
     tertiary = ProductAccent,
     onTertiary = Color.White,
     tertiaryContainer = ProductAccentLight,
-    onTertiaryContainer = Color(0xFF67220F),
+    onTertiaryContainer = Color(0xFF4B1528),
     background = ProductBackground,
-    onBackground = Color(0xFF17251F),
+    onBackground = Color(0xFF2C2C2A),
     surface = ProductSurface,
-    onSurface = Color(0xFF17251F),
-    surfaceVariant = Color(0xFFEEF3F0),
-    onSurfaceVariant = Color(0xFF51615A),
-    outline = Color(0xFF71857C),
-    outlineVariant = Color(0xFFBCCBC4),
-    error = Color(0xFFB3261E),
+    onSurface = Color(0xFF2C2C2A),
+    surfaceVariant = Color(0xFFF1EFE8),
+    onSurfaceVariant = Color(0xFF5F5E5A),
+    outline = Color(0xFF888780),
+    outlineVariant = Color(0xFFD3D1C7),
+    error = ProductRed,
     onError = Color.White
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFF62D7A2),
-    onPrimary = Color(0xFF003828),
-    primaryContainer = Color(0xFF153D30),
-    onPrimaryContainer = Color(0xFFDDF7EA),
-    secondary = Color(0xFF83CFAF),
-    onSecondary = Color(0xFF08372B),
-    secondaryContainer = Color(0xFF245B47),
-    onSecondaryContainer = Color(0xFFE5FFF2),
-    tertiary = Color(0xFFFF8B6D),
-    onTertiary = Color(0xFF4F1708),
-    tertiaryContainer = Color(0xFF553326),
-    onTertiaryContainer = Color(0xFFFFE1D8),
-    background = Color(0xFF0A110F),
-    onBackground = Color(0xFFF0F4F2),
-    surface = Color(0xFF111A17),
-    onSurface = Color(0xFFF0F4F2),
-    surfaceVariant = Color(0xFF1A2924),
-    onSurfaceVariant = Color(0xFFBAC8C1),
-    outline = Color(0xFF839A90),
-    outlineVariant = Color(0xFF2D433A),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005)
+    primary = Color(0xFFAFA9EC),
+    onPrimary = Color(0xFF26215C),
+    primaryContainer = Color(0xFF3C3489),
+    onPrimaryContainer = Color(0xFFEEEDFE),
+    secondary = Color(0xFFFAC775),
+    onSecondary = Color(0xFF412402),
+    secondaryContainer = Color(0xFF633806),
+    onSecondaryContainer = Color(0xFFFAEEDA),
+    tertiary = Color(0xFFED93B1),
+    onTertiary = Color(0xFF4B1528),
+    tertiaryContainer = Color(0xFF72243E),
+    onTertiaryContainer = Color(0xFFFBEAF0),
+    background = Color(0xFF121214),
+    onBackground = Color(0xFFEDEDEE),
+    surface = Color(0xFF1D1D22),
+    onSurface = Color(0xFFEDEDEE),
+    surfaceVariant = Color(0xFF232326),
+    onSurfaceVariant = Color(0xFFBABABE),
+    outline = Color(0xFF838388),
+    outlineVariant = Color(0xFF3A3A3D),
+    error = Color(0xFFF09595),
+    onError = Color(0xFF501313)
 )
 
 class ProductThemeController internal constructor(
@@ -185,10 +219,11 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     }
 }
 
+// Belirgin, her iki modda da görünür 2dp kenarlık. "lightControlBorder" adı korunuyor
+// (birçok çağrı noktası tarafından kullanılıyor) ama artık koyu modda da kenarlık çiziyor.
 @Composable
-private fun lightControlBorder(): BorderStroke? {
-    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
-    return if (dark) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f))
+private fun lightControlBorder(): BorderStroke {
+    return BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -227,26 +262,26 @@ fun ProductTopBar(
         compactRowModifier
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
+    val heroBrush = if (dark) HeroGradientDark else HeroGradientLight
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(heroBrush)
     ) {
         Box(modifier = rowModifier) {
             Row(
                 modifier = Modifier.align(Alignment.CenterStart),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HeaderAction(text = resolvedLeadingText, onClick = resolvedLeadingClick)
+                HeaderAction(text = resolvedLeadingText, onClick = resolvedLeadingClick, onGradient = true)
             }
             Text(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(horizontal = 118.dp),
                 text = title,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -258,12 +293,13 @@ fun ProductTopBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (resolvedActionText != null && onActionClick != null) {
-                    HeaderAction(text = resolvedActionText, onClick = onActionClick)
+                    HeaderAction(text = resolvedActionText, onClick = onActionClick, onGradient = true)
                 }
                 if (themeController != null) {
                     HeaderAction(
                         text = if (themeController.isDark) "☀" else "☾",
-                        onClick = { themeController.toggleLightDark() }
+                        onClick = { themeController.toggleLightDark() },
+                        onGradient = true
                     )
                 }
             }
@@ -272,23 +308,29 @@ fun ProductTopBar(
 }
 
 @Composable
-private fun HeaderAction(text: String?, onClick: (() -> Unit)?) {
+private fun HeaderAction(text: String?, onClick: (() -> Unit)?, onGradient: Boolean = false) {
     val actionWidth = 54.dp
     val actionHeight = 44.dp
+    val fgColor = if (onGradient) Color.White else MaterialTheme.colorScheme.primary
+    val border = if (onGradient) {
+        BorderStroke(2.dp, Color.White.copy(alpha = 0.55f))
+    } else {
+        lightControlBorder()
+    }
     if (text != null && onClick != null) {
         Surface(
             modifier = Modifier
                 .size(width = actionWidth, height = actionHeight)
                 .clickable(onClick = onClick),
             color = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.primary,
+            contentColor = fgColor,
             shape = RoundedCornerShape(12.dp),
-            border = lightControlBorder()
+            border = border
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = text,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = fgColor,
                     fontSize = when {
                         text.length > 2 -> 13.sp
                         text == "‹" -> 30.sp
@@ -358,7 +400,7 @@ private fun ThemeModeButton(
         OutlinedButton(
             modifier = modifier,
             onClick = { controller.setMode(mode) },
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
         ) { Text(label, fontSize = 12.sp) }
     }
 }
@@ -394,23 +436,28 @@ fun ProductSearchField(
     )
 }
 
+/**
+ * Belirgin, 2dp kenarlıklı kart. [accentColor] verilirse kenarlık o renkte olur
+ * (ör. öğrenci/sınav kartlarında isme göre sabit bir okul rengi); verilmezse
+ * nötr ama yine de belirgin bir kenarlık kullanılır.
+ */
 @Composable
 fun ProductCompactCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    accentColor: Color? = null,
     content: @Composable () -> Unit
 ) {
     val resolvedModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
+    val borderColor = accentColor
+        ?: if (light) MaterialTheme.colorScheme.outline.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outlineVariant
     Surface(
         modifier = resolvedModifier,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(
-            1.dp,
-            if (light) MaterialTheme.colorScheme.outline.copy(alpha = 0.68f) else MaterialTheme.colorScheme.outlineVariant
-        ),
+        border = BorderStroke(2.dp, borderColor),
         tonalElevation = 0.dp,
         shadowElevation = if (light) 1.dp else 0.dp
     ) {
@@ -506,7 +553,7 @@ fun ProductMetricStrip(
                         text = value,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = productAccentColor(label)
                     )
                     Text(
                         text = label,
@@ -537,20 +584,19 @@ fun ProductEmptyState(
     }
 }
 
+/** İsme/metne göre sabit okul-temalı bir gradyanla boyanan baş harf rozeti. */
 @Composable
 fun ProductInitialBadge(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier.size(36.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.primary,
-        shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = modifier
+            .size(36.dp)
+            .background(productAccentBrush(text), RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        }
+        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
@@ -563,19 +609,21 @@ fun ProductFilterPill(
 ) {
     val text = if (count == null) label else "$label  $count"
     if (selected) {
-        Button(
-            onClick = onClick,
-            shape = RoundedCornerShape(14.dp),
-            border = lightControlBorder(),
-            contentPadding = ButtonDefaults.ContentPadding
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(productAccentBrush(label))
+                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 9.dp)
         ) {
-            Text(text, fontSize = 12.sp)
+            Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            border = BorderStroke(2.dp, productAccentColor(label).copy(alpha = 0.7f))
         ) {
             Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }
@@ -588,20 +636,25 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
     val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     val background = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF153E2D)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF4D3510)
-        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF4B2621)
+        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF173404)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF412402)
+        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF501313)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant
     }
     val foreground = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF77D7A3)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFFC75A)
-        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFF9B90)
+        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF97C459)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFAC775)
+        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFF09595)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(8.dp)) {
+    Surface(
+        color = background,
+        contentColor = foreground,
+        shape = RoundedCornerShape(20.dp),
+        border = if (tone == ProductBadgeTone.NEUTRAL) null else BorderStroke(1.5.dp, foreground.copy(alpha = 0.8f))
+    ) {
         Text(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
             text = text,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
@@ -662,16 +715,27 @@ private fun ProductBottomItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(width = 32.dp, height = 27.dp),
-                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
+            val iconBoxModifier = Modifier.size(width = 32.dp, height = 27.dp)
+            if (selected) {
+                Box(
+                    modifier = iconBoxModifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(productAccentBrush(label)),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            } else {
+                Box(modifier = iconBoxModifier, contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(19.dp)
                     )
                 }
