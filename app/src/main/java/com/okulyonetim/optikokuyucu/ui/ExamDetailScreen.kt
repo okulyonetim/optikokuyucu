@@ -865,6 +865,7 @@ private fun ExamReportsTab(report: ExamReport, onOpenReports: () -> Unit) {
     val scoredRows = rankedRows.filter { it.points != null }
     val averageNet = rankedRows.mapNotNull { it.net }.takeIf { it.isNotEmpty() }?.average()
     val averageScore = scoredRows.mapNotNull { it.points }.takeIf { it.isNotEmpty() }?.average()
+    val scoreAverageLabel = if (report.scoringType == ExamScoringType.LGS) "Ort. LGS" else "Ort. Puan"
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -884,15 +885,8 @@ private fun ExamReportsTab(report: ExamReport, onOpenReports: () -> Unit) {
                 metrics = listOf(
                     "Öğrenci" to report.rows.size.toString(),
                     "Ort. Net" to (averageNet?.let(::formatScore) ?: "—"),
-                    if (report.scoringType == ExamScoringType.LGS) "Ort. LGS" else "Ort. Puan" to
-                        (averageScore?.let(::formatScore) ?: "—")
-                ).let { metrics ->
-                    if (metrics.size == 3) metrics else listOf(
-                        "Öğrenci" to report.rows.size.toString(),
-                        "Ort. Net" to (averageNet?.let(::formatScore) ?: "—"),
-                        "Ort. Puan" to (averageScore?.let(::formatScore) ?: "—")
-                    )
-                }
+                    scoreAverageLabel to (averageScore?.let(::formatScore) ?: "—")
+                )
             )
         }
         item {
