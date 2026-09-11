@@ -50,6 +50,10 @@ import com.okulyonetim.optikokuyucu.exam.ExamPaperLink
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
 import com.okulyonetim.optikokuyucu.exam.ExamParticipant
 import com.okulyonetim.optikokuyucu.exam.ExamPersonalizedForms
+import com.okulyonetim.optikokuyucu.exam.ExamReport
+import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
+import com.okulyonetim.optikokuyucu.exam.ExamReportRow
+import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
@@ -208,6 +212,13 @@ fun ExamDetailScreen(
             (classFilter == null || clazz == classFilter)
     }
     val answerKeyCount = keys.count { keyMatchesExam(it, current) }
+    val examReport = remember(current, scans, keys) {
+        ExamReportBuilder.build(
+            exam = current,
+            records = scans.values.toList(),
+            answerKeys = keys
+        )
+    }
 
     fun refresh(message: String = "Sınav yenilendi") {
         exam = examRepository.load(examId)
@@ -353,7 +364,7 @@ fun ExamDetailScreen(
                 )
 
                 ExamDetailTab.REPORTS -> ExamReportsTab(
-                    exam = current,
+                    report = examReport,
                     onOpenReports = onOpenReports
                 )
             }
@@ -836,28 +847,176 @@ private fun ExamPaperCard(
 }
 
 @Composable
-private fun ExamReportsTab(exam: Exam, onOpenReports: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+private fun ExamReportsTab(report: ExamReport, onOpenReports: () -> Unit) {
+    val scoreTitle = when (report.scoringType) {
+        ExamScoringType.LGS -> "LGS Puanı"
+        ExamScoringType.IOKBS -> "İOKBS Puanı"
+        else -> "Puan"
+    }
+    val rankedRows = remember(report) {
+        report.rows.sortedWith(
+            compareBy<ExamReportRow> { it.points == null }
+                .thenByDescending { it.points ?: Double.NEGATIVE_INFINITY }
+                .thenByDescending { it.net ?: Double.NEGATIVE_INFINITY }
+                .thenByDescending { it.correct ?: Int.MIN_VALUE }
+                .thenBy { it.studentName.lowercase(Locale.forLanguageTag("tr-TR")) }
+        )
+    }
+    val scoredRows = rankedRows.filter { it.points != null }
+    val averageNet = rankedRows.mapNotNull { it.net }.takeIf { it.isNotEmpty() }?.average()
+    val averageScore = scoredRows.mapNotNull { it.points }.takeIf { it.isNotEmpty() }?.average()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ProductSettingsSection(
-            title = "Sınav Raporları",
-            description = "${exam.papers.size} kağıdın öğrenci sonuçlarını inceleyin ve raporları dışa aktarın."
-        ) {
+        item {
+            Button(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                onClick = onOpenReports
+            ) {
+                Text("▤  Rapor Oluştur", fontWeight = FontWeight.SemiBold)
+            }
+        }
+        item {
             ProductMetricStrip(
+                modifier = Modifier.padding(horizontal = 14.dp),
                 metrics = listOf(
-                    "Kağıt" to exam.papers.size.toString(),
-                    "Öğrenci" to exam.participants.size.toString(),
-                    "Kitapçık" to exam.bookletCount.toString()
-                )
+                    "Öğrenci" to report.rows.size.toString(),
+                    "Ort. Net" to (averageNet?.let(::formatScore) ?: "—"),
+                    if (report.scoringType == ExamScoringType.LGS) "Ort. LGS" else "Ort. Puan" to
+                        (averageScore?.let(::formatScore) ?: "—")
+                ).let { metrics ->
+                    if (metrics.size == 3) metrics else listOf(
+                        "Öğrenci" to report.rows.size.toString(),
+                        "Ort. Net" to (averageNet?.let(::formatScore) ?: "—"),
+                        "Ort. Puan" to (averageScore?.let(::formatScore) ?: "—")
+                    )
+                }
             )
         }
-        ProductSettingsLink(
-            symbol = "↗",
-            title = "Sınav Raporunu Aç",
-            description = "Sonuçları görüntüleyin; CSV, Excel veya PDF olarak dışa aktarın.",
-            onClick = onOpenReports
+        item {
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                Text("Sonuç Sıralaması", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (report.scoringType == ExamScoringType.LGS) {
+                        "LGS puanı yüksekten düşüğe · eşitlikte net ve doğru sayısı"
+                    } else {
+                        "Puan yüksekten düşüğe · eşitlikte net ve doğru sayısı"
+                    },
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (rankedRows.isEmpty()) {
+            item {
+                ProductEmptyState(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    title = "Henüz sonuç yok",
+                    body = "Kağıtlar okundukça öğrenci sonuçları ve sıralama burada oluşur."
+                )
+            }
+        } else {
+            items(rankedRows, key = { it.scanRecordId }) { row ->
+                ExamRankedResultCard(
+                    row = row,
+                    scoreTitle = scoreTitle,
+                    lgs = report.scoringType == ExamScoringType.LGS
+                )
+            }
+        }
+        item { Spacer(Modifier.height(14.dp)) }
+    }
+}
+
+@Composable
+private fun ExamRankedResultCard(
+    row: ExamReportRow,
+    scoreTitle: String,
+    lgs: Boolean
+) {
+    val displayName = row.studentName.ifBlank {
+        row.studentNumber.takeIf(String::isNotBlank)?.let { "Öğrenci $it" } ?: "İsimsiz Öğrenci"
+    }
+    ProductCompactCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProductInitialBadge(row.overallRank?.toString() ?: "—")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        displayName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        listOf(row.className, row.studentNumber).filter(String::isNotBlank).joinToString(" · ").ifBlank { "Öğrenci sonucu" },
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                ProductStatusBadge(
+                    text = if (row.points == null) {
+                        if (lgs) "LGS —" else "PUAN —"
+                    } else {
+                        if (lgs) "LGS ${formatScore(row.points)}" else formatScore(row.points)
+                    },
+                    tone = if (row.points == null) ProductBadgeTone.ORANGE else ProductBadgeTone.GREEN
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                ExamResultMetric("Toplam D", row.correct?.toString() ?: "—", Modifier.weight(1f))
+                ExamResultMetric("Toplam Y", row.wrong?.toString() ?: "—", Modifier.weight(1f))
+                ExamResultMetric("Toplam Net", row.net?.let(::formatScore) ?: "—", Modifier.weight(1f))
+                ExamResultMetric(scoreTitle, row.points?.let(::formatScore) ?: "—", Modifier.weight(1f), emphasize = true)
+            }
+            if (row.points == null && row.scoreNote.isNotBlank()) {
+                Text(
+                    row.scoreNote,
+                    fontSize = 8.5.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamResultMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    emphasize: Boolean = false
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 7.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            value,
+            fontSize = 11.sp,
+            fontWeight = if (emphasize) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
     }
 }
