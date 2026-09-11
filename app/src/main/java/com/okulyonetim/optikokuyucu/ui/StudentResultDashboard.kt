@@ -35,7 +35,6 @@ import java.util.Locale
 
 private val ResultGreen = Color(0xFF3D9B56)
 private val ResultRed = Color(0xFFD34848)
-private val ResultPurple = Color(0xFF5142B5)
 
 @Composable
 fun StudentResultHero(
@@ -77,18 +76,18 @@ fun StudentResultHero(
                     )
                     Text(
                         result.score?.let(::resultNumber) ?: "—",
-                        fontSize = 27.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (result.score != null) ResultPurple else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (result.score != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Toplam Net", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         result.net?.let(::resultNumber) ?: "—",
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = ResultGreen
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
@@ -248,7 +247,7 @@ private fun ResultTableRow(
         TableCell(correct, 0.45f, if (!header) ResultGreen else textColor, weight)
         TableCell(wrong, 0.45f, if (!header) ResultRed else textColor, weight)
         TableCell(blank, 0.45f, textColor, weight)
-        TableCell(net, 0.75f, if (!header) ResultPurple else textColor, FontWeight.SemiBold)
+        TableCell(net, 0.75f, if (!header) MaterialTheme.colorScheme.primary else textColor, FontWeight.SemiBold)
         TableCell(rank, 0.78f, textColor, FontWeight.SemiBold)
     }
 }

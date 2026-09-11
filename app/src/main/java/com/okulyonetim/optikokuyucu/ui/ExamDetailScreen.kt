@@ -349,6 +349,8 @@ fun ExamDetailScreen(
                                     link = link,
                                     record = scans[link.scanRecordId],
                                     keys = keys,
+                                    reportRow = examReport.rows.firstOrNull { it.scanRecordId == link.scanRecordId },
+                                    scoringType = examReport.scoringType,
                                     onClick = { onOpenPaper(link.scanRecordId) }
                                 )
                             }
@@ -793,6 +795,8 @@ private fun ExamPaperCard(
     link: ExamPaperLink,
     record: ScanRecord?,
     keys: List<StoredAnswerKey>,
+    reportRow: ExamReportRow?,
+    scoringType: ExamScoringType,
     onClick: () -> Unit
 ) {
     val number = paperNumber(link, record)
@@ -837,11 +841,56 @@ private fun ExamPaperCard(
             when {
                 record == null -> ProductStatusBadge("KAYIT YOK", ProductBadgeTone.RED)
                 score == null -> ProductStatusBadge("ANAHTAR YOK", ProductBadgeTone.ORANGE)
-                else -> ProductStatusBadge(
-                    text = formatScore(score.totalPoints),
-                    tone = if (score.confidentlyEvaluated) ProductBadgeTone.GREEN else ProductBadgeTone.ORANGE
+                else -> ExamPaperCompactResult(
+                    row = reportRow,
+                    scoringType = scoringType,
+                    confident = score.confidentlyEvaluated
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ExamPaperCompactResult(
+    row: ExamReportRow?,
+    scoringType: ExamScoringType,
+    confident: Boolean
+) {
+    val scoreLabel = when (scoringType) {
+        ExamScoringType.LGS -> "LGS"
+        ExamScoringType.IOKBS -> "İOKBS"
+        else -> "Puan"
+    }
+    val accent = if (confident) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Net", fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                row?.net?.let(::formatScore) ?: "—",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(scoreLabel, fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                row?.points?.let(::formatScore) ?: "—",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent
+            )
         }
     }
 }
