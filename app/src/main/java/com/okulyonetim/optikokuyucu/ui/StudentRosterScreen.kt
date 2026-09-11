@@ -971,7 +971,8 @@ private fun StudentRosterOverviewCard(
     val initial = student.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "•"
     ProductCompactCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick
+        onClick = onClick,
+        accentColor = productAccentColor(student.name.ifBlank { student.number })
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),

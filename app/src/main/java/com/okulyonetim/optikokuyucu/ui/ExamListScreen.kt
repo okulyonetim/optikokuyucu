@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +36,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -381,10 +385,12 @@ private fun ExamListCard(
     val read = exam?.status == ExamStatus.READ
     var menuOpen by remember(item.summary.id) { mutableStateOf(false) }
 
+    val examAccent = productAccentColor(summary.name.ifBlank { summary.id })
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(2.dp, examAccent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -395,15 +401,14 @@ private fun ExamListCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    modifier = Modifier.size(42.dp),
-                    color = if (read) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(12.dp)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(productAccentBrush(summary.name.ifBlank { summary.id })),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("▤", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Text("▤", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(summary.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
