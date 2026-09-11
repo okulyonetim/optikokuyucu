@@ -958,23 +958,20 @@ private fun ExamRankedResultCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                ProductStatusBadge(
-                    text = if (row.points == null) {
-                        if (lgs) "LGS —" else "PUAN —"
-                    } else {
-                        if (lgs) "LGS ${formatScore(row.points)}" else formatScore(row.points)
-                    },
-                    tone = if (row.points == null) ProductBadgeTone.ORANGE else ProductBadgeTone.GREEN
-                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                ExamResultMetric("Toplam D", row.correct?.toString() ?: "—", Modifier.weight(1f))
-                ExamResultMetric("Toplam Y", row.wrong?.toString() ?: "—", Modifier.weight(1f))
-                ExamResultMetric("Toplam Net", row.net?.let(::formatScore) ?: "—", Modifier.weight(1f))
-                ExamResultMetric(scoreTitle, row.points?.let(::formatScore) ?: "—", Modifier.weight(1f), emphasize = true)
+                ExamResultMetric("Doğru", row.correct?.toString() ?: "—", Modifier.weight(1f))
+                ExamResultMetric("Yanlış", row.wrong?.toString() ?: "—", Modifier.weight(1f))
+                ExamResultMetric("Net", row.net?.let(::formatScore) ?: "—", Modifier.weight(0.88f))
+                ExamResultMetric(
+                    if (lgs) "LGS Puanı" else scoreTitle,
+                    row.points?.let(::formatScore) ?: "—",
+                    Modifier.weight(0.92f),
+                    emphasize = true
+                )
             }
             if (row.points == null && row.scoreNote.isNotBlank()) {
                 Text(
@@ -1001,16 +998,17 @@ private fun ExamResultMetric(
     ) {
         Text(
             label,
-            fontSize = 7.5.sp,
+            fontSize = 6.8.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             value,
-            fontSize = 11.sp,
+            fontSize = if (emphasize) 9.5.sp else 9.sp,
             fontWeight = if (emphasize) FontWeight.Bold else FontWeight.SemiBold,
-            color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
         )
     }
 }
