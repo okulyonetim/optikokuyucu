@@ -63,31 +63,37 @@ import com.okulyonetim.optikokuyucu.settings.AppThemeMode
 
 // Tek merkezli tasarım sistemi: renkler, gradyanlar, ortak yüzeyler, arama, filtreler,
 // özet alanları, ayar grupları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
-// Okul temalı, renkli kimlik: mor birincil, amber ikincil, mercan/pembe vurgu.
-private val ProductPrimary = Color(0xFF534AB7)
-private val ProductPrimaryLight = Color(0xFFEEEDFE)
-private val ProductSecondary = Color(0xFFBA7517)
-private val ProductSecondaryLight = Color(0xFFFAEEDA)
-private val ProductAccent = Color(0xFF378ADD)
-private val ProductAccentLight = Color(0xFFE6F2FC)
-private val ProductBackground = Color(0xFFF5F2EA)
-private val ProductSurface = Color(0xFFFFFFFF)
+// ── Birincil: Derin İndigo ──────────────────────────────
+private val ProductPrimary        = Color(0xFF4318C9)
+private val ProductPrimaryLight   = Color(0xFFEBE6FF)
 
-private val ProductGreen = Color(0xFF3B6D11)
-private val ProductGreenSoft = Color(0xFFEAF3DE)
-private val ProductOrange = Color(0xFF854F0B)
-private val ProductOrangeSoft = Color(0xFFFAEEDA)
-private val ProductRed = Color(0xFFA32D2D)
-private val ProductRedSoft = Color(0xFFFCEBEB)
+// ── İkincil: Amber-Turuncu ─────────────────────────────
+private val ProductSecondary      = Color(0xFFD97706)
+private val ProductSecondaryLight = Color(0xFFFEF3C7)
 
-// Kart kenarlıkları, avatarlar ve rozetler için dönen okul temalı gradyan paleti.
-// Her öğe adına göre sabit bir renge eşlenir; rastgele değil, tutarlıdır.
-private val ProductGradientPalette: List<Pair<Color, Color>> = listOf(
-    Color(0xFF756ED1) to Color(0xFF534AB7), // menekşe
-    Color(0xFF6CA6DE) to Color(0xFF378ADD), // mavi
-    Color(0xFF72C7B0) to Color(0xFF1D9E75), // teal
-    Color(0xFFE8B75E) to Color(0xFFBA7517), // amber
-    Color(0xFF8FBA62) to Color(0xFF639922)  // yeşil
+// ── Üçüncül: Cyan ──────────────────────────────────────
+private val ProductAccent         = Color(0xFF0891B2)
+private val ProductAccentLight    = Color(0xFFCFFAFE)
+
+// ── Arka plan ──────────────────────────────────────────
+private val ProductBackground     = Color(0xFFF5F3FF)   // lavender, krem yerine
+private val ProductSurface        = Color(0xFFFFFFFF)
+
+// ── Durum ──────────────────────────────────────────────
+private val ProductGreen          = Color(0xFF065F46)
+private val ProductGreenSoft      = Color(0xFFD1FAE5)
+private val ProductOrange         = Color(0xFF92400E)
+private val ProductOrangeSoft     = Color(0xFFFEF3C7)
+private val ProductRed            = Color(0xFF9F1239)
+private val ProductRedSoft        = Color(0xFFFFE4E6)
+
+// ── Gradyan paleti ─────────────────────────────────────
+private val ProductGradientPalette = listOf(
+    Color(0xFF6030E8) to Color(0xFF4318C9),   // indigo
+    Color(0xFF0891B2) to Color(0xFF0D9488),   // cyan-teal
+    Color(0xFFF59E0B) to Color(0xFFEA580C),   // amber-turuncu
+    Color(0xFF7C3AED) to Color(0xFF4318C9),   // mor-indigo
+    Color(0xFF059669) to Color(0xFF16A34A),   // zümrüt
 )
 
 private fun productPaletteIndex(seed: String): Int {
@@ -105,57 +111,62 @@ fun productAccentBrush(seed: String): Brush {
 /** Verilen metne göre sabit bir vurgu rengi üretir (kart kenarlıkları, rozet metinleri için). */
 fun productAccentColor(seed: String): Color = ProductGradientPalette[productPaletteIndex(seed)].second
 
-private val HeroGradientLight = Brush.linearGradient(listOf(Color(0xFF7367D6), Color(0xFF3E8ED0)))
-private val HeroGradientDark = Brush.linearGradient(listOf(Color(0xFF443985), Color(0xFF235E92)))
+// ── Hero gradyanlar ────────────────────────────────────
+private val HeroGradientLight = Brush.linearGradient(
+    listOf(Color(0xFF4318C9), Color(0xFF0891B2))
+)
+private val HeroGradientDark = Brush.linearGradient(
+    listOf(Color(0xFF1E1257), Color(0xFF0C3B52))
+)
 
 private val LightProductScheme = lightColorScheme(
-    primary = ProductPrimary,
-    onPrimary = Color.White,
-    primaryContainer = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF26215C),
-    secondary = ProductSecondary,
-    onSecondary = Color.White,
+    primary            = ProductPrimary,
+    onPrimary          = Color.White,
+    primaryContainer   = ProductPrimaryLight,
+    onPrimaryContainer = Color(0xFF2D0E8F),
+    secondary          = ProductSecondary,
+    onSecondary        = Color.White,
     secondaryContainer = ProductSecondaryLight,
-    onSecondaryContainer = Color(0xFF412402),
-    tertiary = ProductAccent,
-    onTertiary = Color.White,
-    tertiaryContainer = ProductAccentLight,
-    onTertiaryContainer = Color(0xFF4B1528),
-    background = ProductBackground,
-    onBackground = Color(0xFF2C2C2A),
-    surface = ProductSurface,
-    onSurface = Color(0xFF2C2C2A),
-    surfaceVariant = Color(0xFFF1EFE8),
-    onSurfaceVariant = Color(0xFF5F5E5A),
-    outline = Color(0xFF888780),
-    outlineVariant = Color(0xFFD3D1C7),
-    error = ProductRed,
-    onError = Color.White
+    onSecondaryContainer = Color(0xFF451A03),
+    tertiary           = ProductAccent,
+    onTertiary         = Color.White,
+    tertiaryContainer  = ProductAccentLight,
+    onTertiaryContainer = Color(0xFF164E63),
+    background         = ProductBackground,
+    onBackground       = Color(0xFF1A1535),
+    surface            = ProductSurface,
+    onSurface          = Color(0xFF1A1535),
+    surfaceVariant     = Color(0xFFEDE9FE),
+    onSurfaceVariant   = Color(0xFF4B4869),
+    outline            = Color(0xFF8B85AD),
+    outlineVariant     = Color(0xFFD4D0EA),
+    error              = ProductRed,
+    onError            = Color.White,
 )
 
 private val DarkProductScheme = darkColorScheme(
-    primary = Color(0xFFAFA9EC),
-    onPrimary = Color(0xFF26215C),
-    primaryContainer = Color(0xFF3C3489),
-    onPrimaryContainer = Color(0xFFEEEDFE),
-    secondary = Color(0xFFFAC775),
-    onSecondary = Color(0xFF412402),
-    secondaryContainer = Color(0xFF633806),
-    onSecondaryContainer = Color(0xFFFAEEDA),
-    tertiary = Color(0xFF85B7EB),
-    onTertiary = Color(0xFF102C46),
-    tertiaryContainer = Color(0xFF244A6B),
-    onTertiaryContainer = Color(0xFFE6F2FC),
-    background = Color(0xFF121214),
-    onBackground = Color(0xFFEDEDEE),
-    surface = Color(0xFF1D1D22),
-    onSurface = Color(0xFFEDEDEE),
-    surfaceVariant = Color(0xFF232326),
-    onSurfaceVariant = Color(0xFFBABABE),
-    outline = Color(0xFF838388),
-    outlineVariant = Color(0xFF3A3A3D),
-    error = Color(0xFFF09595),
-    onError = Color(0xFF501313)
+    primary            = Color(0xFFB8A8FF),
+    onPrimary          = Color(0xFF1E0A6E),
+    primaryContainer   = Color(0xFF2D0E8F),
+    onPrimaryContainer = Color(0xFFEBE6FF),
+    secondary          = Color(0xFFFCD34D),
+    onSecondary        = Color(0xFF451A03),
+    secondaryContainer = Color(0xFF6B3407),
+    onSecondaryContainer = Color(0xFFFEF3C7),
+    tertiary           = Color(0xFF67E8F9),
+    onTertiary         = Color(0xFF0E4F5E),
+    tertiaryContainer  = Color(0xFF164E63),
+    onTertiaryContainer = Color(0xFFCFFAFE),
+    background         = Color(0xFF0C0A1A),
+    onBackground       = Color(0xFFE8E4FF),
+    surface            = Color(0xFF18162B),
+    onSurface          = Color(0xFFE8E4FF),
+    surfaceVariant     = Color(0xFF221F38),
+    onSurfaceVariant   = Color(0xFFA09BC0),
+    outline            = Color(0xFF6B6685),
+    outlineVariant     = Color(0xFF2D2B45),
+    error              = Color(0xFFFCA5A5),
+    onError            = Color(0xFF7F1D1D),
 )
 
 class ProductThemeController internal constructor(
