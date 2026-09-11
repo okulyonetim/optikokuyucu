@@ -31,7 +31,8 @@ fun SchoolAccountSettingsCard() {
 
     ProductSettingsSection(
         title = "Okul Yönetim Hesabı",
-        description = "Kurum bağlantısı ve eşitleme işlemleri"
+        description = "Kurum bağlantısı ve eşitleme işlemleri",
+        accentColor = MaterialTheme.colorScheme.primary
     ) {
         if (account == null) {
             Text(

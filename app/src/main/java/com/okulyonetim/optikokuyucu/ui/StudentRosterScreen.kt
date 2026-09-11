@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -307,6 +308,9 @@ fun StudentRosterScreen(
 
     importPreview?.let { preview ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { importPreview = null },
             title = { Text("$importSourceLabel Önizleme") },
             text = {
@@ -357,6 +361,9 @@ fun StudentRosterScreen(
 
     if (manualStudentOpen) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { manualStudentOpen = false },
             title = { Text("Manuel Öğrenci Ekle") },
             text = {
@@ -465,6 +472,9 @@ fun StudentRosterScreen(
 
     if (classManagerOpen) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { classManagerOpen = false },
             title = { Text("Sınıflar") },
             text = {
@@ -506,6 +516,9 @@ fun StudentRosterScreen(
 
     if (classEditorOpen) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { classEditorOpen = false; classManagerOpen = true },
             title = { Text(if (editingClass == null) "Sınıf Ekle" else "Sınıfı Düzenle") },
             text = {
@@ -595,6 +608,9 @@ fun StudentRosterScreen(
         }
 
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { editing = null },
             title = { Text(original.fullName) },
             text = {
@@ -774,6 +790,9 @@ fun StudentRosterScreen(
 
     pendingDeleteStudent?.let { student ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             onDismissRequest = { pendingDeleteStudent = null },
             title = { Text("Öğrenciyi Bu Cihazdan Kaldır") },
             text = {

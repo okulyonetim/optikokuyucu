@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -127,6 +128,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
 
     if (editorOpen) {
         ModalBottomSheet(
+            containerColor = MaterialTheme.colorScheme.background,
             onDismissRequest = {
                 editorOpen = false
                 cancelRename()
@@ -139,16 +141,18 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                     .padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                Text("Dersleri Düzenle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (teacherAccount) {
-                        "Tek ders sınavlarında bu cihazdaki liste kullanılır. Öğretmen hesaplarında Okul Yönetim ders eşitlemesi yönetici yetkisindedir."
-                    } else {
-                        "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca buluttaki ders listesi cihazdaki listeyle değiştirilir."
-                    },
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                ProductHeroCard {
+                    Text("Dersleri Düzenle", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (teacherAccount) {
+                            "Tek ders sınavlarında cihazdaki liste kullanılır. Ders eşitlemesi yönetici yetkisindedir."
+                        } else {
+                            "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca liste güvenli biçimde güncellenir."
+                        },
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.80f)
+                    )
+                }
 
                 if (!teacherAccount) {
                     FilledTonalButton(
@@ -165,7 +169,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
 
                 subjects.forEach { subject ->
                     val editing = editingSubject == subject
-                    ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
+                    ProductCompactCard(modifier = Modifier.fillMaxWidth(), accentColor = productAccentColor(subject)) {
                         if (editing) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(10.dp),
