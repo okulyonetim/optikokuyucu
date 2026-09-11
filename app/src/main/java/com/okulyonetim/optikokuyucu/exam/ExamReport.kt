@@ -77,7 +77,8 @@ object ExamReportBuilder {
         generatedAtEpochMs: Long = System.currentTimeMillis()
     ): ExamReport {
         val recordsById = records.associateBy { it.id }
-        val scoringPolicy = ExamScoringPolicyResolver.resolve(exam)
+        val effectiveExam = ExamScoringInference.resolve(exam, records)
+        val scoringPolicy = ExamScoringPolicyResolver.resolve(effectiveExam)
 
         val drafts = exam.papers.mapIndexed { index, link ->
             val record = recordsById[link.scanRecordId]
@@ -121,7 +122,7 @@ object ExamReportBuilder {
         }
 
         val calculatedScores = ExamScoreEngine.calculate(
-            exam = exam,
+            exam = effectiveExam,
             papers = drafts.mapNotNull { draft ->
                 draft.score?.let { score -> ExamPaperScoreInput(draft.scanRecordId, score) }
             }
@@ -174,7 +175,7 @@ object ExamReportBuilder {
             schoolName = exam.schoolName,
             generatedAtEpochMs = generatedAtEpochMs,
             rows = rows,
-            scoringType = exam.scoringConfiguration.type
+            scoringType = effectiveExam.scoringConfiguration.type
         )
     }
 
