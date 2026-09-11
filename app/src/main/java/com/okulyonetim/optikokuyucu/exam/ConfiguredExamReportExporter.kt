@@ -10,6 +10,7 @@ import java.io.OutputStream
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.math.min
 
 enum class ReportPageOrientation { PORTRAIT, LANDSCAPE }
 
@@ -18,7 +19,7 @@ enum class ReportColumn(val label: String, val weight: Float) {
     NUMBER("No", 0.9f),
     CLASS("Sınıf", 0.9f),
     BOOKLET("Kitapçık", 0.8f),
-    SCORE("Puan", 1.0f),
+    SCORE("Puan", 1.1f),
     NET("Net", 0.9f),
     CORRECT("Doğru", 0.75f),
     WRONG("Yanlış", 0.75f),
@@ -75,11 +76,26 @@ object ConfiguredExamReportExporter {
         val pageHeight = if (orientation == ReportPageOrientation.LANDSCAPE) 595 else 842
         val left = 22f
         val right = pageWidth - 22f
-        val top = 126f
-        val bottom = pageHeight - 32f
-        val headerHeight = 38f
-        val rowHeight = 25f
-        val rowsPerPage = ((bottom - top - headerHeight) / rowHeight).toInt().coerceAtLeast(1)
+        val top = 116f
+        val bottom = pageHeight - 28f
+        val headerHeight = 32f
+        val availableRowsHeight = (bottom - top - headerHeight).coerceAtLeast(MIN_ROW_HEIGHT)
+        val compactSimpleReport = ReportColumn.LESSONS !in config.columns && config.columns.size <= 9
+        val singlePageRowHeight = if (config.rows.isEmpty()) {
+            DEFAULT_ROW_HEIGHT
+        } else {
+            availableRowsHeight / config.rows.size.toFloat()
+        }
+        val rowHeight = if (compactSimpleReport && config.rows.size <= MAX_SINGLE_PAGE_ROWS && singlePageRowHeight >= MIN_ROW_HEIGHT) {
+            min(DEFAULT_ROW_HEIGHT, singlePageRowHeight)
+        } else {
+            DEFAULT_ROW_HEIGHT
+        }
+        val rowsPerPage = if (compactSimpleReport && config.rows.size <= MAX_SINGLE_PAGE_ROWS && singlePageRowHeight >= MIN_ROW_HEIGHT) {
+            config.rows.size.coerceAtLeast(1)
+        } else {
+            (availableRowsHeight / rowHeight).toInt().coerceAtLeast(1)
+        }
         val rowPages = config.rows.chunked(rowsPerPage).ifEmpty { listOf(emptyList()) }
         val horizontalSegments = horizontalSegments(blocks)
         val totalPages = rowPages.size * horizontalSegments.size
@@ -157,7 +173,7 @@ object ConfiguredExamReportExporter {
                     blocks += metricBlock(examLessonDisplayName(lessonId), lessonId = lessonId)
                 }
             } else {
-                blocks += staticBlock(column)
+                blocks += staticBlock(column, config.report.scoringType)
             }
         }
         if (ReportColumn.LESSONS in config.columns) {
@@ -166,11 +182,11 @@ object ConfiguredExamReportExporter {
         return blocks
     }
 
-    private fun staticBlock(column: ReportColumn): TableBlock = TableBlock(
+    private fun staticBlock(column: ReportColumn, scoringType: ExamScoringType): TableBlock = TableBlock(
         title = null,
         leaves = listOf(
             LeafColumn(
-                label = column.label,
+                label = columnLabel(column, scoringType),
                 weight = column.weight,
                 staticColumn = column,
                 leftAligned = column == ReportColumn.STUDENT
@@ -247,58 +263,58 @@ object ConfiguredExamReportExporter {
         val line = Color.rgb(199, 212, 206)
         val alternate = Color.rgb(247, 250, 249)
 
-        canvas.drawRect(0f, 0f, pageWidth.toFloat(), 72f, Paint().apply { color = brand })
+        canvas.drawRect(0f, 0f, pageWidth.toFloat(), 64f, Paint().apply { color = brand })
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 17f
+            textSize = 16f
             typeface = boldTypeface
         }
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(222, 241, 234)
-            textSize = 9f
+            textSize = 8.5f
             typeface = normalTypeface
         }
         val title = buildString {
             append(config.report.examName)
             if (config.titleSuffix.isNotBlank()) append(" · ${config.titleSuffix}")
         }
-        canvas.drawText(fitted(title, titlePaint, pageWidth - 44f), 22f, 31f, titlePaint)
+        canvas.drawText(fitted(title, titlePaint, pageWidth - 44f), 22f, 27f, titlePaint)
         canvas.drawText(
             fitted(config.report.schoolName.ifBlank { "Okul bilgisi yok" }, subtitlePaint, pageWidth - 44f),
             22f,
-            51f,
+            46f,
             subtitlePaint
         )
 
         val averageScore = config.rows.mapNotNull { it.points }.takeIf { it.isNotEmpty() }?.average()
         val averageNet = config.rows.mapNotNull { it.net }.takeIf { it.isNotEmpty() }?.average()
-        val summaryLabels = listOf("KAYIT", "PUAN ORT.", "NET ORT.")
+        val summaryLabels = listOf("KAYIT", scoreAverageLabel(config.report.scoringType), "NET ORT.")
         val summaryValues = listOf(
             config.rows.size.toString(),
             averageScore?.let(::number) ?: "—",
             averageNet?.let(::number) ?: "—"
         )
         val summaryGap = 7f
-        val summaryTop = 82f
-        val summaryHeight = 30f
+        val summaryTop = 73f
+        val summaryHeight = 29f
         val summaryWidth = (pageWidth - 44f - summaryGap * 2f) / 3f
         val summaryFill = Paint().apply { color = brandSoft }
         val summaryLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = muted
-            textSize = 6.7f
+            textSize = 6.5f
             typeface = boldTypeface
         }
         val summaryValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = brand
-            textSize = 11.5f
+            textSize = 11f
             typeface = boldTypeface
         }
         repeat(3) { index ->
             val x = 22f + index * (summaryWidth + summaryGap)
             canvas.drawRoundRect(x, summaryTop, x + summaryWidth, summaryTop + summaryHeight, 5f, 5f, summaryFill)
             canvas.drawText(summaryLabels[index], x + 7f, summaryTop + 10f, summaryLabelPaint)
-            canvas.drawText(summaryValues[index], x + 7f, summaryTop + 24f, summaryValuePaint)
+            canvas.drawText(summaryValues[index], x + 7f, summaryTop + 23f, summaryValuePaint)
         }
 
         val leaves = blocks.flatMap { it.leaves }
@@ -313,16 +329,17 @@ object ConfiguredExamReportExporter {
         }
         val headerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = if (leaves.size >= 13) 6.5f else 7.3f
+            textSize = if (leaves.size >= 13) 6.2f else 7.0f
             typeface = boldTypeface
             textAlign = Paint.Align.CENTER
         }
         val cellText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ink
             textSize = when {
-                leaves.size >= 14 -> 6.7f
-                leaves.size >= 11 -> 7.0f
-                else -> 7.7f
+                rowHeight <= 17f -> 6.2f
+                leaves.size >= 14 -> 6.5f
+                leaves.size >= 11 -> 6.8f
+                else -> 7.4f
             }
             typeface = normalTypeface
         }
@@ -382,7 +399,7 @@ object ConfiguredExamReportExporter {
 
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = muted
-            textSize = 6.8f
+            textSize = 6.5f
             typeface = normalTypeface
         }
         val segmentText = if (segmentCount > 1) " · Bölüm ${segmentIndex + 1}/$segmentCount" else ""
@@ -390,14 +407,14 @@ object ConfiguredExamReportExporter {
         canvas.drawText(
             "$pageNumber / $totalPages$segmentText$rowPageText · ${if (orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"}",
             22f,
-            pageHeight - 16f,
+            pageHeight - 13f,
             footerPaint
         )
         val brandFooter = "Optik Okuyucu"
         canvas.drawText(
             brandFooter,
             pageWidth - 22f - footerPaint.measureText(brandFooter),
-            pageHeight - 16f,
+            pageHeight - 13f,
             footerPaint
         )
     }
@@ -497,6 +514,19 @@ object ConfiguredExamReportExporter {
         ReportColumn.LESSONS -> ""
     }
 
+    private fun columnLabel(column: ReportColumn, scoringType: ExamScoringType): String = when {
+        column != ReportColumn.SCORE -> column.label
+        scoringType == ExamScoringType.LGS -> "LGS Puanı"
+        scoringType == ExamScoringType.IOKBS -> "İOKBS Puanı"
+        else -> column.label
+    }
+
+    private fun scoreAverageLabel(scoringType: ExamScoringType): String = when (scoringType) {
+        ExamScoringType.LGS -> "LGS ORT."
+        ExamScoringType.IOKBS -> "İOKBS ORT."
+        else -> "PUAN ORT."
+    }
+
     private fun effectiveOrientation(config: ConfiguredExamReport, blocks: List<TableBlock>): ReportPageOrientation =
         if (blocks.sumOf { it.leaves.size } >= 8 || ReportColumn.LESSONS in config.columns) {
             ReportPageOrientation.LANDSCAPE
@@ -520,6 +550,7 @@ object ConfiguredExamReportExporter {
                 val width = when {
                     leaf.staticColumn == ReportColumn.STUDENT -> 28
                     leaf.staticColumn == ReportColumn.OVERALL_RANK || leaf.staticColumn == ReportColumn.CLASS_RANK -> 14
+                    leaf.staticColumn == ReportColumn.SCORE -> 14
                     leaf.staticColumn != null -> 11
                     leaf.metric == Metric.NET -> 10
                     else -> 8
@@ -672,6 +703,9 @@ object ConfiguredExamReportExporter {
     }
 
     private const val MAX_PDF_LEAVES = 15
+    private const val MAX_SINGLE_PAGE_ROWS = 24
+    private const val DEFAULT_ROW_HEIGHT = 25f
+    private const val MIN_ROW_HEIGHT = 16f
     private const val STYLE_HEADER_CENTER = 1
     private const val STYLE_BODY_CENTER = 2
     private const val STYLE_BODY_LEFT = 3
