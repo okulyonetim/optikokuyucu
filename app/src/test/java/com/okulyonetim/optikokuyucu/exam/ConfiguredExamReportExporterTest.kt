@@ -73,6 +73,57 @@ class ConfiguredExamReportExporterTest {
         assertTrue(sheet.contains("orientation=\"landscape\""))
     }
 
+    @Test
+    fun `lgs xlsx labels configured score as LGS score`() {
+        val row = ExamReportRow(
+            ordinal = 1,
+            scanRecordId = "scan-lgs",
+            studentName = "Muhammet Emin",
+            className = "8-A",
+            studentNumber = "136",
+            bookletCode = "A",
+            capturedAtEpochMs = 1L,
+            correct = 70,
+            wrong = 15,
+            blank = 5,
+            doubleMark = 0,
+            suspicious = 0,
+            noKey = 0,
+            points = 384.7,
+            maximumPoints = 500.0,
+            status = ExamReportRowStatus.SCORED,
+            net = 65.0,
+            overallRank = 1
+        )
+        val report = ExamReport(
+            examId = "lgs",
+            examName = "LGS Deneme",
+            schoolName = "Koruk Ortaokulu",
+            generatedAtEpochMs = 1L,
+            rows = listOf(row),
+            scoringType = ExamScoringType.LGS
+        )
+        val config = ConfiguredExamReport(
+            report = report,
+            rows = listOf(row),
+            columns = listOf(
+                ReportColumn.OVERALL_RANK,
+                ReportColumn.NUMBER,
+                ReportColumn.STUDENT,
+                ReportColumn.CLASS,
+                ReportColumn.CORRECT,
+                ReportColumn.WRONG,
+                ReportColumn.NET,
+                ReportColumn.SCORE
+            )
+        )
+
+        val sheet = unzip(ConfiguredExamReportExporter.exportXlsx(config))["xl/worksheets/sheet1.xml"].orEmpty()
+
+        assertTrue(sheet.contains("LGS Puanı"))
+        assertTrue(sheet.contains("384.70") || sheet.contains("384,70"))
+    }
+
     private fun unzip(bytes: ByteArray): Map<String, String> {
         val result = linkedMapOf<String, String>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
