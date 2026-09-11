@@ -4,7 +4,6 @@ import com.okulyonetim.optikokuyucu.omr.scoring.ExamScore
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,8 +14,8 @@ class LgsReferenceScoreEstimatorTest {
             listOf(structuredPaper("single", allCorrect = false))
         ).getValue("single")
 
-        assertEquals(187.40, assertNotNull(result.calculatedScore), 0.0001)
-        assertEquals(500.0, assertNotNull(result.maximumScore), 0.0001)
+        assertEquals(187.40, requireNotNull(result.calculatedScore), 0.0001)
+        assertEquals(500.0, requireNotNull(result.maximumScore), 0.0001)
         assertTrue(result.note.contains("Tahmini 2026 LGS"))
         assertTrue(result.note.contains("Resmî MEB sonucu değildir"))
     }
@@ -28,7 +27,7 @@ class LgsReferenceScoreEstimatorTest {
         ).getValue("full")
 
         assertEquals(90.0, result.net, 0.0001)
-        assertEquals(500.0, assertNotNull(result.calculatedScore), 0.0001)
+        assertEquals(500.0, requireNotNull(result.calculatedScore), 0.0001)
         assertEquals(
             listOf("turkce", "matematik", "fen", "inkilap", "din", "yabanci"),
             result.lessons.map { it.lessonId }
@@ -50,7 +49,7 @@ class LgsReferenceScoreEstimatorTest {
         ).getValue("paper")
 
         assertEquals(-1.0, result.lessons.first { it.lessonId == "turkce" }.net, 0.0001)
-        assertEquals(183.21, assertNotNull(result.calculatedScore), 0.0001)
+        assertEquals(183.21, requireNotNull(result.calculatedScore), 0.0001)
     }
 
     private fun structuredPaper(id: String, allCorrect: Boolean): ExamPaperScoreInput {
