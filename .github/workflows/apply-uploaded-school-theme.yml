@@ -1,0 +1,34 @@
+name: Apply uploaded school theme
+
+on:
+  push:
+    branches:
+      - feat/apply-exact-uploaded-theme-final
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/apply-exact-uploaded-theme-final
+      - name: Apply uploaded theme
+        run: python3 .github/scripts/apply_uploaded_school_theme.py
+      - name: Commit theme changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No theme patch needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/okulyonetim/optikokuyucu/ui/ProductUi.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/StudentRosterScreen.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/ExamListScreen.kt \
+                  app/build.gradle.kts
+          git commit -m "style: apply uploaded centralized school theme [theme-patched]"
+          git push origin HEAD:feat/apply-exact-uploaded-theme-final
