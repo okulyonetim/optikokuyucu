@@ -10,16 +10,20 @@ permissions:
 
 jobs:
   patch:
-    if: "${{ !contains(github.event.head_commit.message, '[compact-patched]') }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fix/compact-ranked-results-v2
 
-      - name: Compact ranked result cards
+      - name: Apply compact ranked results patch
         shell: bash
         run: |
+          if grep -q 'versionName = "0.19.61"' app/build.gradle.kts; then
+            echo "Patch already applied."
+            exit 0
+          fi
+
           python3 - <<'PY'
           from pathlib import Path
 
@@ -90,7 +94,6 @@ jobs:
           if old_metric_style not in text:
               raise SystemExit('Expected ExamResultMetric style block not found')
           text = text.replace(old_metric_style, new_metric_style, 1)
-
           path.write_text(text, encoding='utf-8')
 
           gradle = Path('app/build.gradle.kts')
@@ -102,9 +105,6 @@ jobs:
           gradle.write_text(build, encoding='utf-8')
           PY
 
-      - name: Commit patch
-        shell: bash
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/src/main/java/com/okulyonetim/optikokuyucu/ui/ExamDetailScreen.kt app/build.gradle.kts
