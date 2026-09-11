@@ -1,0 +1,24 @@
+name: Apply camera theme refresh
+on:
+  push:
+    branches: [style/camera-theme-refresh]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[camera-themed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: style/camera-theme-refresh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python .github/scripts/apply_camera_theme_refresh.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/okulyonetim/optikokuyucu/ui/ProductUi.kt app/src/main/java/com/okulyonetim/optikokuyucu/ui/OmrCameraScreen.kt app/build.gradle.kts
+          git diff --cached --quiet || git commit -m "style: refresh camera and balance theme [camera-themed]"
+          git push
