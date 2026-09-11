@@ -445,6 +445,22 @@ private fun canonicalMebLessonId(raw: String?): String? {
         .replace('ö', 'o')
         .replace('ç', 'c')
         .filter { it.isLetterOrDigit() }
+    val structuredIndex = Regex("^answers?(\\d+)$")
+        .matchEntire(normalized)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toIntOrNull()
+    val structuredLesson = when (structuredIndex) {
+        1 -> "turkce"
+        2 -> "inkilap"
+        3 -> "din"
+        4 -> "yabanci"
+        5 -> "matematik"
+        6 -> "fen"
+        else -> null
+    }
+    if (structuredLesson != null) return structuredLesson
+
     return when {
         "turk" in normalized -> "turkce"
         normalized == "mat" || "matematik" in normalized -> "matematik"
