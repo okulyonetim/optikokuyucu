@@ -38,7 +38,7 @@ jobs:
                     },
                     tone = if (row.points == null) ProductBadgeTone.ORANGE else ProductBadgeTone.GREEN
                 )
-'''
+          '''
           if score_badge not in text:
               raise SystemExit('Expected ranked-result score badge block not found')
           text = text.replace(score_badge, '', 1)
@@ -47,7 +47,7 @@ jobs:
                 ExamResultMetric("Toplam Y", row.wrong?.toString() ?: "—", Modifier.weight(1f))
                 ExamResultMetric("Toplam Net", row.net?.let(::formatScore) ?: "—", Modifier.weight(1f))
                 ExamResultMetric(scoreTitle, row.points?.let(::formatScore) ?: "—", Modifier.weight(1f), emphasize = true)
-'''
+          '''
           new_metrics = '''                ExamResultMetric("Doğru", row.correct?.toString() ?: "—", Modifier.weight(1f))
                 ExamResultMetric("Yanlış", row.wrong?.toString() ?: "—", Modifier.weight(1f))
                 ExamResultMetric("Net", row.net?.let(::formatScore) ?: "—", Modifier.weight(0.88f))
@@ -57,7 +57,7 @@ jobs:
                     Modifier.weight(0.92f),
                     emphasize = true
                 )
-'''
+          '''
           if old_metrics not in text:
               raise SystemExit('Expected ranked-result metrics block not found')
           text = text.replace(old_metrics, new_metrics, 1)
@@ -75,7 +75,7 @@ jobs:
             fontWeight = if (emphasize) FontWeight.Bold else FontWeight.SemiBold,
             color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
-'''
+          '''
           new_metric_style = '''        Text(
             label,
             fontSize = 6.8.sp,
@@ -90,7 +90,7 @@ jobs:
             color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             maxLines = 1
         )
-'''
+          '''
           if old_metric_style not in text:
               raise SystemExit('Expected ExamResultMetric style block not found')
           text = text.replace(old_metric_style, new_metric_style, 1)
