@@ -421,7 +421,8 @@ private fun RootSettingsScreen() {
             item {
                 ProductSettingsSection(
                     title = "Kurum Bilgileri",
-                    description = "Okul adı bağlı Okul Yönetim hesabından veya güvenilir kurum kaynağından alınır."
+                    description = "Okul adı bağlı Okul Yönetim hesabından veya güvenilir kurum kaynağından alınır.",
+                    accentColor = MaterialTheme.colorScheme.tertiary
                 ) {
                     Text(
                         schoolName.ifBlank { "Okul adı henüz eşitlenmedi." },

@@ -228,11 +228,33 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     }
 }
 
+/** Uygulamanın ana vurgu alanları için ortak indigo-cyan hero yüzeyi. */
+@Composable
+fun ProductHeroCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
+    val brush = if (dark) HeroGradientDark else HeroGradientLight
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(brush)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content
+        )
+    }
+}
+
 // Belirgin, her iki modda da görünür 2dp kenarlık. "lightControlBorder" adı korunuyor
 // (birçok çağrı noktası tarafından kullanılıyor) ama artık koyu modda da kenarlık çiziyor.
 @Composable
 private fun lightControlBorder(): BorderStroke {
-    return BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f))
+    return BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.48f))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -466,7 +488,7 @@ fun ProductCompactCard(
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(2.dp, borderColor),
+        border = BorderStroke(1.5.dp, borderColor),
         tonalElevation = 0.dp,
         shadowElevation = if (light) 1.dp else 0.dp
     ) {
@@ -479,9 +501,10 @@ fun ProductSettingsSection(
     title: String,
     description: String? = null,
     modifier: Modifier = Modifier,
+    accentColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    ProductCompactCard(modifier = modifier.fillMaxWidth()) {
+    ProductCompactCard(modifier = modifier.fillMaxWidth(), accentColor = accentColor) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
@@ -622,7 +645,7 @@ fun ProductFilterPill(
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
                 .background(productAccentBrush(label))
-                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f), RoundedCornerShape(14.dp))
                 .clickable(onClick = onClick)
                 .padding(horizontal = 16.dp, vertical = 9.dp)
         ) {
@@ -632,7 +655,7 @@ fun ProductFilterPill(
         OutlinedButton(
             onClick = onClick,
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(2.dp, productAccentColor(label).copy(alpha = 0.7f))
+            border = BorderStroke(1.5.dp, productAccentColor(label).copy(alpha = 0.72f))
         ) {
             Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
         }
@@ -645,15 +668,15 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
     val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
     val background = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF173404)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF412402)
-        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF501313)
+        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF063B33)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF4A2608)
+        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF4D1024)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant
     }
     val foreground = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF97C459)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFAC775)
-        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFF09595)
+        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF6EE7B7)
+        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFCD34D)
+        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFDA4AF)
         ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(
