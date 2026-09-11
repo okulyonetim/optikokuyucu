@@ -333,7 +333,7 @@ private fun CameraPreviewContent(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             title = title,
             subtitle = subtitle ?: "${template.id} · v${template.version}",
             stats = stats,
@@ -357,8 +357,8 @@ private fun CameraPreviewContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             if (showRawReadCard) {
                 liveRead?.let { result -> LiveReadResultCard(result = result) }
@@ -489,10 +489,10 @@ private fun CameraProductHeader(
 
     Surface(
         modifier = modifier,
-        color = Color.Black.copy(alpha = 0.70f),
+        color = Color(0xFF151623).copy(alpha = 0.90f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.82f))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -577,10 +577,10 @@ private fun CameraStatusPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.Black.copy(alpha = 0.72f),
+        color = Color(0xFF151623).copy(alpha = 0.90f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.58f))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -620,10 +620,10 @@ private fun LiveReadResultCard(result: LiveOmrReadResult) {
     val bubbles = result.bubbleResult
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = Color.Black.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFF151623).copy(alpha = 0.92f),
         contentColor = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF69D49F).copy(alpha = 0.65f))
+        border = BorderStroke(2.dp, Color(0xFF69D49F).copy(alpha = 0.78f))
     ) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
