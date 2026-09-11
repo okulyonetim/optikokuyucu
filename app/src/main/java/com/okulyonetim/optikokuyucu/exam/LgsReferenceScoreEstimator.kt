@@ -9,8 +9,9 @@ import java.util.Locale
  *
  * The official MEB score needs national mean/standard-deviation/TASP values that are not available
  * to the offline app. This estimator therefore keeps the official 3-wrong rule and lesson structure,
- * then applies a fixed 2026 reference calibration. The result is always labelled as an estimate and
- * must never be presented as the official MEB result.
+ * then applies a fixed 2026 reference calibration. The calibration constants were matched against
+ * observed 2026 public LGS calculator outputs, so the result is an estimate and must never be
+ * presented as the official MEB result.
  */
 object LgsReferenceScoreEstimator {
     fun calculate(papers: List<ExamPaperScoreInput>): Map<String, ExamPaperCalculatedScore> =
@@ -60,7 +61,7 @@ object LgsReferenceScoreEstimator {
             maximumScore = MAX_SCORE,
             scope = ExamCalculatedScoreScope.SCALED,
             lessons = orderedLessons,
-            note = "Tahmini 2026 LGS puanıdır; 3 yanlış 1 doğru kuralı ve ders bazlı referans katsayılar kullanılır. Resmî MEB sonucu değildir."
+            note = "Tahmini 2026 LGS puanıdır; 3 yanlış 1 doğru kuralı ve 2026 referans net katsayıları kullanılır. Resmî MEB sonucu değildir."
         )
     }
 
@@ -149,15 +150,15 @@ object LgsReferenceScoreEstimator {
     )
 
     private val RULES = listOf(
-        ReferenceRule("turkce", "Türkçe", 20, 4.0, 4.19),
-        ReferenceRule("matematik", "Matematik", 20, 4.0, 4.99),
-        ReferenceRule("fen", "Fen Bilimleri", 20, 4.0, 3.83),
-        ReferenceRule("inkilap", "T.C. İnkılap Tarihi ve Atatürkçülük", 10, 1.0, 1.70),
-        ReferenceRule("din", "Din Kültürü ve Ahlak Bilgisi", 10, 1.0, 1.92),
-        ReferenceRule("yabanci", "Yabancı Dil", 10, 1.0, 1.62)
+        ReferenceRule("turkce", "Türkçe", 20, 4.0, 4.1820),
+        ReferenceRule("matematik", "Matematik", 20, 4.0, 4.9812),
+        ReferenceRule("fen", "Fen Bilimleri", 20, 4.0, 3.8347),
+        ReferenceRule("inkilap", "T.C. İnkılap Tarihi ve Atatürkçülük", 10, 1.0, 1.6816),
+        ReferenceRule("din", "Din Kültürü ve Ahlak Bilgisi", 10, 1.0, 1.9259),
+        ReferenceRule("yabanci", "Yabancı Dil", 10, 1.0, 1.6157)
     )
 
     private const val MIN_SCORE = 100.0
     private const val MAX_SCORE = 500.0
-    private val BASE_SCORE = MAX_SCORE - RULES.sumOf { rule -> rule.questionCount * rule.pointsPerNet }
+    private const val BASE_SCORE = 187.8131
 }
