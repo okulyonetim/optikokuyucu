@@ -162,6 +162,28 @@ class ExamPaperPresentationTest {
     }
 
     @Test
+    fun lgsMapsStructuredAnswerGroupIdsToMebLessons() {
+        val exam = scoringExam(
+            configuration = ExamScoringConfiguration.forType(ExamScoringType.LGS)
+        )
+        val papers = listOf(
+            structuredLgsPaper("low", correctPerLesson = 1),
+            structuredLgsPaper("mid", correctPerLesson = 2),
+            structuredLgsPaper("high", correctPerLesson = 3)
+        )
+
+        val results = ExamScoreEngine.calculate(exam, papers)
+        val mid = results.getValue("mid")
+
+        assertEquals(300.0, requireNotNull(mid.calculatedScore), 0.0001)
+        assertEquals(
+            listOf("turkce", "matematik", "fen", "inkilap", "din", "yabanci"),
+            mid.lessons.map { it.lessonId }
+        )
+        assertEquals(ExamCalculatedScoreScope.LOCAL_COHORT_MEB_METHOD, mid.scope)
+    }
+
+    @Test
     fun iokbsUsesThreePointWeightsForAllFourTests() {
         val exam = scoringExam(
             configuration = ExamScoringConfiguration.forType(ExamScoringType.IOKBS)
@@ -234,6 +256,27 @@ class ExamPaperPresentationTest {
                             } else {
                                 QuestionEvaluationState.BLANK
                             },
+                            0.0
+                        )
+                    )
+                }
+            }
+        }
+        return ExamPaperScoreInput(id, ExamScore(evaluations))
+    }
+
+    private fun structuredLgsPaper(
+        id: String,
+        correctPerLesson: Int
+    ): ExamPaperScoreInput {
+        val groups = listOf("answers-1", "answers-2", "answers-3", "answers-4", "answers-5", "answers-6")
+        val evaluations = buildList {
+            groups.forEach { group ->
+                repeat(4) { index ->
+                    add(
+                        eval(
+                            "$group:${index + 1}",
+                            if (index < correctPerLesson) QuestionEvaluationState.CORRECT else QuestionEvaluationState.BLANK,
                             0.0
                         )
                     )
