@@ -1,5 +1,7 @@
 package com.okulyonetim.optikokuyucu.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,21 +40,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.okulyonetim.optikokuyucu.exam.ExamLessonScore
+import androidx.core.content.res.ResourcesCompat
+import com.okulyonetim.optikokuyucu.R
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetadataEditor
 import com.okulyonetim.optikokuyucu.exam.ExamPaperMetrics
 import com.okulyonetim.optikokuyucu.exam.ExamPaperRemoval
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
 import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
-import com.okulyonetim.optikokuyucu.exam.ExamReportRow
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.exam.StudentResultPdfExporter
+import com.okulyonetim.optikokuyucu.exam.StudentResultPresentationBuilder
+import com.okulyonetim.optikokuyucu.exam.examLessonDisplayName
 import com.okulyonetim.optikokuyucu.exam.questionDisplayNumber
 import com.okulyonetim.optikokuyucu.exam.questionLessonPrefix
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
-import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
-import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
-import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.results.FileScanImageRepository
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.results.RecordedAnswer
@@ -64,10 +62,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.OmrScorer
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluation
 import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
-import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
-import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
-import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.Locale
 
@@ -136,10 +131,37 @@ fun StudentPaperDetailScreen(
     }
     var status by remember { mutableStateOf("") }
     var deleteDialogOpen by remember { mutableStateOf(false) }
+    var pendingStudentPdf by remember { mutableStateOf<ByteArray?>(null) }
 
-    val scoringLink = remember(link, bookletCode) { link.copy(bookletCode = bookletCode.trim()) }
-    val matchingKey = remember(record.id, keys, scoringLink.bookletCode, currentExam.id) {
-        ExamPaperResolution.answerKey(currentExam.id, scoringLink, record, keys)
+    val studentPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(StudentResultPdfExporter.MIME_TYPE)
+    ) { uri ->
+        val bytes = pendingStudentPdf
+        pendingStudentPdf = null
+        if (uri == null || bytes == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri, "w").use { output ->
+                requireNotNull(output) { "PDF çıktı akışı açılamadı." }
+                output.write(bytes)
+                output.flush()
+            }
+        }.onSuccess {
+            status = "Öğrenci sonuç PDF'i kaydedildi."
+        }.onFailure { error ->
+            status = "PDF kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    val displayLink = remember(link, bookletCode, studentName, className, studentNumber) {
+        link.copy(
+            studentName = studentName.trim(),
+            className = className.trim(),
+            studentNumber = studentNumber.trim(),
+            bookletCode = bookletCode.trim()
+        )
+    }
+    val matchingKey = remember(record.id, keys, displayLink.bookletCode, currentExam.id) {
+        ExamPaperResolution.answerKey(currentExam.id, displayLink, record, keys)
     }
     val score = remember(
         record.id,
@@ -157,27 +179,24 @@ fun StudentPaperDetailScreen(
             }.getOrNull()
         }
     }
-    val previewExam = remember(currentExam, scoringLink) {
-        currentExam.withPaper(scoringLink)
-    }
-    val calculatedRow = remember(previewExam, keys) {
+    val previewExam = remember(currentExam, displayLink) { currentExam.withPaper(displayLink) }
+    val calculatedReport = remember(previewExam, keys) {
         ExamReportBuilder.build(
             exam = previewExam,
             records = scanRepository.list(),
             answerKeys = keys
-        ).rows.firstOrNull { it.scanRecordId == scanRecordId }
+        )
+    }
+    val presentation = remember(calculatedReport, scanRecordId) {
+        StudentResultPresentationBuilder.build(calculatedReport, scanRecordId)
     }
     val metrics = score?.let(ExamPaperMetrics::from)
     val evaluations = score?.evaluations?.associateBy { it.questionId }.orEmpty()
-    val lessonNames = remember(currentExam.templateSelection) {
-        resolveLessonNames(appContext, currentExam.templateSelection)
-    }
     val lessonPrefixes = remember(record.id) {
         record.answers.mapNotNull { questionLessonPrefix(it.questionId) }.distinct()
     }
     var selectedLesson by remember(record.id) { mutableStateOf(lessonPrefixes.firstOrNull()) }
     var lessonMenuOpen by remember { mutableStateOf(false) }
-
     val visibleAnswers = record.answers.filter { answer ->
         selectedLesson == null || questionLessonPrefix(answer.questionId) == selectedLesson
     }
@@ -211,11 +230,25 @@ fun StudentPaperDetailScreen(
         }
     }
 
+    fun createStudentPdf() {
+        val currentPresentation = presentation ?: return
+        runCatching {
+            StudentResultPdfExporter.exportBytes(
+                presentation = currentPresentation,
+                typeface = ResourcesCompat.getFont(context, R.font.noto_sans)
+            )
+        }.onSuccess { bytes ->
+            pendingStudentPdf = bytes
+            studentPdfLauncher.launch(studentResultFileName(currentExam.name, studentName, studentNumber))
+        }.onFailure { error ->
+            status = "PDF hazırlanamadı: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
     fun deletePaper() {
         runCatching {
             val updated = ExamPaperRemoval.unlink(currentExam, scanRecordId)
             examRepository.save(updated)
-
             val referencedElsewhere = examRepository.list().any { otherExam ->
                 otherExam.id != examId && otherExam.paperForScan(scanRecordId) != null
             }
@@ -248,9 +281,7 @@ fun StudentPaperDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteDialogOpen = false }) {
-                    Text("Vazgeç")
-                }
+                TextButton(onClick = { deleteDialogOpen = false }) { Text("Vazgeç") }
             }
         )
     }
@@ -266,13 +297,9 @@ fun StudentPaperDetailScreen(
                 onActionClick = ::saveMetadata
             )
         },
-        bottomBar = {
-            StudentResultSummaryBar(metrics)
-        }
+        bottomBar = { StudentResultSummaryBar(metrics) }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding)
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -295,157 +322,55 @@ fun StudentPaperDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     item {
-                        ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
+                        StudentResultHero(result = presentation, hasKey = matchingKey != null)
                     }
-                    if (!calculatedRow?.lessons.isNullOrEmpty()) {
-                        item {
-                            LessonScoreSummary(
-                                lessons = calculatedRow?.lessons.orEmpty(),
-                                lessonNames = lessonNames
-                            )
-                        }
+                    presentation?.takeIf { it.lessons.isNotEmpty() }?.let { result ->
+                        item { StudentResultLessonDashboard(result) }
                     }
                     item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedTextField(
-                                    modifier = Modifier.weight(1f),
-                                    value = studentNumber,
-                                    onValueChange = { value ->
-                                        studentNumber = value.filter(Char::isDigit)
-                                        lookupStudent(studentNumber)
-                                    },
-                                    label = { Text("Numara") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                                OutlinedTextField(
-                                    modifier = Modifier.weight(1f),
-                                    value = className,
-                                    onValueChange = { className = it },
-                                    label = { Text("Sınıf") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                            }
-
-                            OutlinedTextField(
-                                modifier = Modifier.fillMaxWidth(),
-                                value = studentName,
-                                onValueChange = { studentName = it },
-                                label = { Text("Ad Soyad") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp)
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    OutlinedButton(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onClick = { lessonMenuOpen = true },
-                                        shape = RoundedCornerShape(14.dp)
-                                    ) {
-                                        Column(modifier = Modifier.fillMaxWidth()) {
-                                            Text("Ders", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text(
-                                                selectedLesson?.let { lessonNames[it] ?: humanizeLesson(it) }
-                                                    ?: "Tümü",
-                                                fontSize = 11.sp
-                                            )
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = lessonMenuOpen,
-                                        onDismissRequest = { lessonMenuOpen = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Tümü") },
-                                            onClick = {
-                                                selectedLesson = null
-                                                lessonMenuOpen = false
-                                            }
-                                        )
-                                        lessonPrefixes.forEach { prefix ->
-                                            DropdownMenuItem(
-                                                text = { Text(lessonNames[prefix] ?: humanizeLesson(prefix)) },
-                                                onClick = {
-                                                    selectedLesson = prefix
-                                                    lessonMenuOpen = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                OutlinedTextField(
-                                    modifier = Modifier.weight(1f),
-                                    value = bookletCode,
-                                    onValueChange = { bookletCode = it.uppercase().take(2) },
-                                    label = { Text("Kitapçık") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                            }
-
-                            if (status.isNotBlank()) {
-                                Text(
-                                    status,
-                                    fontSize = 10.sp,
-                                    color = if (
-                                        status.startsWith("Kaydedilemedi") ||
-                                        status.startsWith("Silinemedi")
-                                    ) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        CorrectGreen
-                                    }
-                                )
-                            }
-
-                            OutlinedButton(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { deleteDialogOpen = true },
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text("Kağıdı Sınavdan Sil", color = MaterialTheme.colorScheme.error)
-                            }
-                        }
+                        MetadataEditor(
+                            studentNumber = studentNumber,
+                            className = className,
+                            studentName = studentName,
+                            bookletCode = bookletCode,
+                            selectedLesson = selectedLesson,
+                            lessonPrefixes = lessonPrefixes,
+                            lessonMenuOpen = lessonMenuOpen,
+                            status = status,
+                            pdfEnabled = presentation != null,
+                            onNumberChanged = { value ->
+                                studentNumber = value.filter(Char::isDigit)
+                                lookupStudent(studentNumber)
+                            },
+                            onClassChanged = { className = it },
+                            onNameChanged = { studentName = it },
+                            onBookletChanged = { bookletCode = it.uppercase().take(2) },
+                            onLessonMenuChanged = { lessonMenuOpen = it },
+                            onLessonSelected = { selectedLesson = it; lessonMenuOpen = false },
+                            onPdf = ::createStudentPdf,
+                            onDelete = { deleteDialogOpen = true }
+                        )
                     }
-
                     if (visibleAnswers.isEmpty()) {
                         item {
-                            Card(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface
                             ) {
-                                Text(
-                                    modifier = Modifier.padding(14.dp),
-                                    text = "Bu ders için soru kaydı bulunamadı."
-                                )
+                                Text("Bu ders için soru kaydı bulunamadı.", modifier = Modifier.padding(14.dp))
                             }
                         }
                     } else {
                         items(visibleAnswers, key = { it.questionId }) { answer ->
-                            QuestionAnswerRow(
-                                answer = answer,
-                                evaluation = evaluations[answer.questionId]
-                            )
+                            QuestionAnswerRow(answer, evaluations[answer.questionId])
                         }
                     }
                     item { Spacer(Modifier.height(14.dp)) }
                 }
             } else {
                 Column(modifier = Modifier.weight(1f)) {
-                    ScoreHeader(metrics = metrics, reportRow = calculatedRow, hasKey = matchingKey != null)
+                    StudentResultHero(result = presentation, hasKey = matchingKey != null)
                     Box(modifier = Modifier.weight(1f)) {
                         StudentPaperImagePanel(
                             scanRecordId = scanRecordId,
@@ -461,136 +386,121 @@ fun StudentPaperDetailScreen(
 }
 
 @Composable
-private fun ScoreHeader(
-    metrics: ExamPaperMetrics?,
-    reportRow: ExamReportRow?,
-    hasKey: Boolean
+private fun MetadataEditor(
+    studentNumber: String,
+    className: String,
+    studentName: String,
+    bookletCode: String,
+    selectedLesson: String?,
+    lessonPrefixes: List<String>,
+    lessonMenuOpen: Boolean,
+    status: String,
+    pdfEnabled: Boolean,
+    onNumberChanged: (String) -> Unit,
+    onClassChanged: (String) -> Unit,
+    onNameChanged: (String) -> Unit,
+    onBookletChanged: (String) -> Unit,
+    onLessonMenuChanged: (Boolean) -> Unit,
+    onLessonSelected: (String?) -> Unit,
+    onPdf: () -> Unit,
+    onDelete: () -> Unit
 ) {
-    val resolvedNet = reportRow?.net ?: metrics?.net
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                Text(
-                    text = when {
-                        reportRow?.points != null -> "Puan ${formatNet(reportRow.points)}"
-                        reportRow?.scoreNote?.isNotBlank() == true -> "Puan —"
-                        resolvedNet != null -> "Toplam Net ${formatNet(resolvedNet)}"
-                        else -> "Toplam Net —"
-                    },
-                    color = if (resolvedNet != null) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
-                Text(
-                    buildString {
-                        if (resolvedNet != null) append("Net ").append(formatNet(resolvedNet))
-                        reportRow?.overallRank?.let {
-                            if (isNotBlank()) append(" · ")
-                            append("Genel ").append(it).append('.')
-                        }
-                        reportRow?.classRank?.let {
-                            if (isNotBlank()) append(" · ")
-                            append("Sınıf ").append(it).append('.')
-                        }
-                        if (isBlank()) append(if (hasKey) "Detaylı değerlendirme" else "Cevap anahtarı bekleniyor")
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp
-                )
-            }
-            metrics?.let {
-                ProductStatusBadge("${it.correct} DOĞRU", ProductBadgeTone.GREEN)
-            }
-        }
-    }
-}
-
-@Composable
-private fun LessonScoreSummary(
-    lessons: List<ExamLessonScore>,
-    lessonNames: Map<String, String>
-) {
-    if (lessons.isEmpty()) return
-
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            Text(
-                "Ders Sonuçları",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = studentNumber,
+                onValueChange = onNumberChanged,
+                label = { Text("Numara") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp)
             )
-            Text(
-                "Doğru · yanlış · boş · net",
-                fontSize = 9.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = className,
+                onValueChange = onClassChanged,
+                label = { Text("Sınıf") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp)
             )
-            Spacer(Modifier.height(5.dp))
-
-            lessons.forEachIndexed { index, lesson ->
-                if (index > 0) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+        }
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = studentName,
+            onValueChange = onNameChanged,
+            label = { Text("Ad Soyad") },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp)
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onLessonMenuChanged(true) },
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            lessonNames[lesson.lessonId] ?: humanizeLesson(lesson.lessonId),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            "D ${lesson.correct} · Y ${lesson.wrong} · B ${lesson.blank}",
-                            fontSize = 9.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text("Ders", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(selectedLesson?.let(::examLessonDisplayName) ?: "Tümü", fontSize = 11.sp)
                     }
-                    Surface(
-                        shape = RoundedCornerShape(9.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        Text(
-                            "Net ${formatNet(lesson.net)}",
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                }
+                DropdownMenu(
+                    expanded = lessonMenuOpen,
+                    onDismissRequest = { onLessonMenuChanged(false) }
+                ) {
+                    DropdownMenuItem(text = { Text("Tümü") }, onClick = { onLessonSelected(null) })
+                    lessonPrefixes.forEach { prefix ->
+                        DropdownMenuItem(
+                            text = { Text(examLessonDisplayName(prefix)) },
+                            onClick = { onLessonSelected(prefix) }
                         )
                     }
                 }
             }
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = bookletCode,
+                onValueChange = onBookletChanged,
+                label = { Text("Kitapçık") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp)
+            )
+        }
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = pdfEnabled,
+            onClick = onPdf,
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text("Öğrenci PDF Raporu")
+        }
+        if (status.isNotBlank()) {
+            Text(
+                status,
+                fontSize = 10.sp,
+                color = if (
+                    status.startsWith("Kaydedilemedi") ||
+                    status.startsWith("Silinemedi") ||
+                    status.startsWith("PDF hazırlanamadı") ||
+                    status.startsWith("PDF kaydedilemedi")
+                ) MaterialTheme.colorScheme.error else CorrectGreen
+            )
+        }
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onDelete,
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text("Kağıdı Sınavdan Sil", color = MaterialTheme.colorScheme.error)
         }
     }
 }
 
 @Composable
-private fun QuestionAnswerRow(
-    answer: RecordedAnswer,
-    evaluation: QuestionEvaluation?
-) {
+private fun QuestionAnswerRow(answer: RecordedAnswer, evaluation: QuestionEvaluation?) {
     val choices = answer.choiceScores.keys.toList().ifEmpty {
         listOfNotNull(answer.selectedChoice, evaluation?.expectedChoice).distinct()
     }
@@ -622,7 +532,6 @@ private fun QuestionAnswerRow(
             fontSize = 16.sp,
             textAlign = TextAlign.Center
         )
-
         choices.forEach { choice ->
             ChoiceBubble(
                 choice = choice,
@@ -631,13 +540,8 @@ private fun QuestionAnswerRow(
                 evaluationState = evaluation?.state
             )
         }
-
         Spacer(Modifier.weight(1f))
-        Text(
-            text = questionStateLabel(answer, evaluation),
-            style = MaterialTheme.typography.labelSmall,
-            color = stateColor
-        )
+        Text(questionStateLabel(answer, evaluation), style = MaterialTheme.typography.labelSmall, color = stateColor)
     }
 }
 
@@ -666,7 +570,6 @@ private fun ChoiceBubble(
             evaluationState == QuestionEvaluationState.SUSPICIOUS) -> Color.White
         else -> MaterialTheme.colorScheme.onSurface
     }
-
     Surface(
         modifier = Modifier.size(40.dp),
         shape = CircleShape,
@@ -719,54 +622,14 @@ private fun questionStateLabel(answer: RecordedAnswer, evaluation: QuestionEvalu
         }
     }
 
-private fun resolveLessonNames(
-    context: android.content.Context,
-    selection: ActiveTemplateSelection
-): Map<String, String> {
-    if (selection.source != ActiveTemplateSource.DESIGNER_DOCUMENT) return emptyMap()
-    val documents = FileDesignerDocumentRepository(context).list() + DesignerStarterTemplates.all()
-    val document = documents.firstOrNull {
-        it.id == selection.templateId && it.version == selection.templateVersion
-    } ?: return emptyMap()
-
-    val configuredSubjects = AppSettingsRepository(context).load().subjects
-    val genericLesson = Regex("^Ders\\s+\\d+$", RegexOption.IGNORE_CASE)
-    val componentNames = document.components
-        .filterIsInstance<QuestionGroupComponent>()
-        .mapIndexedNotNull { index, component ->
-            val prefix = component.questionIdPrefix.ifBlank { component.id }
-            if (prefix.isBlank()) return@mapIndexedNotNull null
-            val label = component.label.trim()
-            val resolved = when {
-                label.isNotBlank() && !genericLesson.matches(label) -> label
-                configuredSubjects.getOrNull(index)?.isNotBlank() == true -> configuredSubjects[index]
-                label.isNotBlank() -> label
-                else -> null
-            }
-            resolved?.let { prefix to it }
-        }
-        .toMap()
-
-    val visualNames = document.visualElements
-        .filterIsInstance<DesignerTextElement>()
-        .mapNotNull { element ->
-            val prefix = element.id.removePrefix("structured:lesson-title:")
-            if (prefix != element.id && prefix.isNotBlank() && element.text.isNotBlank()) {
-                prefix to element.text.trim()
-            } else {
-                null
-            }
-        }
-        .toMap()
-
-    return componentNames + visualNames
+private fun studentResultFileName(examName: String, studentName: String, studentNumber: String): String {
+    fun safe(value: String): String = value.trim()
+        .replace(Regex("[^\\p{L}\\p{N}]+"), "-")
+        .trim('-')
+        .take(38)
+    val exam = safe(examName).ifBlank { "sinav" }
+    val student = safe(studentName).ifBlank { safe(studentNumber).ifBlank { "ogrenci" } }
+    return "$exam-$student-sonuc.pdf"
 }
-
-private fun humanizeLesson(prefix: String): String = prefix
-    .replace('-', ' ')
-    .replace('_', ' ')
-    .split(' ')
-    .filter { it.isNotBlank() }
-    .joinToString(" ") { word -> word.replaceFirstChar { it.titlecase() } }
 
 private fun formatNet(value: Double): String = String.format(Locale.US, "%.2f", value)
