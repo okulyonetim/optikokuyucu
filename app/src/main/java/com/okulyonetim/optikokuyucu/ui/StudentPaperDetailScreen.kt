@@ -221,6 +221,17 @@ fun StudentPaperDetailScreen(
         }
     }
 
+    fun restoreOriginalAnswer(questionId: String) {
+        runCatching {
+            scanRepository.clearManualAnswer(scanRecordId, questionId)
+        }.onSuccess {
+            answerRevision++
+            status = "${questionDisplayNumber(questionId)}. soru taramadaki orijinal cevaba döndürüldü."
+        }.onFailure { error ->
+            status = "Orijinal cevaba dönülemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
     fun lookupStudent(number: String) {
         val student = studentRepository.findByNumber(number) ?: return
         studentNumber = student.studentNumber
@@ -404,7 +415,8 @@ fun StudentPaperDetailScreen(
                                         answer.questionId,
                                         if (answer.selectedChoice == choice) null else choice
                                     )
-                                }
+                                },
+                                onRestoreOriginal = { restoreOriginalAnswer(answer.questionId) }
                             )
                         }
                     }
@@ -528,7 +540,8 @@ private fun MetadataEditor(
                     status.startsWith("Silinemedi") ||
                     status.startsWith("PDF hazırlanamadı") ||
                     status.startsWith("PDF kaydedilemedi") ||
-                    status.startsWith("Cevap düzeltilemedi")
+                    status.startsWith("Cevap düzeltilemedi") ||
+                    status.startsWith("Orijinal cevaba dönülemedi")
                 ) MaterialTheme.colorScheme.error else CorrectGreen
             )
         }
@@ -547,7 +560,8 @@ private fun QuestionAnswerRow(
     answer: RecordedAnswer,
     evaluation: QuestionEvaluation?,
     manuallyEdited: Boolean,
-    onChoiceClick: (String) -> Unit
+    onChoiceClick: (String) -> Unit,
+    onRestoreOriginal: () -> Unit
 ) {
     val choices = answer.choiceScores.keys.toList().ifEmpty {
         listOfNotNull(answer.selectedChoice, evaluation?.expectedChoice).distinct()
@@ -590,7 +604,25 @@ private fun QuestionAnswerRow(
             )
         }
         Spacer(Modifier.weight(1f))
-        Text(questionStateLabel(answer, evaluation) + if (manuallyEdited) " · Manuel" else "", style = MaterialTheme.typography.labelSmall, color = stateColor)
+        if (manuallyEdited) {
+            TextButton(
+                onClick = onRestoreOriginal,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    "Orijinale dön",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        } else {
+            Text(
+                questionStateLabel(answer, evaluation),
+                style = MaterialTheme.typography.labelSmall,
+                color = stateColor
+            )
+        }
     }
 }
 
