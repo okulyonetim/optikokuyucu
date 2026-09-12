@@ -1,0 +1,75 @@
+name: Publish APK Release
+
+on:
+  workflow_run:
+    workflows: ["Android CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-apk-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n1)
+          VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -n1)
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Download tested APK artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: optik-okuyucu-debug-apk
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          test -f dist/app-debug.apk
+          mv dist/app-debug.apk "dist/optik-okuyucu-${{ steps.version.outputs.name }}.apk"
+
+      - name: Create release and upload APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.version.outputs.name }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          APK="dist/optik-okuyucu-${VERSION_NAME}.apk"
+          NOTES="Optik Okuyucu ${VERSION_NAME} (versionCode ${VERSION_CODE})\n\nAndroid CI testleri ve APK derlemesi başarıyla tamamlandıktan sonra otomatik yayımlandı."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --target "$TARGET_SHA" \
+              --title "Optik Okuyucu ${VERSION_NAME}" \
+              --notes "$NOTES" \
+              --latest
+          fi
