@@ -442,6 +442,7 @@ private fun RootSettingsScreen() {
                 }
             }
             item { SettingsSubjectsCard(settingsRepository) }
+            item { AppUpdateSettingsCard() }
             item {
                 Text(
                     "Tema seçimi için sağ üstteki ◐ simgesini kullanın.",
