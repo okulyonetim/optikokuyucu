@@ -3,7 +3,9 @@ package com.okulyonetim.optikokuyucu.school
 import android.content.Context
 import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.ExamPaperResolution
+import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
+import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -130,9 +132,13 @@ class SchoolExamCloudSyncService(
     }
 
     private fun syncResults(exam: Exam): ResultSyncStats {
-        val records = recordRepository.list().associateBy { it.id }
+        val recordList = recordRepository.list()
+        val records = recordList.associateBy { it.id }
         val keys = keyRepository.list()
         val subjectMap = questionSubjectMap(exam)
+        val report = ExamReportBuilder.build(exam, recordList, keys)
+        val reportRowsByScanId = report.rows.associateBy { it.scanRecordId }
+        val isLgs = report.scoringType == ExamScoringType.LGS
         val resultByStudentIdentity = linkedMapOf<String, Map<String, Any?>>()
         var skippedWithoutStudentIdentity = 0
 
@@ -176,6 +182,7 @@ class SchoolExamCloudSyncService(
                     policy = ExamScoringPolicyResolver.resolve(exam.wrongAnswerPolicy)
                 )
             }.getOrNull() ?: return@forEach
+            val reportRow = reportRowsByScanId[record.id]
 
             val grouped = score.evaluations.groupBy { evaluation ->
                 subjectMap[evaluation.questionId] ?: fallbackSubject(evaluation.questionId)
@@ -198,7 +205,14 @@ class SchoolExamCloudSyncService(
                 "cift" to score.doubleMarkCount,
                 "supheli" to score.suspiciousCount,
                 "anahtarsiz" to score.noKeyCount,
-                "net" to score.totalPoints,
+                "net" to (reportRow?.net ?: score.totalPoints),
+                "puan" to reportRow?.points,
+                "lgsPuani" to if (isLgs) reportRow?.points else null,
+                "genelSiralama" to reportRow?.overallRank,
+                "sinifSiralama" to reportRow?.classRank,
+                "katilimciSayisi" to report.scoredCount,
+                "maksimumPuan" to reportRow?.maximumPoints,
+                "puanTuru" to report.scoringType.name,
                 "kitapcik" to link.bookletCode,
                 "optikTaramaId" to record.id,
                 "tarih" to java.time.Instant.ofEpochMilli(record.capturedAtEpochMs).toString(),
