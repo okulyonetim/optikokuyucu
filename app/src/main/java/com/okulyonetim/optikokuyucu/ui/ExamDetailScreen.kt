@@ -195,23 +195,6 @@ fun ExamDetailScreen(
         current.participants.isNotEmpty() &&
         personalizedDocument?.formSpec?.pdfProfile() != null
 
-    val classes = current.papers.map { paperClass(it, scans[it.scanRecordId]) }
-        .filter { it.isNotBlank() }
-        .distinct()
-        .sorted()
-    val normalizedQuery = query.trim().lowercase()
-    val visiblePapers = current.papers.filter { link ->
-        val record = scans[link.scanRecordId]
-        val name = link.studentName
-        val number = paperNumber(link, record)
-        val clazz = paperClass(link, record)
-        (normalizedQuery.isBlank() ||
-            name.lowercase().contains(normalizedQuery) ||
-            number.lowercase().contains(normalizedQuery) ||
-            clazz.lowercase().contains(normalizedQuery)) &&
-            (classFilter == null || clazz == classFilter)
-    }
-    val answerKeyCount = keys.count { keyMatchesExam(it, current) }
     val examReport = remember(current, scans, keys) {
         ExamReportBuilder.build(
             exam = current,
@@ -219,6 +202,33 @@ fun ExamDetailScreen(
             answerKeys = keys
         )
     }
+    val examRowsByScan = examReport.rows.associateBy { it.scanRecordId }
+    val classes = current.papers.map { paperClass(it, scans[it.scanRecordId]) }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
+    val normalizedQuery = query.trim().lowercase()
+    val visiblePapers = current.papers
+        .filter { link ->
+            val record = scans[link.scanRecordId]
+            val name = link.studentName
+            val number = paperNumber(link, record)
+            val clazz = paperClass(link, record)
+            (normalizedQuery.isBlank() ||
+                name.lowercase().contains(normalizedQuery) ||
+                number.lowercase().contains(normalizedQuery) ||
+                clazz.lowercase().contains(normalizedQuery)) &&
+                (classFilter == null || clazz == classFilter)
+        }
+        .sortedWith(
+            compareByDescending<ExamPaperLink> {
+                examRowsByScan[it.scanRecordId]?.points ?: Double.NEGATIVE_INFINITY
+            }
+                .thenByDescending { examRowsByScan[it.scanRecordId]?.net ?: Double.NEGATIVE_INFINITY }
+                .thenByDescending { examRowsByScan[it.scanRecordId]?.correct ?: Int.MIN_VALUE }
+                .thenBy { it.studentName.lowercase(Locale.forLanguageTag("tr-TR")) }
+        )
+    val answerKeyCount = keys.count { keyMatchesExam(it, current) }
 
     fun refresh(message: String = "Sınav yenilendi") {
         exam = examRepository.load(examId)
@@ -240,8 +250,8 @@ fun ExamDetailScreen(
         }
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ProductMetricStrip(
                 modifier = Modifier.padding(horizontal = 14.dp),

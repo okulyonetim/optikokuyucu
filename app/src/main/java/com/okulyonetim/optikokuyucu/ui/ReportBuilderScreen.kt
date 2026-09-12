@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -269,12 +270,12 @@ private fun ExamSelectionStep(
     onSelect: (String) -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).padding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Text("1. Sınav Seçimi", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Rapor oluşturulacak sınavı seçin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("1. Sınav Seçimi", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Rapor oluşturulacak sınavı seçin.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (exams.isEmpty()) {
             item { ProductEmptyState("Sınav bulunamadı", "Önce bir sınav oluşturun.") }
@@ -282,19 +283,25 @@ private fun ExamSelectionStep(
             items(exams.sortedByDescending { it.examDateEpochDay }, key = { it.id }) { exam ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onSelect(exam.id) },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(
+                        1.5.dp,
+                        if (exam.id == selectedId) MaterialTheme.colorScheme.primary
+                        else productAccentColor(exam.name).copy(alpha = 0.55f)
+                    ),
                     colors = CardDefaults.cardColors(
                         containerColor = if (exam.id == selectedId) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    )
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(exam.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${exam.papers.size} kağıt · ${exam.schoolName}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(exam.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${exam.papers.size} kağıt · ${exam.schoolName}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
                     }
@@ -315,7 +322,7 @@ private fun ChoiceStep(
     onNext: () -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).padding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {
@@ -326,14 +333,20 @@ private fun ChoiceStep(
             val choice = choices[index]
             Card(
                 modifier = Modifier.fillMaxWidth().clickable { onSelect(index) },
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(
+                    1.25.dp,
+                    if (index == selectedIndex) MaterialTheme.colorScheme.primary
+                    else productAccentColor(choice.first).copy(alpha = 0.45f)
+                ),
                 colors = CardDefaults.cardColors(
                     containerColor = if (index == selectedIndex) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(choice.first, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(choice.second, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(choice.first, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(choice.second, fontSize = 11.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -367,7 +380,7 @@ private fun ReportCustomizeStep(
 ) {
     val rows = report?.rows.orEmpty().filter { selectedClasses.isEmpty() || it.className in selectedClasses }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).padding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
@@ -520,7 +533,7 @@ private fun ReportPreviewStep(
     val pdfBytes = pdfResult?.getOrNull()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).padding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {

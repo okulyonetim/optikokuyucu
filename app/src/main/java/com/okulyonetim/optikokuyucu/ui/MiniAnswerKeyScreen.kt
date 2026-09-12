@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -153,14 +154,15 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         ProductTopBar(title = "Mini Cevap Anahtarı", leadingText = "‹", onLeadingClick = onBack)
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).padding(top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             item {
-                Text("Sınav seçin", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Sınav seçin", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "Soru sayısına göre A4'e mümkün olan en fazla okunaklı mini anahtar otomatik yerleştirilir.",
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -175,19 +177,25 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                             previewBytes = null
                             status = ""
                         },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(
+                            1.5.dp,
+                            if (item.id == selectedExamId) MaterialTheme.colorScheme.primary
+                            else productAccentColor(item.name).copy(alpha = 0.55f)
+                        ),
                         colors = CardDefaults.cardColors(
                             containerColor = if (item.id == selectedExamId) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                        )
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(11.dp),
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(item.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${item.papers.size} kağıt", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${item.papers.size} kağıt", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (item.id == selectedExamId) ProductStatusBadge("SEÇİLDİ", ProductBadgeTone.GREEN)
                         }

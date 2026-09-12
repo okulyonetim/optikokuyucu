@@ -66,7 +66,7 @@ data class ExamScore(
  * Persisted raw records can be re-scored later without re-reading the physical form.
  *
  * Answer keys may contain more than one accepted choice for a question. In that case a student
- * selecting any one accepted choice is correct; a student DOUBLE_MARK remains a double mark.
+ * selecting any one accepted choice is correct. A student marking more than one choice is wrong.
  */
 object OmrScorer {
     fun score(
@@ -166,11 +166,11 @@ object OmrScorer {
 
             ScorableState.DOUBLE_MARK -> QuestionEvaluation(
                 questionId = questionId,
-                state = QuestionEvaluationState.DOUBLE_MARK,
+                state = QuestionEvaluationState.WRONG,
                 expectedChoice = expected,
                 selectedChoice = null,
                 recognitionConfidence = confidence,
-                points = policy.doubleMarkPoints
+                points = policy.wrongPoints
             )
 
             ScorableState.SUSPICIOUS -> QuestionEvaluation(

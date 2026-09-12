@@ -55,13 +55,13 @@ fun StudentResultHero(
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -71,21 +71,21 @@ fun StudentResultHero(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         result.scoreLabel,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         result.score?.let(::resultNumber) ?: "—",
-                        fontSize = 24.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (result.score != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Toplam Net", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Toplam Net", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         result.net?.let(::resultNumber) ?: "—",
-                        fontSize = 20.sp,
+                        fontSize = 25.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -112,8 +112,8 @@ fun StudentResultHero(
             if (result.scoreNote.isNotBlank()) {
                 Text(
                     result.scoreNote,
-                    fontSize = 9.sp,
-                    lineHeight = 12.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -150,8 +150,8 @@ private fun ResultMetricPill(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
@@ -168,8 +168,8 @@ private fun RankPill(label: String, value: String, modifier: Modifier = Modifier
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -185,8 +185,8 @@ private fun LessonResultTable(lessons: List<StudentLessonResultPresentation>) {
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             Text(
                 "Ders Sonuçları",
-                modifier = Modifier.padding(horizontal = 12.dp),
-                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 14.dp),
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(7.dp))
@@ -238,7 +238,7 @@ private fun ResultTableRow(
         Text(
             lesson,
             modifier = Modifier.weight(1.65f),
-            fontSize = if (header) 9.sp else 10.sp,
+            fontSize = if (header) 11.sp else 12.sp,
             fontWeight = if (header) weight else FontWeight.SemiBold,
             color = textColor,
             maxLines = 1,
@@ -258,7 +258,7 @@ private fun RowScope.TableCell(text: String, weightValue: Float, color: Color, f
         text,
         modifier = Modifier.weight(weightValue),
         textAlign = TextAlign.Center,
-        fontSize = 9.sp,
+        fontSize = 11.sp,
         fontWeight = fontWeight,
         color = color,
         maxLines = 1
@@ -283,8 +283,8 @@ private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Ders Başarı Grafiği", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Doğru ve yanlış yüzdeleri", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Ders Başarı Grafiği", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Doğru ve yanlış yüzdeleri", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     ChartLegend("Doğru", ResultGreen)
@@ -362,7 +362,7 @@ private fun ChartBar(percent: Double, color: Color) {
 private fun ChartLegend(label: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(modifier = Modifier.width(9.dp).height(9.dp).background(color, RoundedCornerShape(2.dp)))
-        Text(label, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
