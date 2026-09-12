@@ -9,4 +9,7 @@
     <cache-path
         name="result_reports"
         path="result-reports/" />
+    <cache-path
+        name="app_updates"
+        path="updates/" />
 </paths>
