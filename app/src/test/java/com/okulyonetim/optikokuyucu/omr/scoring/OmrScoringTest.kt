@@ -48,12 +48,12 @@ class OmrScoringTest {
         )
 
         assertEquals(1, score.correctCount)
-        assertEquals(1, score.wrongCount)
+        assertEquals(2, score.wrongCount)
         assertEquals(1, score.blankCount)
-        assertEquals(1, score.doubleMarkCount)
+        assertEquals(0, score.doubleMarkCount)
         assertEquals(1, score.suspiciousCount)
         assertEquals(1, score.noKeyCount)
-        assertEquals(3.0, score.totalPoints, 0.001)
+        assertEquals(2.0, score.totalPoints, 0.001)
         assertFalse(score.confidentlyEvaluated)
         assertEquals(0.52, score.evaluations.first { it.questionId == "5" }.recognitionConfidence, 0.001)
     }
@@ -82,16 +82,22 @@ class OmrScoringTest {
     }
 
     @Test
-    fun `student double mark remains double even when key accepts two choices`() {
+    fun `student double mark is wrong even when key accepts two choices`() {
         val read = BubbleReadResult(
             listOf(q("1", QuestionState.DOUBLE_MARK, null, 0.90))
         )
         val key = AnswerKey("test", 1, mapOf("1" to "A|C"))
 
-        val score = OmrScorer.score(read, key)
+        val score = OmrScorer.score(
+            read,
+            key,
+            ScoringPolicy(correctPoints = 1.0, wrongPoints = -1.0)
+        )
 
-        assertEquals(1, score.doubleMarkCount)
+        assertEquals(1, score.wrongCount)
+        assertEquals(0, score.doubleMarkCount)
         assertEquals(0, score.correctCount)
+        assertEquals(-1.0, score.totalPoints, 0.001)
     }
 
     @Test
