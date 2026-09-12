@@ -1,1 +1,390 @@
 name: Apply manual answer corrections
+
+on:
+  push:
+    branches: [ feat/manual-answer-corrections ]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[manual-answer-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/manual-answer-corrections
+          fetch-depth: 0
+      - name: Apply patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual < count:
+                  raise SystemExit(f"Expected at least {count} matches in {path}, found {actual}: {old[:120]!r}")
+              p.write_text(text.replace(old, new, count))
+
+          repo = 'app/src/main/java/com/okulyonetim/optikokuyucu/omr/results/ScanRecordRepository.kt'
+          replace(repo, 'import java.security.MessageDigest\n', 'import java.security.MessageDigest\nimport java.util.Properties\n')
+          replace(repo,
+          '''interface ScanRecordRepository {
+    fun save(record: ScanRecord)
+    fun load(id: String): ScanRecord?
+    fun list(): List<ScanRecord>
+    fun delete(id: String): Boolean
+}
+
+/** App-private, atomic-ish file repository; no network or storage permission is required. */''',
+          '''interface ScanRecordRepository {
+    fun save(record: ScanRecord)
+    fun load(id: String): ScanRecord?
+    fun list(): List<ScanRecord>
+    fun delete(id: String): Boolean
+}
+
+internal object ManualAnswerOverrideApplier {
+    const val BLANK_TOKEN = "__BLANK__"
+
+    fun apply(record: ScanRecord, overrides: Map<String, String>): ScanRecord {
+        if (overrides.isEmpty()) return record
+        var changed = false
+        val adjusted = record.answers.map { answer ->
+            if (!overrides.containsKey(answer.questionId)) {
+                answer
+            } else {
+                changed = true
+                val value = overrides.getValue(answer.questionId)
+                if (value == BLANK_TOKEN) {
+                    answer.copy(
+                        state = RecordedAnswerState.BLANK,
+                        selectedChoice = null,
+                        confidence = 1.0
+                    )
+                } else {
+                    answer.copy(
+                        state = RecordedAnswerState.MARKED,
+                        selectedChoice = value,
+                        confidence = 1.0
+                    )
+                }
+            }
+        }
+        return if (changed) record.copy(answers = adjusted) else record
+    }
+}
+
+/** App-private, atomic-ish file repository; no network or storage permission is required. */''')
+          replace(repo,
+          '''    private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+
+    override fun save(record: ScanRecord) {''',
+          '''    private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+
+    fun setManualAnswer(recordId: String, questionId: String, selectedChoice: String?) {
+        require(loadRaw(recordId) != null) { "Düzeltilecek OMR kaydı bulunamadı." }
+        require(questionId.isNotBlank()) { "Soru kimliği boş olamaz." }
+        val overrides = loadManualOverrides(recordId).toMutableMap()
+        overrides[questionId] = selectedChoice?.trim()?.takeIf { it.isNotEmpty() }
+            ?: ManualAnswerOverrideApplier.BLANK_TOKEN
+        saveManualOverrides(recordId, overrides)
+    }
+
+    fun clearManualAnswer(recordId: String, questionId: String) {
+        val overrides = loadManualOverrides(recordId).toMutableMap()
+        if (overrides.remove(questionId) != null) saveManualOverrides(recordId, overrides)
+    }
+
+    fun isManuallyCorrected(recordId: String, questionId: String): Boolean =
+        loadManualOverrides(recordId).containsKey(questionId)
+
+    override fun save(record: ScanRecord) {''')
+          replace(repo,
+          '''    override fun load(id: String): ScanRecord? {
+        val file = fileFor(id)
+        if (!file.isFile) return null
+        return runCatching { ScanRecordCodec.decode(file.readBytes()) }
+            .getOrNull()
+            ?.takeIf { it.id == id }
+    }
+
+    override fun list(): List<ScanRecord> = directory
+        .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
+        .orEmpty()
+        .mapNotNull { file -> runCatching { ScanRecordCodec.decode(file.readBytes()) }.getOrNull() }
+        .sortedWith(''',
+          '''    override fun load(id: String): ScanRecord? = loadRaw(id)?.let { record ->
+        ManualAnswerOverrideApplier.apply(record, loadManualOverrides(id))
+    }
+
+    override fun list(): List<ScanRecord> = directory
+        .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
+        .orEmpty()
+        .mapNotNull { file -> runCatching { ScanRecordCodec.decode(file.readBytes()) }.getOrNull() }
+        .map { record -> ManualAnswerOverrideApplier.apply(record, loadManualOverrides(record.id)) }
+        .sortedWith(''')
+          replace(repo,
+          '''    override fun delete(id: String): Boolean {
+        val file = fileFor(id)
+        return !file.exists() || file.delete()
+    }
+
+    private fun fileFor(id: String): File = File(directory, keyFor(id) + FILE_SUFFIX)
+''',
+          '''    override fun delete(id: String): Boolean {
+        val file = fileFor(id)
+        val deleted = !file.exists() || file.delete()
+        if (deleted) correctionFileFor(id).delete()
+        return deleted
+    }
+
+    private fun loadRaw(id: String): ScanRecord? {
+        val file = fileFor(id)
+        if (!file.isFile) return null
+        return runCatching { ScanRecordCodec.decode(file.readBytes()) }
+            .getOrNull()
+            ?.takeIf { it.id == id }
+    }
+
+    private fun loadManualOverrides(id: String): Map<String, String> {
+        val file = correctionFileFor(id)
+        if (!file.isFile) return emptyMap()
+        return runCatching {
+            val properties = Properties()
+            file.inputStream().use(properties::load)
+            properties.stringPropertyNames().associateWith { key -> properties.getProperty(key) }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun saveManualOverrides(id: String, overrides: Map<String, String>) {
+        val destination = correctionFileFor(id)
+        if (overrides.isEmpty()) {
+            destination.delete()
+            return
+        }
+        val properties = Properties().apply {
+            overrides.forEach { (key, value) -> setProperty(key, value) }
+        }
+        val temporary = File(directory, destination.name + ".tmp")
+        temporary.outputStream().use { properties.store(it, "Manual OMR answer corrections") }
+        if (destination.exists()) destination.delete()
+        if (!temporary.renameTo(destination)) {
+            temporary.delete()
+            error("Manuel cevap düzeltmesi kalıcı depoya taşınamadı.")
+        }
+    }
+
+    private fun fileFor(id: String): File = File(directory, keyFor(id) + FILE_SUFFIX)
+    private fun correctionFileFor(id: String): File = File(directory, keyFor(id) + CORRECTION_SUFFIX)
+''')
+          replace(repo,
+          '''        const val DIRECTORY_NAME = "omr-scan-records"
+        const val FILE_SUFFIX = ".omrr"
+''',
+          '''        const val DIRECTORY_NAME = "omr-scan-records"
+        const val FILE_SUFFIX = ".omrr"
+        const val CORRECTION_SUFFIX = ".manual.properties"
+''')
+
+          ui = 'app/src/main/java/com/okulyonetim/optikokuyucu/ui/StudentPaperDetailScreen.kt'
+          replace(ui, 'import androidx.compose.foundation.BorderStroke\n', 'import androidx.compose.foundation.BorderStroke\nimport androidx.compose.foundation.clickable\n')
+          replace(ui,
+              '    val record = remember(scanRecordId) { scanRepository.load(scanRecordId) }\n',
+              '    var answerRevision by remember(scanRecordId) { mutableStateOf(0) }\n    val record = remember(scanRecordId, answerRevision) { scanRepository.load(scanRecordId) }\n')
+          replace(ui,
+          '''    val matchingKey = remember(record.id, keys, displayLink.bookletCode, currentExam.id) {
+        ExamPaperResolution.answerKey(currentExam.id, displayLink, record, keys)
+    }
+    val score = remember(
+        record.id,
+''',
+          '''    val matchingKey = remember(record, keys, displayLink.bookletCode, currentExam.id) {
+        ExamPaperResolution.answerKey(currentExam.id, displayLink, record, keys)
+    }
+    val score = remember(
+        record,
+''')
+          replace(ui,
+              '    val calculatedReport = remember(previewExam, keys) {\n',
+              '    val calculatedReport = remember(previewExam, keys, answerRevision) {\n')
+          replace(ui,
+              '    val lessonPrefixes = remember(record.id) {\n',
+              '    val lessonPrefixes = remember(record) {\n')
+          replace(ui,
+          '''    fun lookupStudent(number: String) {
+''',
+          '''    fun setManualAnswer(questionId: String, selectedChoice: String?) {
+        runCatching {
+            scanRepository.setManualAnswer(scanRecordId, questionId, selectedChoice)
+        }.onSuccess {
+            answerRevision++
+            status = if (selectedChoice == null) {
+                "${questionDisplayNumber(questionId)}. soru manuel olarak boş yapıldı."
+            } else {
+                "${questionDisplayNumber(questionId)}. soru manuel olarak $selectedChoice işaretlendi."
+            }
+        }.onFailure { error ->
+            status = "Cevap düzeltilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
+    }
+
+    fun lookupStudent(number: String) {
+''')
+          replace(ui,
+          '''                    } else {
+                        items(visibleAnswers, key = { it.questionId }) { answer ->
+                            QuestionAnswerRow(answer, evaluations[answer.questionId])
+                        }
+                    }
+''',
+          '''                    } else {
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                            ) {
+                                Text(
+                                    "Cevabı düzeltmek için şıkkın üzerine dokunun. Seçili şıkkın üzerine tekrar dokunursanız soru boş yapılır. Değişiklikler puan, net ve raporlara anında yansır.",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                        items(visibleAnswers, key = { it.questionId }) { answer ->
+                            QuestionAnswerRow(
+                                answer = answer,
+                                evaluation = evaluations[answer.questionId],
+                                manuallyEdited = scanRepository.isManuallyCorrected(scanRecordId, answer.questionId),
+                                onChoiceClick = { choice ->
+                                    setManualAnswer(
+                                        answer.questionId,
+                                        if (answer.selectedChoice == choice) null else choice
+                                    )
+                                }
+                            )
+                        }
+                    }
+''')
+          replace(ui,
+              'private fun QuestionAnswerRow(answer: RecordedAnswer, evaluation: QuestionEvaluation?) {',
+              '''private fun QuestionAnswerRow(
+    answer: RecordedAnswer,
+    evaluation: QuestionEvaluation?,
+    manuallyEdited: Boolean,
+    onChoiceClick: (String) -> Unit
+) {''')
+          replace(ui,
+          '''            ChoiceBubble(
+                choice = choice,
+                selected = answer.selectedChoice == choice,
+                expected = evaluation?.expectedChoice == choice,
+                evaluationState = evaluation?.state
+            )
+''',
+          '''            ChoiceBubble(
+                choice = choice,
+                selected = answer.selectedChoice == choice,
+                expected = evaluation?.expectedChoice?.split('|')?.contains(choice) == true,
+                evaluationState = evaluation?.state,
+                onClick = { onChoiceClick(choice) }
+            )
+''')
+          replace(ui,
+              '        Text(questionStateLabel(answer, evaluation), style = MaterialTheme.typography.labelSmall, color = stateColor)\n',
+              '        Text(questionStateLabel(answer, evaluation) + if (manuallyEdited) " · Manuel" else "", style = MaterialTheme.typography.labelSmall, color = stateColor)\n')
+          replace(ui,
+          '''private fun ChoiceBubble(
+    choice: String,
+    selected: Boolean,
+    expected: Boolean,
+    evaluationState: QuestionEvaluationState?
+) {''',
+          '''private fun ChoiceBubble(
+    choice: String,
+    selected: Boolean,
+    expected: Boolean,
+    evaluationState: QuestionEvaluationState?,
+    onClick: () -> Unit
+) {''')
+          replace(ui,
+              '        modifier = Modifier.size(40.dp),\n',
+              '        modifier = Modifier.size(40.dp).clickable(onClick = onClick),\n',
+              1)
+          replace(ui,
+              '                    status.startsWith("PDF kaydedilemedi")\n',
+              '                    status.startsWith("PDF kaydedilemedi") ||\n                    status.startsWith("Cevap düzeltilemedi")\n')
+
+          gradle = 'app/build.gradle.kts'
+          replace(gradle, 'versionCode = 123\n        versionName = "0.19.67"', 'versionCode = 124\n        versionName = "0.19.68"')
+
+          test = Path('app/src/test/java/com/okulyonetim/optikokuyucu/omr/results/ManualAnswerOverrideApplierTest.kt')
+          test.parent.mkdir(parents=True, exist_ok=True)
+          test.write_text('''package com.okulyonetim.optikokuyucu.omr.results
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class ManualAnswerOverrideApplierTest {
+    private fun record(): ScanRecord = ScanRecord(
+        id = "scan-1",
+        templateId = "template",
+        templateVersion = 1,
+        capturedAtEpochMs = 1L,
+        source = ScanSource.GALLERY,
+        sourceWidth = 100,
+        sourceHeight = 100,
+        pageConfidence = null,
+        decisionConfidence = null,
+        elapsedMs = 1.0,
+        answers = listOf(
+            RecordedAnswer("1", RecordedAnswerState.MARKED, "A", 0.8, mapOf("A" to 0.8, "B" to 0.2)),
+            RecordedAnswer("2", RecordedAnswerState.MARKED, "B", 0.8, mapOf("A" to 0.2, "B" to 0.8))
+        ),
+        markGrids = emptyList()
+    )
+
+    @Test
+    fun `manual choice changes effective answer without mutating raw record`() {
+        val raw = record()
+        val effective = ManualAnswerOverrideApplier.apply(raw, mapOf("1" to "B"))
+
+        assertEquals("A", raw.answers[0].selectedChoice)
+        assertEquals("B", effective.answers[0].selectedChoice)
+        assertEquals(RecordedAnswerState.MARKED, effective.answers[0].state)
+        assertEquals(1.0, effective.answers[0].confidence, 0.0)
+    }
+
+    @Test
+    fun `manual blank converts only selected question to blank`() {
+        val raw = record()
+        val effective = ManualAnswerOverrideApplier.apply(
+            raw,
+            mapOf("2" to ManualAnswerOverrideApplier.BLANK_TOKEN)
+        )
+
+        assertEquals(RecordedAnswerState.BLANK, effective.answers[1].state)
+        assertNull(effective.answers[1].selectedChoice)
+        assertEquals("A", effective.answers[0].selectedChoice)
+    }
+}
+''')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/okulyonetim/optikokuyucu/omr/results/ScanRecordRepository.kt \
+                  app/src/main/java/com/okulyonetim/optikokuyucu/ui/StudentPaperDetailScreen.kt \
+                  app/src/test/java/com/okulyonetim/optikokuyucu/omr/results/ManualAnswerOverrideApplierTest.kt \
+                  app/build.gradle.kts
+          git commit -m "feat: allow manual student answer corrections [manual-answer-applied]"
+          git push origin HEAD:feat/manual-answer-corrections
