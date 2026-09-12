@@ -3,6 +3,7 @@ package com.okulyonetim.optikokuyucu.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,7 +88,8 @@ fun StudentPaperDetailScreen(
     val studentRepository = remember(context) { FileStudentRosterRepository(appContext) }
 
     var exam by remember(examId) { mutableStateOf(examRepository.load(examId)) }
-    val record = remember(scanRecordId) { scanRepository.load(scanRecordId) }
+    var answerRevision by remember(scanRecordId) { mutableStateOf(0) }
+    val record = remember(scanRecordId, answerRevision) { scanRepository.load(scanRecordId) }
     val keys = remember { keyRepository.list() }
     val currentExam = exam
     val link = currentExam?.paperForScan(scanRecordId)
@@ -160,11 +162,11 @@ fun StudentPaperDetailScreen(
             bookletCode = bookletCode.trim()
         )
     }
-    val matchingKey = remember(record.id, keys, displayLink.bookletCode, currentExam.id) {
+    val matchingKey = remember(record, keys, displayLink.bookletCode, currentExam.id) {
         ExamPaperResolution.answerKey(currentExam.id, displayLink, record, keys)
     }
     val score = remember(
-        record.id,
+        record,
         matchingKey,
         currentExam.wrongAnswerPolicy,
         currentExam.scoringConfiguration
@@ -180,7 +182,7 @@ fun StudentPaperDetailScreen(
         }
     }
     val previewExam = remember(currentExam, displayLink) { currentExam.withPaper(displayLink) }
-    val calculatedReport = remember(previewExam, keys) {
+    val calculatedReport = remember(previewExam, keys, answerRevision) {
         ExamReportBuilder.build(
             exam = previewExam,
             records = scanRepository.list(),
@@ -192,7 +194,7 @@ fun StudentPaperDetailScreen(
     }
     val metrics = score?.let(ExamPaperMetrics::from)
     val evaluations = score?.evaluations?.associateBy { it.questionId }.orEmpty()
-    val lessonPrefixes = remember(record.id) {
+    val lessonPrefixes = remember(record) {
         record.answers.mapNotNull { questionLessonPrefix(it.questionId) }.distinct()
     }
     var selectedLesson by remember(record.id) { mutableStateOf(lessonPrefixes.firstOrNull()) }
@@ -202,6 +204,21 @@ fun StudentPaperDetailScreen(
     }
     val title = studentName.ifBlank {
         studentNumber.takeIf { it.isNotBlank() }?.let { "Öğrenci $it" } ?: "Öğrenci Sonucu"
+    }
+
+    fun setManualAnswer(questionId: String, selectedChoice: String?) {
+        runCatching {
+            scanRepository.setManualAnswer(scanRecordId, questionId, selectedChoice)
+        }.onSuccess {
+            answerRevision++
+            status = if (selectedChoice == null) {
+                "${questionDisplayNumber(questionId)}. soru manuel olarak boş yapıldı."
+            } else {
+                "${questionDisplayNumber(questionId)}. soru manuel olarak $selectedChoice işaretlendi."
+            }
+        }.onFailure { error ->
+            status = "Cevap düzeltilemedi: ${error.message ?: error.javaClass.simpleName}"
+        }
     }
 
     fun lookupStudent(number: String) {
@@ -362,8 +379,33 @@ fun StudentPaperDetailScreen(
                             }
                         }
                     } else {
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                            ) {
+                                Text(
+                                    "Cevabı düzeltmek için şıkkın üzerine dokunun. Seçili şıkkın üzerine tekrar dokunursanız soru boş yapılır. Değişiklikler puan, net ve raporlara anında yansır.",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
                         items(visibleAnswers, key = { it.questionId }) { answer ->
-                            QuestionAnswerRow(answer, evaluations[answer.questionId])
+                            QuestionAnswerRow(
+                                answer = answer,
+                                evaluation = evaluations[answer.questionId],
+                                manuallyEdited = scanRepository.isManuallyCorrected(scanRecordId, answer.questionId),
+                                onChoiceClick = { choice ->
+                                    setManualAnswer(
+                                        answer.questionId,
+                                        if (answer.selectedChoice == choice) null else choice
+                                    )
+                                }
+                            )
                         }
                     }
                     item { Spacer(Modifier.height(14.dp)) }
@@ -485,7 +527,8 @@ private fun MetadataEditor(
                     status.startsWith("Kaydedilemedi") ||
                     status.startsWith("Silinemedi") ||
                     status.startsWith("PDF hazırlanamadı") ||
-                    status.startsWith("PDF kaydedilemedi")
+                    status.startsWith("PDF kaydedilemedi") ||
+                    status.startsWith("Cevap düzeltilemedi")
                 ) MaterialTheme.colorScheme.error else CorrectGreen
             )
         }
@@ -500,7 +543,12 @@ private fun MetadataEditor(
 }
 
 @Composable
-private fun QuestionAnswerRow(answer: RecordedAnswer, evaluation: QuestionEvaluation?) {
+private fun QuestionAnswerRow(
+    answer: RecordedAnswer,
+    evaluation: QuestionEvaluation?,
+    manuallyEdited: Boolean,
+    onChoiceClick: (String) -> Unit
+) {
     val choices = answer.choiceScores.keys.toList().ifEmpty {
         listOfNotNull(answer.selectedChoice, evaluation?.expectedChoice).distinct()
     }
@@ -536,12 +584,13 @@ private fun QuestionAnswerRow(answer: RecordedAnswer, evaluation: QuestionEvalua
             ChoiceBubble(
                 choice = choice,
                 selected = answer.selectedChoice == choice,
-                expected = evaluation?.expectedChoice == choice,
-                evaluationState = evaluation?.state
+                expected = evaluation?.expectedChoice?.split('|')?.contains(choice) == true,
+                evaluationState = evaluation?.state,
+                onClick = { onChoiceClick(choice) }
             )
         }
         Spacer(Modifier.weight(1f))
-        Text(questionStateLabel(answer, evaluation), style = MaterialTheme.typography.labelSmall, color = stateColor)
+        Text(questionStateLabel(answer, evaluation) + if (manuallyEdited) " · Manuel" else "", style = MaterialTheme.typography.labelSmall, color = stateColor)
     }
 }
 
@@ -550,7 +599,8 @@ private fun ChoiceBubble(
     choice: String,
     selected: Boolean,
     expected: Boolean,
-    evaluationState: QuestionEvaluationState?
+    evaluationState: QuestionEvaluationState?,
+    onClick: () -> Unit
 ) {
     val background = when {
         selected && evaluationState == QuestionEvaluationState.CORRECT -> CorrectGreen
@@ -571,7 +621,7 @@ private fun ChoiceBubble(
         else -> MaterialTheme.colorScheme.onSurface
     }
     Surface(
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(40.dp).clickable(onClick = onClick),
         shape = CircleShape,
         color = background,
         border = BorderStroke(if (expected) 2.dp else 1.dp, borderColor)
