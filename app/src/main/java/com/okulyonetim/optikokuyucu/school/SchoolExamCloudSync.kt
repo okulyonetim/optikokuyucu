@@ -7,6 +7,7 @@ import com.okulyonetim.optikokuyucu.exam.ExamReportBuilder
 import com.okulyonetim.optikokuyucu.exam.ExamScoringPolicyResolver
 import com.okulyonetim.optikokuyucu.exam.ExamScoringType
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
+import com.okulyonetim.optikokuyucu.exam.StudentResultPresentationBuilder
 import com.okulyonetim.optikokuyucu.exam.WrongAnswerPolicy
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
@@ -179,10 +180,13 @@ class SchoolExamCloudSyncService(
                 OmrScorer.score(
                     record = record,
                     answerKey = key.answerKey,
-                    policy = ExamScoringPolicyResolver.resolve(exam.wrongAnswerPolicy)
+                    // Use the exact same effective exam policy as the report/student-result screens.
+                    policy = ExamScoringPolicyResolver.resolve(exam)
                 )
             }.getOrNull() ?: return@forEach
             val reportRow = reportRowsByScanId[record.id]
+            val presentation = StudentResultPresentationBuilder.build(report, record.id)
+            val calculatedScore = presentation?.score ?: reportRow?.points
 
             val grouped = score.evaluations.groupBy { evaluation ->
                 subjectMap[evaluation.questionId] ?: fallbackSubject(evaluation.questionId)
@@ -199,19 +203,22 @@ class SchoolExamCloudSyncService(
                 "sinif" to link.className,
                 "okulAdi" to gradeLevel?.let(StudentSchoolIdentity::schoolNameForGrade).orEmpty(),
                 "dersSonuclari" to lessonResults,
-                "dogru" to score.correctCount,
-                "yanlis" to score.wrongCount,
-                "bos" to score.blankCount,
+                "dogru" to (presentation?.correct ?: score.correctCount),
+                "yanlis" to (presentation?.wrong ?: score.wrongCount),
+                "bos" to (presentation?.blank ?: score.blankCount),
                 "cift" to score.doubleMarkCount,
                 "supheli" to score.suspiciousCount,
                 "anahtarsiz" to score.noKeyCount,
-                "net" to (reportRow?.net ?: score.totalPoints),
-                "puan" to reportRow?.points,
-                "lgsPuani" to if (isLgs) reportRow?.points else null,
-                "genelSiralama" to reportRow?.overallRank,
-                "sinifSiralama" to reportRow?.classRank,
-                "katilimciSayisi" to report.scoredCount,
-                "maksimumPuan" to reportRow?.maximumPoints,
+                "net" to (presentation?.net ?: reportRow?.net ?: score.totalPoints),
+                // presentation.score is the value displayed on the Optik Okuyucu student-result screen.
+                "puan" to calculatedScore,
+                "lgsPuani" to if (isLgs) calculatedScore else null,
+                "lgsPuan" to if (isLgs) calculatedScore else null,
+                "genelSiralama" to (presentation?.overallRank?.rank ?: reportRow?.overallRank),
+                "sinifSiralama" to (presentation?.classRank?.rank ?: reportRow?.classRank),
+                "katilimciSayisi" to (presentation?.overallRank?.participantCount ?: report.scoredCount),
+                "sinifKatilimciSayisi" to presentation?.classRank?.participantCount,
+                "maksimumPuan" to (presentation?.maximumScore ?: reportRow?.maximumPoints),
                 "puanTuru" to report.scoringType.name,
                 "kitapcik" to link.bookletCode,
                 "optikTaramaId" to record.id,
@@ -235,6 +242,7 @@ class SchoolExamCloudSyncService(
             "yanlisKatsayisi" to wrongCoefficient(exam.wrongAnswerPolicy),
             "dersler" to lessonDefinitions(exam),
             "sonuclar" to results,
+            "puanTuru" to report.scoringType.name,
             "kaynak" to "optik-okuyucu",
             "optikSinavId" to exam.id,
             "sahipUid" to exam.ownerUid,
