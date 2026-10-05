@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -89,3 +89,14 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish latest APK release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "v${GITHUB_RUN_NUMBER}" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "v${GITHUB_RUN_NUMBER}" app/build/outputs/apk/debug/app-debug.apk \
+            --title "Optik Okuyucu v${GITHUB_RUN_NUMBER}" \
+            --notes "Otomatik APK güncelleme yayını. Build: ${GITHUB_RUN_NUMBER}" \
+            --latest
