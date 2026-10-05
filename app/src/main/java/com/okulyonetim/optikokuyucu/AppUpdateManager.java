@@ -26,12 +26,12 @@ public final class AppUpdateManager {
     private static final String RELEASE_API =
             "https://api.github.com/repos/okulyonetim/optikokuyucu/releases/latest";
     private static final String APK_NAME = "optik-okuyucu-guncelleme.apk";
+    private static final int VERSION_BASE = 100_000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
     private AppUpdateManager() {}
 
     public static void checkOnStartup(Activity activity) {
-        Context app = activity.getApplicationContext();
         EXECUTOR.execute(() -> {
             try {
                 ReleaseInfo latest = fetchLatestRelease();
@@ -81,10 +81,11 @@ public final class AppUpdateManager {
         }
     }
 
+    // Release etiketi v742 -> Android versionCode 100742.
     private static int parseBuild(String tag) {
         String digits = tag.replaceAll("[^0-9]", "");
         if (digits.isEmpty()) return 0;
-        try { return Integer.parseInt(digits); } catch (Exception e) { return 0; }
+        try { return VERSION_BASE + Integer.parseInt(digits); } catch (Exception e) { return 0; }
     }
 
     private static void showUpdateDialog(Activity activity, ReleaseInfo release) {
