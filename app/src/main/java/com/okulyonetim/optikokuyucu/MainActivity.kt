@@ -56,6 +56,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        // Okul Yönetim uygulamasındaki gibi her açılışta yayınlanan son APK'yı kontrol et.
+        // Kontrol başarısız olursa uygulamanın açılışı kesinlikle engellenmez.
+        AppUpdateManager.checkOnStartup(this)
     }
 
     override fun onDestroy() {
