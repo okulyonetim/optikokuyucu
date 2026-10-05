@@ -2,7 +2,6 @@ package com.okulyonetim.optikokuyucu;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -81,9 +80,9 @@ public final class AppUpdateManager {
         }
     }
 
-    // Release etiketi v742 -> Android versionCode 100742.
+    // Release etiketi v0.20.754 -> Android versionCode 100754.
     private static int parseBuild(String tag) {
-        String digits = tag.replaceAll("[^0-9]", "");
+        String digits = tag.replaceAll("^.*\\.", "").replaceAll("[^0-9].*$", "");
         if (digits.isEmpty()) return 0;
         try { return VERSION_BASE + Integer.parseInt(digits); } catch (Exception e) { return 0; }
     }
