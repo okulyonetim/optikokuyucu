@@ -40,6 +40,13 @@ val prepareNotoSansFont = tasks.register("prepareNotoSansFont") {
     }
 }
 
+// CI her başarılı APK'ya artan bir versionCode verir. Böylece eski APK'nın
+// üzerine yeni APK kurulumu Android tarafından sürüm düşürme olarak reddedilmez.
+val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER")
+    .orNull?.toIntOrNull()
+val appBuildNumber = ciBuildNumber?.let { 100_000 + it } ?: 100_128
+val appVersionName = ciBuildNumber?.let { "0.20.$it" } ?: "0.20.128"
+
 android {
     namespace = "com.okulyonetim.optikokuyucu"
     compileSdk {
@@ -49,8 +56,8 @@ android {
         applicationId = "com.okulyonetim.optikokuyucu"
         minSdk = 26
         targetSdk = 36
-        versionCode = 127
-        versionName = "0.19.71"
+        versionCode = appBuildNumber
+        versionName = appVersionName
         vectorDrawables { useSupportLibrary = true }
     }
     buildTypes {
@@ -68,7 +75,7 @@ android {
         buildConfig = true
     }
     sourceSets {
-        getByName("main") { res.srcDir(generatedNotoFontResFile) }
+        getByName("main") { res.srcDir(generatedNotoSansFontResFile) }
     }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
