@@ -1,14 +1,14 @@
 package com.okulyonetim.optikokuyucu;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.FileProvider;
 
 import org.json.JSONObject;
@@ -21,11 +21,7 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Checks the latest GitHub Release at every application start.
- * If a newer APK exists, it downloads it locally and opens Android's
- * standard installer. Android still requires the final install confirmation.
- */
+/** Checks GitHub Releases on startup and offers a local APK update. */
 public final class AppUpdateManager {
     private static final String RELEASE_API =
             "https://api.github.com/repos/okulyonetim/optikokuyucu/releases/latest";
@@ -34,16 +30,15 @@ public final class AppUpdateManager {
 
     private AppUpdateManager() {}
 
-    public static void checkOnStartup(Context context) {
-        Context app = context.getApplicationContext();
+    public static void checkOnStartup(Activity activity) {
+        Context app = activity.getApplicationContext();
         EXECUTOR.execute(() -> {
             try {
                 ReleaseInfo latest = fetchLatestRelease();
-                if (latest.build <= BuildConfig.VERSION_CODE) return;
-                if (!(app instanceof android.app.Activity)) return;
-                ((android.app.Activity) app).runOnUiThread(() -> showUpdateDialog((android.app.Activity) app, latest));
+                if (latest.build <= BuildConfig.VERSION_CODE || latest.apkUrl.isEmpty()) return;
+                activity.runOnUiThread(() -> showUpdateDialog(activity, latest));
             } catch (Exception ignored) {
-                // Startup update checks must never prevent the application from opening.
+                // Update checking must never prevent the app from opening.
             }
         });
     }
@@ -58,34 +53,29 @@ public final class AppUpdateManager {
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 throw new Exception("HTTP " + connection.getResponseCode());
             }
-            InputStream input = connection.getInputStream();
-            StringBuilder json = new StringBuilder();
-            byte[] buffer = new byte[4096];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                json.append(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8));
-            }
-            input.close();
-
-            JSONObject release = new JSONObject(json.toString());
-            String tag = release.optString("tag_name", "");
-            int build = parseBuild(tag);
-            if (build <= 0) return new ReleaseInfo(0, "", "");
-
-            org.json.JSONArray assets = release.optJSONArray("assets");
-            String apkUrl = "";
-            if (assets != null) {
-                for (int i = 0; i < assets.length(); i++) {
-                    JSONObject asset = assets.optJSONObject(i);
-                    if (asset == null) continue;
-                    String name = asset.optString("name", "").toLowerCase();
-                    if (name.endsWith(".apk")) {
-                        apkUrl = asset.optString("browser_download_url", "");
-                        break;
+            try (InputStream input = connection.getInputStream()) {
+                StringBuilder json = new StringBuilder();
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    json.append(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8));
+                }
+                JSONObject release = new JSONObject(json.toString());
+                int build = parseBuild(release.optString("tag_name", ""));
+                String apkUrl = "";
+                org.json.JSONArray assets = release.optJSONArray("assets");
+                if (assets != null) {
+                    for (int i = 0; i < assets.length(); i++) {
+                        JSONObject asset = assets.optJSONObject(i);
+                        if (asset == null) continue;
+                        if (asset.optString("name", "").toLowerCase().endsWith(".apk")) {
+                            apkUrl = asset.optString("browser_download_url", "");
+                            break;
+                        }
                     }
                 }
+                return new ReleaseInfo(build, release.optString("name", "Yeni sürüm"), apkUrl);
             }
-            return new ReleaseInfo(build, release.optString("name", "Yeni sürüm"), apkUrl);
         } finally {
             connection.disconnect();
         }
@@ -97,13 +87,12 @@ public final class AppUpdateManager {
         try { return Integer.parseInt(digits); } catch (Exception e) { return 0; }
     }
 
-    private static void showUpdateDialog(android.app.Activity activity, ReleaseInfo release) {
-        if (activity.isFinishing() || activity.isDestroyed()) return;
+    private static void showUpdateDialog(Activity activity, ReleaseInfo release) {
+        if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
         String message = "Yeni bir Optik Okuyucu sürümü bulundu.\n\n" +
                 release.name + "\n\n" +
                 "Mevcut sürüm: " + BuildConfig.VERSION_NAME + "\n" +
                 "Yeni sürüm kodu: " + release.build;
-
         new AlertDialog.Builder(activity)
                 .setTitle("Uygulama güncellemesi")
                 .setMessage(message)
@@ -113,12 +102,7 @@ public final class AppUpdateManager {
                 .show();
     }
 
-    private static void downloadAndInstall(android.app.Activity activity, String apkUrl) {
-        if (apkUrl == null || apkUrl.isEmpty()) {
-            Toast.makeText(activity, "Güncelleme APK'sı bulunamadı.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
+    private static void downloadAndInstall(Activity activity, String apkUrl) {
         EXECUTOR.execute(() -> {
             try {
                 File updates = new File(activity.getCacheDir(), "updates");
@@ -142,7 +126,6 @@ public final class AppUpdateManager {
                 } finally {
                     connection.disconnect();
                 }
-
                 activity.runOnUiThread(() -> install(activity, apk));
             } catch (Exception e) {
                 activity.runOnUiThread(() -> Toast.makeText(activity,
@@ -151,7 +134,7 @@ public final class AppUpdateManager {
         });
     }
 
-    private static void install(android.app.Activity activity, File apk) {
+    private static void install(Activity activity, File apk) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     !activity.getPackageManager().canRequestPackageInstalls()) {
@@ -159,11 +142,10 @@ public final class AppUpdateManager {
                         .setTitle("Kurulum izni gerekli")
                         .setMessage("Güncellemeyi kurabilmek için bu uygulamaya bilinmeyen uygulama yükleme izni vermeniz gerekiyor.")
                         .setNegativeButton("Vazgeç", null)
-                        .setPositiveButton("Ayarları Aç", (d, w) -> {
-                            Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + activity.getPackageName()));
-                            activity.startActivity(intent);
-                        }).show();
+                        .setPositiveButton("Ayarları Aç", (d, w) -> activity.startActivity(
+                                new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                        Uri.parse("package:" + activity.getPackageName()))))
+                        .show();
                 return;
             }
 
