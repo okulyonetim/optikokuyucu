@@ -24,6 +24,9 @@ Bilgisayar zorunlu değildir. Kod GitHub üzerinden yönetilir ve her `main` gü
 
 APK, başarılı workflow çalışmasının `optik-okuyucu-debug-apk` artifact'ından alınabilir.
 
+Başarılı her `main` derlemesinden sonra APK, GitHub Releases altında `optik-okuyucu.apk` adıyla yayımlanır. En güncel sürümün sabit indirme adresi:
+`https://github.com/okulyonetim/optikokuyucu/releases/latest/download/optik-okuyucu.apk`
+
 ## Mimari
 
 Ayrıntılar için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) dosyasına bakın.

@@ -51,7 +51,9 @@ jobs:
         shell: bash
         run: |
           test -f dist/app-debug.apk
-          mv dist/app-debug.apk "dist/optik-okuyucu-${{ steps.version.outputs.name }}.apk"
+          # Sabit dosya adı: https://github.com/okulyonetim/optikokuyucu/releases/latest/download/optik-okuyucu.apk
+          # adresi her zaman en son sürümü indirir (sürüm numarası etiket ve başlıktadır).
+          mv dist/app-debug.apk dist/optik-okuyucu.apk
 
       - name: Create release and upload APK
         env:
@@ -62,7 +64,7 @@ jobs:
           TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
         shell: bash
         run: |
-          APK="dist/optik-okuyucu-${VERSION_NAME}.apk"
+          APK="dist/optik-okuyucu.apk"
           NOTES="Optik Okuyucu ${VERSION_NAME} (versionCode ${VERSION_CODE})\n\nAndroid CI testleri ve APK derlemesi başarıyla tamamlandıktan sonra otomatik yayımlandı."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
