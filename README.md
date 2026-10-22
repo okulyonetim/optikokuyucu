@@ -20,9 +20,9 @@ Android 17 / API 37, kararlı SDK tabanına geçtiğinde ayrıca değerlendirile
 
 ## Geliştirme modeli
 
-Bilgisayar zorunlu değildir. Kod GitHub üzerinden yönetilir ve her `main` güncellemesinde GitHub Actions debug APK üretir.
+Bilgisayar zorunlu değildir. Kod GitHub üzerinden yönetilir ve her `main` güncellemesinde GitHub Actions imzalı release APK üretir.
 
-APK, başarılı workflow çalışmasının `optik-okuyucu-debug-apk` artifact'ından alınabilir.
+APK, başarılı workflow çalışmasının `optik-okuyucu-apk` artifact'ından alınabilir.
 
 Başarılı her `main` derlemesinden sonra APK, GitHub Releases altında `optik-okuyucu.apk` adıyla yayımlanır. En güncel sürümün sabit indirme adresi:
 `https://github.com/okulyonetim/optikokuyucu/releases/latest/download/optik-okuyucu.apk`

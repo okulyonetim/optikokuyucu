@@ -42,7 +42,7 @@ jobs:
       - name: Download tested APK artifact
         uses: actions/download-artifact@v5
         with:
-          name: optik-okuyucu-debug-apk
+          name: optik-okuyucu-apk
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: dist
@@ -50,10 +50,10 @@ jobs:
       - name: Prepare APK
         shell: bash
         run: |
-          test -f dist/app-debug.apk
+          test -f dist/app-release.apk
           # Sabit dosya adı: https://github.com/okulyonetim/optikokuyucu/releases/latest/download/optik-okuyucu.apk
           # adresi her zaman en son sürümü indirir (sürüm numarası etiket ve başlıktadır).
-          mv dist/app-debug.apk dist/optik-okuyucu.apk
+          mv dist/app-release.apk dist/optik-okuyucu.apk
 
       - name: Create release and upload APK
         env:

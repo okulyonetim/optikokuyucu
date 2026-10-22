@@ -70,6 +70,9 @@ android {
         versionCode = appBuildNumber
         versionName = appVersionName
         vectorDrawables { useSupportLibrary = true }
+        // Okul telefonları ARM'dir. x86/x86_64 kütüphaneleri (OpenCV, ML Kit) APK'yı yaklaşık
+        // iki katına çıkarıyor ve yalnızca emülatörde işe yarıyor.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     signingConfigs {
         if (useOptikSigning) {
@@ -88,7 +91,9 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (useOptikSigning) signingConfig = signingConfigs.getByName("optik")
+            // Anahtar yoksa (fork PR, yerel derleme) imzasız APK yerine debug anahtarı kullanılır;
+            // CI bu APK'yı yayımlamaz.
+            signingConfig = signingConfigs.getByName(if (useOptikSigning) "optik" else "debug")
         }
     }
     compileOptions {

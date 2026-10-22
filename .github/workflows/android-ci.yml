@@ -77,12 +77,14 @@ jobs:
           set -o pipefail
           gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee "$RUNNER_TEMP/gradle-1-test.log"
 
-      - name: Build debug APK
+      # Telefonlara giden APK artık release derlemesidir: debuggable değildir (adb run-as ile veri
+      # okunamaz) ve debug derlemesinden daha hızlı çalışır. Kod küçültme (R8) kapalıdır.
+      - name: Build release APK
         env:
           OPTIK_KEYSTORE_PASSWORD: ${{ secrets.OPTIK_KEYSTORE_PASSWORD }}
         run: |
           set -o pipefail
-          gradle --no-daemon :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/gradle-2-build.log"
+          gradle --no-daemon :app:assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle-2-build.log"
 
       # Sabit anahtarın sertifika parmak izi (gizli değildir). APK başka bir anahtarla imzalanırsa
       # derleme durur; böylece telefonlara güncellenemeyen bir sürüm yayımlanamaz.
@@ -91,11 +93,23 @@ jobs:
           EXPECTED_CERT_SHA256: 6a85ccad36bf533b23b738c5de9a0748820592a37172cb972c2dd64b8e056c84
         run: |
           APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
-          ACTUAL=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk \
+          ACTUAL=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk \
             | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
           echo "APK sertifika SHA-256: $ACTUAL"
           if [ "${SIGNING_KEY_PRESENT:-}" = "true" ] && [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
             echo "::error::APK beklenen anahtarla imzalanmamış. Beklenen: $EXPECTED_CERT_SHA256"
+            exit 1
+          fi
+
+      # Yanlışlıkla debuggable bir APK yayımlanmasın ve boyut gözle izlenebilsin.
+      - name: Verify release APK properties
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          ls -l "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$APK" > "$RUNNER_TEMP/badging.txt"
+          grep -E "^package:|native-code" "$RUNNER_TEMP/badging.txt"
+          if grep -q "application-debuggable" "$RUNNER_TEMP/badging.txt"; then
+            echo "::error::Release APK debuggable olarak işaretlenmiş."
             exit 1
           fi
 
@@ -111,10 +125,10 @@ jobs:
           done
           exit 0
 
-      - name: Upload debug APK
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: optik-okuyucu-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: optik-okuyucu-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
