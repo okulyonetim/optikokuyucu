@@ -47,6 +47,16 @@ val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER")
 val appBuildNumber = ciBuildNumber?.let { 100_000 + it } ?: 100_128
 val appVersionName = ciBuildNumber?.let { "0.20.$it" } ?: "0.20.128"
 
+// Kalıcı imza anahtarı: CI, GitHub secret'ından çözdüğü keystore'u OPTIK_KEYSTORE_PATH ile
+// verir. Android bir uygulamayı yalnızca AYNI anahtarla imzalı APK ile günceller; anahtar her
+// derlemede değişirse "paket mevcut bir paketle çakışıyor" hatası alınır. Anahtar verilmezse
+// (yerel derleme, fork PR) Android'in varsayılan debug anahtarı kullanılır; CI bu APK'yı yayımlamaz.
+val optikKeystoreFile = providers.environmentVariable("OPTIK_KEYSTORE_PATH")
+    .orNull?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }
+val optikKeystorePassword = providers.environmentVariable("OPTIK_KEYSTORE_PASSWORD")
+    .orNull?.takeIf { it.isNotBlank() }
+val useOptikSigning = optikKeystoreFile != null && optikKeystorePassword != null
+
 android {
     namespace = "com.okulyonetim.optikokuyucu"
     compileSdk {
@@ -60,10 +70,24 @@ android {
         versionName = appVersionName
         vectorDrawables { useSupportLibrary = true }
     }
+    signingConfigs {
+        if (useOptikSigning) {
+            create("optik") {
+                storeFile = optikKeystoreFile
+                storePassword = optikKeystorePassword
+                keyAlias = "optikokuyucu"
+                keyPassword = optikKeystorePassword
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (useOptikSigning) signingConfig = signingConfigs.getByName("optik")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (useOptikSigning) signingConfig = signingConfigs.getByName("optik")
         }
     }
     compileOptions {
