@@ -24,7 +24,8 @@ enum class ReadabilityIssueType {
     OMR_AREA_OVERLAP,
     QUESTION_NUMBER_OVERLAP,
     DUPLICATE_OMR_ID,
-    TEMPLATE_COMPILE_CONFLICT
+    TEMPLATE_COMPILE_CONFLICT,
+    LABEL_TOO_LARGE
 }
 
 data class ReadabilityIssue(

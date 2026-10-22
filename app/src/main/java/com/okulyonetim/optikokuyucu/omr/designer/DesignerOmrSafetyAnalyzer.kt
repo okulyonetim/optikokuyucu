@@ -15,8 +15,35 @@ object DesignerOmrSafetyAnalyzer {
         issues += componentOverlapIssues(document)
         issues += questionNumberIssues(document)
         issues += duplicateOmrIdIssues(document)
+        issues += labelSizeIssues(document)
         return issues
     }
+
+    /**
+     * The printed choice letter is drawn at radius × choiceLabelScale. A capital letter is about
+     * 0.72 of the font size tall and up to 0.7 wide, so its bounding box reaches 0.5 × scale of the
+     * bubble radius from the center at the corners. The scorer measures ink in a ring that starts at
+     * 0.50 × radius; once the letter grows past the glyph-safe zone it is read as pen ink.
+     */
+    private fun labelSizeIssues(document: DesignerDocument): List<ReadabilityIssue> {
+        val scale = document.formSpec.answerAppearance.choiceLabelScale
+        if (scale <= MAX_GLYPH_SAFE_LABEL_SCALE) return emptyList()
+        if (document.components.none { it is QuestionGroupComponent || it is SingleChoiceComponent }) {
+            return emptyList()
+        }
+        return listOf(
+            ReadabilityIssue(
+                severity = ReadabilitySeverity.WARNING,
+                type = ReadabilityIssueType.LABEL_TOO_LARGE,
+                elementIds = emptyList(),
+                message = "Seçenek harfleri çok büyük (${"%.2f".format(scale)}). Harf, dolgu ölçüm halkasına " +
+                    "taşarsa boş baloncuk dolu okunabilir; harf boyutunu en çok " +
+                    "${"%.2f".format(MAX_GLYPH_SAFE_LABEL_SCALE)} yapın."
+            )
+        )
+    }
+
+    private const val MAX_GLYPH_SAFE_LABEL_SCALE = 1.10
 
     private fun componentPageIssues(document: DesignerDocument): List<ReadabilityIssue> =
         document.components.mapNotNull { component ->
