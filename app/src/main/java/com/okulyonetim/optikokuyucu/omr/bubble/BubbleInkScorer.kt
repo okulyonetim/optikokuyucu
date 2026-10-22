@@ -14,8 +14,71 @@ import kotlin.math.min
  * bubbles, question numbers and row labels do not pollute the local paper reference.
  */
 object BubbleInkScorer {
+    /** Fast path: scores from a pre-copied pixel array (no native calls). */
+    fun score(
+        image: GrayImage,
+        center: ImagePoint,
+        radius: Double
+    ): Double = scoreWindow(
+        pixels = image.pixels,
+        stride = image.width,
+        originX = 0,
+        originY = 0,
+        maxX = image.width - 1,
+        maxY = image.height - 1,
+        center = center,
+        radius = radius
+    )
+
+    /**
+     * Convenience path for a single bubble on a [Mat]: copies only the search window instead of
+     * calling Mat.get() once per pixel.
+     */
     fun score(
         gray: Mat,
+        center: ImagePoint,
+        radius: Double
+    ): Double {
+        if (gray.empty()) return 0.0
+        val outerSearch = radius.coerceAtLeast(2.0) * BACKGROUND_OUTER_RATIO
+        val left = max(0, (center.x - outerSearch).toInt())
+        val right = min(gray.cols() - 1, (center.x + outerSearch).toInt())
+        val top = max(0, (center.y - outerSearch).toInt())
+        val bottom = min(gray.rows() - 1, (center.y + outerSearch).toInt())
+        if (left > right || top > bottom) return 0.0
+
+        val region = gray.submat(top, bottom + 1, left, right + 1)
+        val bytes: ByteArray?
+        try {
+            bytes = region.toByteArray8U()
+        } finally {
+            region.release()
+        }
+        if (bytes == null) return 0.0
+
+        return scoreWindow(
+            pixels = bytes,
+            stride = right - left + 1,
+            originX = left,
+            originY = top,
+            maxX = right,
+            maxY = bottom,
+            center = center,
+            radius = radius
+        )
+    }
+
+    /**
+     * [pixels] holds a rectangular window whose top-left image coordinate is ([originX], [originY])
+     * and whose row length is [stride]; ([maxX], [maxY]) is the last readable image coordinate.
+     */
+    private fun scoreWindow(
+        pixels: ByteArray,
+        stride: Int,
+        originX: Int,
+        originY: Int,
+        maxX: Int,
+        maxY: Int,
         center: ImagePoint,
         radius: Double
     ): Double {
@@ -27,18 +90,19 @@ object BubbleInkScorer {
         var backgroundSum = 0.0
         var backgroundCount = 0
 
-        val left = max(0, (center.x - outerSearch).toInt())
-        val right = min(gray.cols() - 1, (center.x + outerSearch).toInt())
-        val top = max(0, (center.y - outerSearch).toInt())
-        val bottom = min(gray.rows() - 1, (center.y + outerSearch).toInt())
+        val left = max(originX, (center.x - outerSearch).toInt())
+        val right = min(maxX, (center.x + outerSearch).toInt())
+        val top = max(originY, (center.y - outerSearch).toInt())
+        val bottom = min(maxY, (center.y + outerSearch).toInt())
         if (left > right || top > bottom) return 0.0
 
         for (y in top..bottom) {
+            val rowOffset = (y - originY) * stride - originX
             for (x in left..right) {
                 val dx = x + 0.5 - center.x
                 val dy = y + 0.5 - center.y
                 val distanceRatio = hypot(dx, dy) / safeRadius
-                val value = gray.get(y, x)?.firstOrNull() ?: continue
+                val value = (pixels[rowOffset + x].toInt() and 0xFF).toDouble()
 
                 when {
                     BubbleInkSamplingGeometry.isMarkSample(distanceRatio) -> {

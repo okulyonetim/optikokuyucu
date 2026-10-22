@@ -5,6 +5,7 @@ import androidx.camera.core.ImageProxy
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
 import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
+import com.okulyonetim.optikokuyucu.omr.bubble.toGrayImageOrNull
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalImageRectifier
@@ -22,6 +23,7 @@ import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.tracking.PageLockTracker
 import com.okulyonetim.optikokuyucu.omr.tracking.PageTrackingPhase
+import com.okulyonetim.optikokuyucu.storage.AppLog
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import kotlin.math.max
@@ -55,7 +57,7 @@ class CameraFrameAnalyzer(
     private val recognitionBindings = OmrRecognitionBindingsResolver.fromTemplate(template)
     private val pageTracker = PageLockTracker()
     private val scanGate = LiveScanGate()
-    private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = 2)
+    private val readConsensus = LiveReadConsensus(requiredConsecutiveMatches = REQUIRED_CONSENSUS_FRAMES)
     private val sessionDeduplicator = LiveSessionDeduplicator()
 
     private var frameCount = 0
@@ -68,6 +70,8 @@ class CameraFrameAnalyzer(
     private var detectorHealthy = openCvReady
     private var liveReadCount = 0
     private var duplicateReadCount = 0
+    private var latestRegistrationUnreliable = false
+    private var failureCount = 0
 
     override fun analyze(image: ImageProxy) {
         try {
@@ -79,6 +83,7 @@ class CameraFrameAnalyzer(
                     detector.detect(image)
                 }.onFailure {
                     detectorHealthy = false
+                    logAnalyzerFailure("Marker algılama hatası", it)
                 }.getOrDefault(FiducialDetectionResult.Empty)
                 latestPageBoundary = estimatePageBoundary(latestDetection)
 
@@ -98,10 +103,15 @@ class CameraFrameAnalyzer(
                 )
                 if (rearmed) readConsensus.reset()
 
+                // The 16-corner fit leaves a real residual: a large one means the markers do not sit
+                // where this template says (wrong form, bent sheet, a mis-detected marker), so the
+                // bubbles would be sampled off-target. Refuse to read rather than risk wrong answers.
+                val registration = latestDetection.canonicalRegistration
+                latestRegistrationUnreliable = registration != null && !registration.isReliable
                 val candidateReady = scanGate.canRead(
                     phase = tracking.phase,
                     markerCount = latestDetection.detectedMarkers.size,
-                    registrationReady = latestDetection.canonicalRegistration != null,
+                    registrationReady = registration != null && registration.isReliable,
                     pageConfidence = tracking.confidence
                 )
 
@@ -119,12 +129,17 @@ class CameraFrameAnalyzer(
                             detection = latestDetection,
                             pageConfidence = tracking.confidence
                         )
+                    }.onFailure {
+                        logAnalyzerFailure("Kare okuma hatası", it)
                     }.getOrNull()
 
                     if (liveResult == null) {
                         readConsensus.reset()
                     } else {
-                        val confirmed = readConsensus.offer(readSignature(liveResult))
+                        val confirmed = readConsensus.offer(
+                            signature = readSignature(liveResult),
+                            parts = readSignatureParts(liveResult)
+                        )
                         if (confirmed) {
                             scanGate.onAcceptedRead()
                             readConsensus.reset()
@@ -173,6 +188,8 @@ class CameraFrameAnalyzer(
                         motionRatio = latestMotionRatio,
                         readArmed = scanGate.isArmed(),
                         consensusMatches = readConsensus.currentMatches(),
+                        unstableItems = readConsensus.unstableKeys(),
+                        registrationUnreliable = latestRegistrationUnreliable,
                         liveReadCount = liveReadCount,
                         duplicateReadCount = duplicateReadCount
                     )
@@ -224,17 +241,19 @@ class CameraFrameAnalyzer(
 
         return try {
             canonical = CanonicalImageRectifier.rectify(gray, detection, template) ?: return null
-            val bubbles = bubbleReader.readCanonical(canonical)
+            // One native copy of the rectified frame feeds both readers and the stored scan image.
+            val canonicalImage = canonical.toGrayImageOrNull() ?: return null
+            val bubbles = bubbleReader.readCanonical(canonicalImage)
             if (bubbles.questions.size != template.bubbleRows.size) return null
 
-            val markGrids = markGridReader.readCanonical(canonical)
+            val markGrids = markGridReader.readCanonical(canonicalImage)
             if (markGrids.grids.size != template.markGrids.size) return null
 
             val confidences = buildList {
                 addAll(bubbles.questions.map { it.confidence })
                 addAll(markGrids.grids.flatMap { grid -> grid.columns.map { it.confidence } })
             }
-            val canonicalLuma = copyCanonicalLuma(canonical)
+            val canonicalLuma = canonicalImage.pixels.takeIf { it.size.toLong() in 1..MAX_SCAN_IMAGE_PIXELS.toLong() }
 
             LiveOmrReadResult(
                 sequence = 0,
@@ -249,24 +268,14 @@ class CameraFrameAnalyzer(
                 elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0,
                 sourceWidth = image.width,
                 sourceHeight = image.height,
-                canonicalWidth = if (canonicalLuma != null) canonical.cols() else 0,
-                canonicalHeight = if (canonicalLuma != null) canonical.rows() else 0,
+                canonicalWidth = if (canonicalLuma != null) canonicalImage.width else 0,
+                canonicalHeight = if (canonicalLuma != null) canonicalImage.height else 0,
                 canonicalLuma = canonicalLuma
             )
         } finally {
             canonical?.release()
             gray.release()
         }
-    }
-
-    /** Copies only a bounded single-channel canonical frame; recognition remains valid if omitted. */
-    private fun copyCanonicalLuma(canonical: Mat): ByteArray? {
-        if (canonical.empty() || canonical.channels() != 1) return null
-        val pixelCount = canonical.rows().toLong() * canonical.cols().toLong()
-        if (pixelCount !in 1..MAX_SCAN_IMAGE_PIXELS.toLong()) return null
-        val bytes = ByteArray(pixelCount.toInt())
-        val copied = canonical.get(0, 0, bytes)
-        return bytes.takeIf { copied == bytes.size }
     }
 
     private fun readSignature(result: LiveOmrReadResult): String = buildString {
@@ -280,6 +289,26 @@ class CameraFrameAnalyzer(
                     "${column.columnId}:${column.state}:${column.selectedValue ?: "-"}"
                 }
             )
+        }
+    }
+
+    /** Per-question view of the signature so the consensus gate can report which answers flicker. */
+    private fun readSignatureParts(result: LiveOmrReadResult): Map<String, String> = buildMap {
+        result.bubbleResult.questions.forEach { question ->
+            put(question.questionId, "${question.state}:${question.selectedChoice ?: "-"}")
+        }
+        result.markGridResult.grids.forEach { grid ->
+            grid.columns.forEach { column ->
+                put("${grid.gridId}/${column.columnId}", "${column.state}:${column.selectedValue ?: "-"}")
+            }
+        }
+    }
+
+    /** Failures used to vanish inside runCatching; log the first and then every 100th. */
+    private fun logAnalyzerFailure(message: String, error: Throwable) {
+        failureCount += 1
+        if (failureCount == 1 || failureCount % FAILURE_LOG_INTERVAL == 0) {
+            AppLog.warn("CameraFrameAnalyzer", "$message (#$failureCount)", error)
         }
     }
 
@@ -325,6 +354,10 @@ class CameraFrameAnalyzer(
         const val STATS_WINDOW_NS = 500_000_000L
         const val SAMPLE_COLUMNS = 24
         const val SAMPLE_ROWS = 24
+
+        /** Identical complete reads required on consecutive locked frames before one is accepted. */
+        const val REQUIRED_CONSENSUS_FRAMES = 3
+        const val FAILURE_LOG_INTERVAL = 100
     }
 }
 
@@ -358,7 +391,11 @@ data class CameraFrameStats(
     val readArmed: Boolean,
     val consensusMatches: Int,
     val liveReadCount: Int,
-    val duplicateReadCount: Int
+    val duplicateReadCount: Int,
+    /** Question/column ids whose reading changed between the last two frames (flickering marks). */
+    val unstableItems: List<String> = emptyList(),
+    /** True when all markers are visible but their corners disagree with the template geometry. */
+    val registrationUnreliable: Boolean = false
 ) {
     companion object {
         val Empty = CameraFrameStats(

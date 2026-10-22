@@ -5,11 +5,13 @@ import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalHomographySolver
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalRegistration
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.geometry.ImageQuadrilateral
+import com.okulyonetim.optikokuyucu.omr.geometry.PointCorrespondence
 import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQuality
 import com.okulyonetim.optikokuyucu.omr.geometry.QuadrilateralQualityEvaluator
 import com.okulyonetim.optikokuyucu.omr.template.FiducialCorner
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.StandardOmrTemplate
+import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.objdetect.ArucoDetector
@@ -92,8 +94,13 @@ class OpenCvFiducialDetector(
             val quality = anchorQuad?.let {
                 QuadrilateralQualityEvaluator.evaluate(it, gray.cols(), gray.rows())
             }
-            val registration = anchorQuad?.let {
-                CanonicalHomographySolver.solve(it, template)
+            // Fit all 16 marker corners (not just the 4 centers): lower noise, and a residual that
+            // actually reveals a mismatched or distorted sheet. The exact 4-point solve stays as the
+            // fallback if the corner fit is numerically impossible.
+            val registration = anchorQuad?.let { quad ->
+                buildMarkerCorrespondences(markers)
+                    ?.let { CanonicalHomographySolver.solveLeastSquares(it, template) }
+                    ?: CanonicalHomographySolver.solve(quad, template)
             }
 
             FiducialDetectionResult(
@@ -131,6 +138,32 @@ class OpenCvFiducialDetector(
         x = corners.sumOf { it.x } / corners.size,
         y = corners.sumOf { it.y } / corners.size
     )
+
+    /**
+     * ArUco reports corners clockwise from the marker's own top-left, and the markers are printed
+     * upright into their template bounds, so corner i maps to bounds corner i regardless of how the
+     * sheet is rotated in the camera image.
+     */
+    private fun buildMarkerCorrespondences(
+        markers: Map<Int, DetectedFiducial>
+    ): List<PointCorrespondence>? {
+        val result = ArrayList<PointCorrespondence>(16)
+        for (fiducial in template.fiducials) {
+            val detected = markers[fiducial.markerId] ?: return null
+            if (detected.corners.size != 4) return null
+            val bounds = fiducial.bounds
+            val expected = listOf(
+                TemplatePoint(bounds.left, bounds.top),
+                TemplatePoint(bounds.right, bounds.top),
+                TemplatePoint(bounds.right, bounds.bottom),
+                TemplatePoint(bounds.left, bounds.bottom)
+            )
+            for (index in 0 until 4) {
+                result += PointCorrespondence(detected.corners[index], expected[index])
+            }
+        }
+        return result.takeIf { it.size >= 4 }
+    }
 
     private fun buildAnchorQuadrilateral(
         markers: Map<Int, DetectedFiducial>

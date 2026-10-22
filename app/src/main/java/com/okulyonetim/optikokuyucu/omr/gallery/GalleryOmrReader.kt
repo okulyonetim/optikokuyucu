@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleReadResult
 import com.okulyonetim.optikokuyucu.omr.bubble.CanonicalBubbleReader
+import com.okulyonetim.optikokuyucu.omr.bubble.toGrayImageOrNull
 import com.okulyonetim.optikokuyucu.omr.fiducial.FiducialDetectionResult
 import com.okulyonetim.optikokuyucu.omr.fiducial.OpenCvFiducialDetector
 import com.okulyonetim.optikokuyucu.omr.geometry.CanonicalHomographySolver
@@ -70,25 +71,24 @@ object GalleryOmrReader {
             canonical = CanonicalImageRectifier.rectify(gray, detection, template)
             val rectificationMs = nanosToMs(System.nanoTime() - rectificationStartedAt)
 
+            // One native copy of the rectified sheet feeds both readers and the stored scan image.
+            val canonicalImage = canonical?.toGrayImageOrNull()
+
             val bubbleStartedAt = System.nanoTime()
-            val bubbles = canonical?.let {
+            val bubbles = canonicalImage?.let {
                 CanonicalBubbleReader(template).readCanonical(it)
             } ?: BubbleReadResult(emptyList())
             val bubbleMs = nanosToMs(System.nanoTime() - bubbleStartedAt)
 
             val markGridStartedAt = System.nanoTime()
-            val markGrids = canonical?.let {
+            val markGrids = canonicalImage?.let {
                 CanonicalMarkGridReader(template).readCanonical(it)
             } ?: MarkGridReadResult.Empty
             val markGridMs = nanosToMs(System.nanoTime() - markGridStartedAt)
 
-            val canonicalWidth = canonical?.cols() ?: 0
-            val canonicalHeight = canonical?.rows() ?: 0
-            val canonicalLuma = canonical?.let { image ->
-                ByteArray(canonicalWidth * canonicalHeight).also { pixels ->
-                    image.get(0, 0, pixels)
-                }
-            }
+            val canonicalWidth = canonicalImage?.width ?: 0
+            val canonicalHeight = canonicalImage?.height ?: 0
+            val canonicalLuma = canonicalImage?.pixels
 
             return GalleryOmrResult(
                 bitmap = bitmap,

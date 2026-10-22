@@ -81,6 +81,9 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
+private const val ANALYSIS_WIDTH = 1920
+private const val ANALYSIS_HEIGHT = 1080
+
 @Composable
 fun OmrCameraScreen(
     openCvReady: Boolean,
@@ -272,7 +275,9 @@ private fun CameraPreviewContent(
                 val resolutionSelector = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
-                            Size(960, 540),
+                            // 960x540 gave a standard bubble only ~3-4 px of radius; 1080p roughly
+                            // doubles that, which the ink-ring sampling needs for small/dense forms.
+                            Size(ANALYSIS_WIDTH, ANALYSIS_HEIGHT),
                             ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                         )
                     )
@@ -309,6 +314,10 @@ private fun CameraPreviewContent(
 
     val scanStateText = when {
         liveRead != null && !stats.readArmed -> "Okundu · yeni formu gösterin"
+        stats.trackingPhase == PageTrackingPhase.LOCKED && stats.registrationUnreliable ->
+            "Form eşleşmiyor · kağıdı düz tutun, doğru formu kullandığınızdan emin olun"
+        stats.trackingPhase == PageTrackingPhase.LOCKED && stats.unstableItems.isNotEmpty() ->
+            "Okunamayan işaret: ${stats.unstableItems.take(5).joinToString(", ")} · yakından kontrol edin"
         stats.trackingPhase == PageTrackingPhase.LOCKED -> "Form kilitlendi · otomatik okunuyor"
         stats.trackingPhase == PageTrackingPhase.TRACKING -> "Form algılandı · sabit tutun"
         else -> "Dört köşe markerını kamera içinde tutun"

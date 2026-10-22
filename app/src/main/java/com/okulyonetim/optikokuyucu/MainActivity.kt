@@ -6,12 +6,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTypography
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OpenCvOmrSelfTest
 import com.okulyonetim.optikokuyucu.ui.OmrRootScreen
 import com.okulyonetim.optikokuyucu.ui.SchoolPortalGate
 import com.okulyonetim.optikokuyucu.ui.StaticStartupSplash
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.opencv.android.OpenCVLoader
 
 class MainActivity : ComponentActivity() {
@@ -39,14 +43,16 @@ class MainActivity : ComponentActivity() {
 
         DesignerTypography.install(this)
 
+        // Loading the native library has to happen before any OpenCV class is touched, but the
+        // marker/registration self-test is pure diagnostics and used to block the first frame.
         val openCvReady = OpenCVLoader.initLocal()
-        val selfTest = if (openCvReady) {
-            OpenCvOmrSelfTest.run()
-        } else {
-            OmrSelfTestResult.NotRun
-        }
 
         setContent {
+            val selfTest by produceState(initialValue = OmrSelfTestResult.NotRun, openCvReady) {
+                if (openCvReady) {
+                    value = withContext(Dispatchers.Default) { OpenCvOmrSelfTest.run() }
+                }
+            }
             StaticStartupSplash {
                 SchoolPortalGate {
                     OmrRootScreen(

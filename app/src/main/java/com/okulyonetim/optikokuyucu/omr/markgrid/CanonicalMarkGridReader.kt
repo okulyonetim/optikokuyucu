@@ -1,8 +1,10 @@
 package com.okulyonetim.optikokuyucu.omr.markgrid
 
 import com.okulyonetim.optikokuyucu.omr.bubble.BubbleInkScorer
+import com.okulyonetim.optikokuyucu.omr.bubble.GrayImage
 import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivity
 import com.okulyonetim.optikokuyucu.omr.bubble.OmrSensitivityPolicy
+import com.okulyonetim.optikokuyucu.omr.bubble.toGrayImageOrNull
 import com.okulyonetim.optikokuyucu.omr.geometry.ImagePoint
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
@@ -132,18 +134,20 @@ class CanonicalMarkGridReader(
     private val sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) {
     fun readCanonical(gray: Mat): MarkGridReadResult {
-        if (gray.empty() || gray.channels() != 1) return MarkGridReadResult.Empty
-
-        return MarkGridReadResult(
-            template.markGrids.map { grid -> readGrid(gray, grid) }
-        )
+        val image = gray.toGrayImageOrNull() ?: return MarkGridReadResult.Empty
+        return readCanonical(image)
     }
 
-    private fun readGrid(gray: Mat, grid: MarkGridSpec): MarkGridRead {
+    /** Same as [readCanonical] for a frame that was already copied out of OpenCV (shared by all readers). */
+    fun readCanonical(image: GrayImage): MarkGridReadResult = MarkGridReadResult(
+        template.markGrids.map { grid -> readGrid(image, grid) }
+    )
+
+    private fun readGrid(image: GrayImage, grid: MarkGridSpec): MarkGridRead {
         val columns = grid.columns.map { column ->
             val scores = column.marks.associate { mark ->
                 mark.id to BubbleInkScorer.score(
-                    gray = gray,
+                    image = image,
                     center = ImagePoint(mark.center.x, mark.center.y),
                     radius = mark.radius
                 )

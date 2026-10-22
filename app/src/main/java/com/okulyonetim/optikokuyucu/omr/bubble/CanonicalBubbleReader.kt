@@ -18,14 +18,18 @@ class CanonicalBubbleReader(
     private val template: OmrTemplate,
     private val sensitivity: OmrSensitivity = OmrSensitivity.NORMAL
 ) {
-    /** Preferred path after CanonicalImageRectifier. */
+    /** Preferred path after CanonicalImageRectifier. Copies the frame once, then scores in plain JVM code. */
     fun readCanonical(gray: Mat): BubbleReadResult {
-        if (gray.empty() || gray.channels() != 1) return BubbleReadResult(emptyList())
+        val image = gray.toGrayImageOrNull() ?: return BubbleReadResult(emptyList())
+        return readCanonical(image)
+    }
 
+    /** Same as [readCanonical] for a frame that was already copied out of OpenCV (shared by all readers). */
+    fun readCanonical(image: GrayImage): BubbleReadResult {
         val rows = template.bubbleRows.map { row ->
             val scores = row.bubbles.associate { bubble ->
-                bubble.id to scoreAt(
-                    gray = gray,
+                bubble.id to BubbleInkScorer.score(
+                    image = image,
                     center = ImagePoint(bubble.center.x, bubble.center.y),
                     radius = bubble.radius
                 )
