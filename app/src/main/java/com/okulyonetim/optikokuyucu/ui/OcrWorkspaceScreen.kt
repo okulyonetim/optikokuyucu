@@ -44,6 +44,9 @@ import com.okulyonetim.optikokuyucu.exam.Exam
 import com.okulyonetim.optikokuyucu.exam.FileExamRepository
 import com.okulyonetim.optikokuyucu.ocr.OcrAnswerKeyExtraction
 import com.okulyonetim.optikokuyucu.ocr.OcrAnswerKeyParser
+import com.okulyonetim.optikokuyucu.ocr.OcrAnswerTableParser
+import com.okulyonetim.optikokuyucu.ocr.toDrafts
+import com.okulyonetim.optikokuyucu.ocr.toTableSubjects
 import com.okulyonetim.optikokuyucu.ocr.OcrRecognitionResult
 import com.okulyonetim.optikokuyucu.ocr.OcrTextRecognizer
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
@@ -86,6 +89,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     var examMenuOpen by remember { mutableStateOf(false) }
     var recognition by remember { mutableStateOf<OcrRecognitionResult?>(null) }
     var extraction by remember { mutableStateOf<OcrAnswerKeyExtraction?>(null) }
+    var tableReview by remember { mutableStateOf<OcrTableReviewState?>(null) }
     var editedAnswers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var selectedBooklet by remember { mutableStateOf<String?>(null) }
     var bookletMenuOpen by remember { mutableStateOf(false) }
@@ -127,6 +131,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(mode, recognition, target?.exam?.id) {
+        tableReview = null
         if (mode != OcrWorkspaceMode.ANSWER_KEY) {
             extraction = null
             editedAnswers = emptyMap()
@@ -139,6 +144,24 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
             extraction = null
             editedAnswers = emptyMap()
             selectedBooklet = null
+            return@LaunchedEffect
+        }
+        // Printed tables with "12-B" cells (several booklets per page) get their own reader and review screen;
+        // anything else goes through the geometry-based row reader below.
+        val table = OcrAnswerTableParser.parse(
+            recognition = currentRecognition,
+            subjects = currentTarget.sections.toTableSubjects(),
+            knownBooklets = currentTarget.bookletChoices
+        )
+        if (table != null) {
+            val review = OcrTableReviewState(table.toDrafts(currentTarget.sections), table.warnings)
+            tableReview = review
+            extraction = null
+            editedAnswers = emptyMap()
+            selectedBooklet = null
+            val total = currentTarget.sections.sumOf { it.questionIds.size } * review.drafts.size
+            val read = review.drafts.sumOf { it.answeredCount(currentTarget.sections) }
+            status = "${review.drafts.size} tablo okundu · $read/$total cevap · kontrol edip kaydedin"
             return@LaunchedEffect
         }
         val parsed = OcrAnswerKeyParser.parse(
@@ -291,7 +314,39 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 
             val parsed = extraction
             val currentTarget = target
-            if (mode == OcrWorkspaceMode.ANSWER_KEY && parsed != null && currentTarget != null) {
+            val review = tableReview
+            if (mode == OcrWorkspaceMode.ANSWER_KEY && review != null && currentTarget != null) {
+                ocrTableReviewItems(
+                    state = review,
+                    sections = currentTarget.sections,
+                    bookletChoices = currentTarget.bookletChoices,
+                    onSave = { drafts ->
+                        runCatching {
+                            val expected = currentTarget.sections.flatMap { it.questionIds }
+                            drafts.forEach { draft ->
+                                val variant = draft.booklet?.takeIf { currentTarget.bookletGridId != null && it.isNotBlank() }
+                                StoredAnswerKey(
+                                    answerKey = AnswerKey(
+                                        currentTarget.template.id,
+                                        currentTarget.template.version,
+                                        expected.associateWith { draft.answers.getValue(it) }
+                                    ),
+                                    variantGridId = if (variant == null) null else currentTarget.bookletGridId,
+                                    variantValue = variant,
+                                    source = AnswerKeySource.CAMERA,
+                                    examId = currentTarget.exam.id
+                                ).also(keyRepository::save)
+                            }
+                            drafts
+                        }.onSuccess { saved ->
+                            val names = saved.mapNotNull { it.booklet }.joinToString(", ")
+                            status = "${saved.size} cevap anahtarı sınava kaydedildi" + if (names.isNotEmpty()) " ($names)" else ""
+                        }.onFailure { error ->
+                            status = "Cevap anahtarı kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
+                        }
+                    }
+                )
+            } else if (mode == OcrWorkspaceMode.ANSWER_KEY && parsed != null && currentTarget != null) {
                 if (parsed.warnings.isNotEmpty()) {
                     item {
                         OcrSectionCard("Kontrol Gerekenler", "Belirsiz hücreler otomatik olarak doğru kabul edilmez.") {
@@ -389,7 +444,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun OcrSectionCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
+internal fun OcrSectionCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = OptikShape.lg,
@@ -409,7 +464,7 @@ private fun OcrSectionCard(title: String, subtitle: String? = null, content: @Co
 }
 
 @Composable
-private fun OcrChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun OcrChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
     if (selected) {
         FilledTonalButton(modifier = modifier, onClick = onClick, shape = OptikShape.md) {
             Text("$label ✓", fontSize = OptikTextSize.micro)
