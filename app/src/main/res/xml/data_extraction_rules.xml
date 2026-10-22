@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: keep exam data restorable, but never copy the sign-in session or update state. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="school-portal-session.xml" />
+        <exclude domain="sharedpref" path="optik_update.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="school-portal-session.xml" />
+        <exclude domain="sharedpref" path="optik_update.xml" />
+    </device-transfer>
+</data-extraction-rules>

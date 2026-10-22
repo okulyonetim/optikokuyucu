@@ -121,11 +121,13 @@ class SchoolTemplateCloudSyncService(
         }
         val cloudId = ownership.cloudDocumentId
         if (cloudId.isBlank()) return
-        val current = client.getDocument(OPTIK_TEMPLATES, cloudId) ?: return
+        client.getDocument(OPTIK_TEMPLATES, cloudId) ?: return
+        // Only the flags that change are written; re-sending every decoded field would also
+        // rewrite timestamps and unknown value types as plain strings/nulls.
         client.upsertDocument(
             OPTIK_TEMPLATES,
             cloudId,
-            current.fields + mapOf(
+            mapOf(
                 "silindi" to true,
                 "herkeseAcik" to false,
                 "guncellenmeTarihi" to Instant.now().toString()
@@ -199,7 +201,7 @@ class SchoolExamCatalogSyncService(
         client.upsertDocument(
             SchoolPortalConfig.TRIAL_EXAMS,
             current.id,
-            current.fields + mapOf(
+            mapOf(
                 "herkeseAcik" to isPublic,
                 "silindi" to false,
                 "guncellenmeTarihi" to Instant.now().toString()
@@ -227,14 +229,14 @@ class SchoolExamCatalogSyncService(
         client.upsertDocument(
             SchoolPortalConfig.TRIAL_EXAMS,
             current.id,
-            current.fields + tombstone
+            tombstone
         )
         runCatching {
             client.getDocument(SchoolPortalConfig.TRIAL_RESULTS, examId)?.let { result ->
                 client.upsertDocument(
                     SchoolPortalConfig.TRIAL_RESULTS,
                     result.id,
-                    result.fields + tombstone
+                    tombstone
                 )
             }
         }
