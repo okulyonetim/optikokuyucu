@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerAreaKind
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerComponentGeometry
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocumentEditor
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDraft
+import com.okulyonetim.optikokuyucu.omr.designer.DesignerDraftStore
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditSafety
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerEditorLayout
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerExamMode
@@ -59,6 +63,15 @@ import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.QuestionGroupComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
+import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+
+private const val DRAFT_AUTOSAVE_DELAY_MS = 1_000L
 
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -100,6 +113,75 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
     var descriptionDraft by remember { mutableStateOf<DesignerTextElement?>(null) }
     var imageEditorOpen by remember { mutableStateOf(false) }
     var imageDraft by remember { mutableStateOf<DesignerImageElement?>(null) }
+
+    // Autosave: the editor keeps the document in memory only, so edits are mirrored to a draft
+    // file shortly after every change and offered back if the process was killed before saving.
+    val draftStore = remember(context) { DesignerDraftStore(context.applicationContext) }
+    val draftOwnerKey = remember(context) {
+        runCatching { SchoolPortalManager.get(context.applicationContext).cachedSession()?.profile?.uid }
+            .getOrNull()
+            .orEmpty()
+    }
+    var baselineDocument by remember(initialDocument.id, initialDocument.version) { mutableStateOf(initialDocument) }
+    var baselineName by remember(initialDocument.id, initialDocument.version) {
+        mutableStateOf(if (openRequest == null) "" else initialDocument.name)
+    }
+    var draftChecked by remember { mutableStateOf(false) }
+    var restorableDraft by remember { mutableStateOf<DesignerDraft?>(null) }
+
+    LaunchedEffect(draftStore, draftOwnerKey) {
+        val found = withContext(Dispatchers.IO) { draftStore.load(draftOwnerKey) }
+        // A draft is only worth offering for a brand-new form or for the same form being reopened.
+        if (found != null && (openRequest == null || found.document.id == initialDocument.id)) {
+            restorableDraft = found
+        }
+        draftChecked = true
+    }
+
+    LaunchedEffect(document, formName, draftChecked, restorableDraft) {
+        if (!draftChecked || restorableDraft != null) return@LaunchedEffect
+        if (document == baselineDocument && formName == baselineName) return@LaunchedEffect
+        delay(DRAFT_AUTOSAVE_DELAY_MS)
+        val snapshot = DesignerDraft(
+            ownerKey = draftOwnerKey,
+            formName = formName,
+            document = document,
+            savedAtEpochMs = System.currentTimeMillis()
+        )
+        withContext(Dispatchers.IO) { runCatching { draftStore.save(snapshot) } }
+    }
+
+    restorableDraft?.let { draft ->
+        val savedAt = remember(draft.savedAtEpochMs) {
+            SimpleDateFormat("d MMMM HH:mm", Locale("tr", "TR")).format(Date(draft.savedAtEpochMs))
+        }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Kaydedilmemiş çalışma bulundu") },
+            text = {
+                Text(
+                    "“${draft.formName.ifBlank { draft.document.name }}” formunda $savedAt tarihinde " +
+                        "otomatik saklanmış, kaydedilmemiş değişiklikler var. Geri yüklensin mi?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    document = draft.document
+                    formName = draft.formName
+                    libraryMode = DesignerLibraryOpenMode.EDIT
+                    restorableDraft = null
+                    status = "Kaydedilmemiş çalışma geri yüklendi."
+                    feedback.info(status)
+                }) { Text("Geri yükle") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    restorableDraft = null
+                    runCatching { draftStore.clear() }
+                }) { Text("Sil") }
+            }
+        )
+    }
 
     if (libraryMode == DesignerLibraryOpenMode.PREVIEW) {
         DesignerDocumentPreviewScreen(
@@ -186,6 +268,9 @@ fun StructuredOmrDesignerScreen(openCvReady: Boolean, onBack: () -> Unit, onOpen
         }.onSuccess { stored ->
             document = stored
             formName = stored.name
+            baselineDocument = stored
+            baselineName = stored.name
+            runCatching { draftStore.clear() }
             status = "Kaydedildi · v${stored.version}"
             feedback.success(status)
         }.onFailure { error ->

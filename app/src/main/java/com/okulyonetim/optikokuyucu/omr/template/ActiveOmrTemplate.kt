@@ -5,6 +5,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerStarterTemplates
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.FileDesignerDocumentRepository
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -58,26 +59,21 @@ class FileActiveTemplateSelectionRepository(context: Context) : ActiveTemplateSe
 
     override fun load(): ActiveTemplateSelection {
         if (!file.isFile) return ActiveOmrTemplateDefaults.selection
-        return runCatching { ActiveTemplateSelectionCodec.decode(file.readBytes()) }
-            .getOrDefault(ActiveOmrTemplateDefaults.selection)
+        return AtomicFiles.readOrNull(file, "Aktif şablon seçimi") { ActiveTemplateSelectionCodec.decode(it) }
+            ?: ActiveOmrTemplateDefaults.selection
     }
 
     override fun save(selection: ActiveTemplateSelection) {
-        val temporary = File(directory, "$FILE_NAME.tmp")
-        temporary.writeBytes(ActiveTemplateSelectionCodec.encode(selection))
-        if (file.exists() && !file.delete()) {
-            temporary.delete()
-            error("Aktif şablon seçimi güncellenemedi.")
-        }
-        if (!temporary.renameTo(file)) {
-            temporary.delete()
-            error("Aktif şablon seçimi kalıcı depoya taşınamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            AtomicFiles.writeBytes(file, ActiveTemplateSelectionCodec.encode(selection))
         }
     }
 
     override fun reset() {
-        if (file.exists() && !file.delete()) {
-            error("Aktif şablon seçimi sıfırlanamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            if (file.exists() && !file.delete()) {
+                error("Aktif şablon seçimi sıfırlanamadı.")
+            }
         }
     }
 

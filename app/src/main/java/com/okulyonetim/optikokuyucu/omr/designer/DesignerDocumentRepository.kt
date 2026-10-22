@@ -4,6 +4,7 @@ import android.content.Context
 import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
 import com.okulyonetim.optikokuyucu.school.SchoolFormOwnershipStore
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.File
 import java.util.Base64
 
@@ -41,12 +42,19 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
     private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
     private val ownershipStore = SchoolFormOwnershipStore(appContext)
 
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
     override fun save(document: DesignerDocument): DesignerDocument = persist(document, trustedCloudSync = false)
 
     /** Cloud sync may materialize another user's public form locally without granting edit ownership. */
     fun saveFromCloud(document: DesignerDocument): DesignerDocument = persist(document, trustedCloudSync = true)
 
-    private fun persist(document: DesignerDocument, trustedCloudSync: Boolean): DesignerDocument {
+    private fun persist(document: DesignerDocument, trustedCloudSync: Boolean): DesignerDocument =
+        synchronized(AtomicFiles.lockFor(directory)) { persistLocked(document, trustedCloudSync) }
+
+    private fun persistLocked(document: DesignerDocument, trustedCloudSync: Boolean): DesignerDocument {
         val existing = listUnscoped()
         val resolved = DesignerDocumentSavePolicy.resolveForSave(
             document = document,
@@ -80,29 +88,23 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         }
 
         if (target.isFile) {
-            val stored = runCatching { DesignerDocumentCodec.decode(target.readBytes()) }.getOrNull()
+            val stored = readDocument(target)
             if (stored == resolved) return resolved
         }
 
-        val temp = File(directory, target.name + ".tmp")
-        val bytes = DesignerDocumentCodec.encode(resolved)
-        temp.outputStream().buffered().use { it.write(bytes) }
-        if (target.exists() && !target.delete()) {
-            temp.delete()
-            error("Mevcut şablon güncellenemedi.")
-        }
-        if (!temp.renameTo(target)) {
-            temp.delete()
-            error("Şablon dosyası kaydedilemedi.")
-        }
+        AtomicFiles.writeBytes(target, DesignerDocumentCodec.encode(resolved))
         return resolved
     }
 
+    /** Returns null (and logs) for an unreadable file instead of crashing the screen that opened it. */
     override fun load(id: String, version: Int): DesignerDocument? {
         val file = fileFor(id, version)
         if (!file.isFile) return null
-        return DesignerDocumentCodec.decode(file.readBytes())
+        return readDocument(file)
     }
+
+    private fun readDocument(file: File): DesignerDocument? =
+        AtomicFiles.readOrNull(file, "Optik form") { DesignerDocumentCodec.decode(it) }
 
     override fun list(): List<DesignerDocument> {
         val all = listUnscoped()
@@ -116,7 +118,7 @@ class FileDesignerDocumentRepository(context: Context) : DesignerDocumentReposit
         .orEmpty()
         .asSequence()
         .filter { it.isFile && it.extension == EXTENSION }
-        .mapNotNull { file -> runCatching { DesignerDocumentCodec.decode(file.readBytes()) }.getOrNull() }
+        .mapNotNull(::readDocument)
         .sortedWith(compareBy<DesignerDocument> { it.name }.thenByDescending { it.version })
         .toList()
 
