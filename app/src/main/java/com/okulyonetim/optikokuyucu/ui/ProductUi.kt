@@ -38,8 +38,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -60,114 +58,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import com.okulyonetim.optikokuyucu.settings.AppThemeMode
+import com.okulyonetim.optikokuyucu.ui.theme.OptikAccents
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTheme
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
-// Tek merkezli tasarım sistemi: renkler, gradyanlar, ortak yüzeyler, arama, filtreler,
-// özet alanları, ayar grupları, üst/alt navigasyon ve durum rozetleri yalnız burada tanımlanır.
-// ── Birincil: Derin İndigo ──────────────────────────────
-private val ProductPrimary        = Color(0xFF4318C9)
-private val ProductPrimaryLight   = Color(0xFFEBE6FF)
-
-// ── İkincil: Amber-Turuncu ─────────────────────────────
-private val ProductSecondary      = Color(0xFFD97706)
-private val ProductSecondaryLight = Color(0xFFFEF3C7)
-
-// ── Üçüncül: Cyan ──────────────────────────────────────
-private val ProductAccent         = Color(0xFF0891B2)
-private val ProductAccentLight    = Color(0xFFCFFAFE)
-
-// ── Arka plan ──────────────────────────────────────────
-private val ProductBackground     = Color(0xFFF5F3FF)   // lavender, krem yerine
-private val ProductSurface        = Color(0xFFFFFFFF)
-
-// ── Durum ──────────────────────────────────────────────
-private val ProductGreen          = Color(0xFF065F46)
-private val ProductGreenSoft      = Color(0xFFD1FAE5)
-private val ProductOrange         = Color(0xFF92400E)
-private val ProductOrangeSoft     = Color(0xFFFEF3C7)
-private val ProductRed            = Color(0xFF9F1239)
-private val ProductRedSoft        = Color(0xFFFFE4E6)
-
-// ── Gradyan paleti ─────────────────────────────────────
-private val ProductGradientPalette = listOf(
-    Color(0xFF6030E8) to Color(0xFF4318C9),   // indigo
-    Color(0xFF0891B2) to Color(0xFF0D9488),   // cyan-teal
-    Color(0xFFF59E0B) to Color(0xFFEA580C),   // amber-turuncu
-    Color(0xFF7C3AED) to Color(0xFF4318C9),   // mor-indigo
-    Color(0xFF059669) to Color(0xFF16A34A),   // zümrüt
-)
-
-private fun productPaletteIndex(seed: String): Int {
-    val hash = seed.trim().uppercase().hashCode()
-    val positive = if (hash == Int.MIN_VALUE) 0 else kotlin.math.abs(hash)
-    return positive % ProductGradientPalette.size
-}
+// Ürün arayüzü bileşenleri (üst çubuk, kartlar, rozetler, alt gezinme). Renk, yazı tipi, şekil ve
+// boşluk kararları ui/theme paketindedir; bu dosya yalnızca onları kullanır.
 
 /** Verilen metne (isim, başlık vb.) göre sabit, okul temalı bir gradyan üretir. */
-fun productAccentBrush(seed: String): Brush {
-    val (start, end) = ProductGradientPalette[productPaletteIndex(seed)]
-    return Brush.linearGradient(listOf(start, end))
-}
+fun productAccentBrush(seed: String): Brush = OptikAccents.forSeed(seed).brush
 
-/** Verilen metne göre sabit bir vurgu rengi üretir (kart kenarlıkları, rozet metinleri için). */
-fun productAccentColor(seed: String): Color = ProductGradientPalette[productPaletteIndex(seed)].second
-
-// ── Hero gradyanlar ────────────────────────────────────
-private val HeroGradientLight = Brush.linearGradient(
-    listOf(Color(0xFF4318C9), Color(0xFF0891B2))
-)
-private val HeroGradientDark = Brush.linearGradient(
-    listOf(Color(0xFF1E1257), Color(0xFF0C3B52))
-)
-
-private val LightProductScheme = lightColorScheme(
-    primary            = ProductPrimary,
-    onPrimary          = Color.White,
-    primaryContainer   = ProductPrimaryLight,
-    onPrimaryContainer = Color(0xFF2D0E8F),
-    secondary          = ProductSecondary,
-    onSecondary        = Color.White,
-    secondaryContainer = ProductSecondaryLight,
-    onSecondaryContainer = Color(0xFF451A03),
-    tertiary           = ProductAccent,
-    onTertiary         = Color.White,
-    tertiaryContainer  = ProductAccentLight,
-    onTertiaryContainer = Color(0xFF164E63),
-    background         = ProductBackground,
-    onBackground       = Color(0xFF1A1535),
-    surface            = ProductSurface,
-    onSurface          = Color(0xFF1A1535),
-    surfaceVariant     = Color(0xFFEDE9FE),
-    onSurfaceVariant   = Color(0xFF4B4869),
-    outline            = Color(0xFF8B85AD),
-    outlineVariant     = Color(0xFFD4D0EA),
-    error              = ProductRed,
-    onError            = Color.White,
-)
-
-private val DarkProductScheme = darkColorScheme(
-    primary            = Color(0xFFB8A8FF),
-    onPrimary          = Color(0xFF1E0A6E),
-    primaryContainer   = Color(0xFF2D0E8F),
-    onPrimaryContainer = Color(0xFFEBE6FF),
-    secondary          = Color(0xFFFCD34D),
-    onSecondary        = Color(0xFF451A03),
-    secondaryContainer = Color(0xFF6B3407),
-    onSecondaryContainer = Color(0xFFFEF3C7),
-    tertiary           = Color(0xFF67E8F9),
-    onTertiary         = Color(0xFF0E4F5E),
-    tertiaryContainer  = Color(0xFF164E63),
-    onTertiaryContainer = Color(0xFFCFFAFE),
-    background         = Color(0xFF0C0A1A),
-    onBackground       = Color(0xFFE8E4FF),
-    surface            = Color(0xFF18162B),
-    onSurface          = Color(0xFFE8E4FF),
-    surfaceVariant     = Color(0xFF221F38),
-    onSurfaceVariant   = Color(0xFFA09BC0),
-    outline            = Color(0xFF6B6685),
-    outlineVariant     = Color(0xFF2D2B45),
-    error              = Color(0xFFFCA5A5),
-    onError            = Color(0xFF7F1D1D),
-)
+/**
+ * Verilen metne göre sabit bir vurgu tonu üretir (kart kenarlıkları, rozet metinleri için). Ton,
+ * hem açık hem koyu zeminde okunacak orta parlaklıktadır.
+ */
+fun productAccentColor(seed: String): Color = OptikAccents.forSeed(seed).tone
 
 class ProductThemeController internal constructor(
     val mode: AppThemeMode,
@@ -212,9 +119,7 @@ fun OptikProductTheme(content: @Composable () -> Unit) {
     }
 
     CompositionLocalProvider(LocalProductThemeController provides controller) {
-        MaterialTheme(
-            colorScheme = if (dark) DarkProductScheme else LightProductScheme
-        ) {
+        OptikTheme(darkTheme = dark) {
             AppFeedbackProvider {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -234,13 +139,11 @@ fun ProductHeroCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
-    val brush = if (dark) HeroGradientDark else HeroGradientLight
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(brush)
+            .clip(OptikShape.xl)
+            .background(OptikTheme.colors.heroBrush)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -254,7 +157,7 @@ fun ProductHeroCard(
 // (birçok çağrı noktası tarafından kullanılıyor) ama artık koyu modda da kenarlık çiziyor.
 @Composable
 private fun lightControlBorder(): BorderStroke {
-    return BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.48f))
+    return BorderStroke(OptikBorder.regular, MaterialTheme.colorScheme.primary.copy(alpha = 0.48f))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -293,12 +196,11 @@ fun ProductTopBar(
         compactRowModifier
     }
 
-    val dark = LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme()
-    val heroBrush = if (dark) HeroGradientDark else HeroGradientLight
+    val onHero = OptikTheme.colors.onHero
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(heroBrush)
+            .background(OptikTheme.colors.heroBrush)
     ) {
         Box(modifier = rowModifier) {
             Row(
@@ -312,8 +214,8 @@ fun ProductTopBar(
                     .align(Alignment.Center)
                     .padding(horizontal = 118.dp),
                 text = title,
-                color = Color.White,
-                fontSize = 17.sp,
+                color = onHero,
+                fontSize = OptikTextSize.title,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
@@ -342,9 +244,10 @@ fun ProductTopBar(
 private fun HeaderAction(text: String?, onClick: (() -> Unit)?, onGradient: Boolean = false) {
     val actionWidth = 54.dp
     val actionHeight = 44.dp
-    val fgColor = if (onGradient) Color.White else MaterialTheme.colorScheme.primary
+    val onHero = OptikTheme.colors.onHero
+    val fgColor = if (onGradient) onHero else MaterialTheme.colorScheme.primary
     val border = if (onGradient) {
-        BorderStroke(2.dp, Color.White.copy(alpha = 0.55f))
+        BorderStroke(OptikBorder.strong, onHero.copy(alpha = 0.55f))
     } else {
         lightControlBorder()
     }
@@ -355,7 +258,7 @@ private fun HeaderAction(text: String?, onClick: (() -> Unit)?, onGradient: Bool
                 .clickable(onClick = onClick),
             color = Color.Transparent,
             contentColor = fgColor,
-            shape = RoundedCornerShape(12.dp),
+            shape = OptikShape.md,
             border = border
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -363,10 +266,10 @@ private fun HeaderAction(text: String?, onClick: (() -> Unit)?, onGradient: Bool
                     text = text,
                     color = fgColor,
                     fontSize = when {
-                        text.length > 2 -> 13.sp
-                        text == "‹" -> 30.sp
-                        text == "☀" || text == "☾" -> 25.sp
-                        else -> 24.sp
+                        text.length > 2 -> OptikTextSize.body
+                        text == "‹" -> OptikTextSize.hero
+                        text == "☀" || text == "☾" -> OptikTextSize.display
+                        else -> OptikTextSize.display
                     },
                     fontWeight = if (text.length > 2) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
@@ -393,7 +296,7 @@ private fun SettingsAppearanceSheet(
             Text("Görünüm", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(
                 "Uygulamanın açık/koyu görünümünü seçin.",
-                fontSize = 12.sp,
+                fontSize = OptikTextSize.small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row(
@@ -406,7 +309,7 @@ private fun SettingsAppearanceSheet(
             }
             Text(
                 "Tema değişikliği anında uygulanır ve cihazda saklanır.",
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(18.dp))
@@ -426,13 +329,13 @@ private fun ThemeModeButton(
             modifier = modifier,
             onClick = { controller.setMode(mode) },
             border = lightControlBorder()
-        ) { Text(label, fontSize = 12.sp) }
+        ) { Text(label, fontSize = OptikTextSize.small) }
     } else {
         OutlinedButton(
             modifier = modifier,
             onClick = { controller.setMode(mode) },
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
-        ) { Text(label, fontSize = 12.sp) }
+            border = BorderStroke(OptikBorder.strong, MaterialTheme.colorScheme.outline)
+        ) { Text(label, fontSize = OptikTextSize.small) }
     }
 }
 
@@ -451,19 +354,19 @@ fun ProductSearchField(
         placeholder = {
             Text(
                 text = placeholder,
-                fontSize = 13.sp,
+                fontSize = OptikTextSize.body,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         leadingIcon = {
             Text(
                 text = "⌕",
-                fontSize = 20.sp,
+                fontSize = OptikTextSize.heading,
                 color = MaterialTheme.colorScheme.primary
             )
         },
         textStyle = MaterialTheme.typography.bodyMedium,
-        shape = RoundedCornerShape(14.dp)
+        shape = OptikShape.md
     )
 }
 
@@ -480,15 +383,15 @@ fun ProductCompactCard(
     content: @Composable () -> Unit
 ) {
     val resolvedModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
-    val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
+    val light = !OptikTheme.isDark
     val borderColor = accentColor
         ?: if (light) MaterialTheme.colorScheme.outline.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outlineVariant
     Surface(
         modifier = resolvedModifier,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.5.dp, borderColor),
+        shape = OptikShape.md,
+        border = BorderStroke(OptikBorder.regular, borderColor),
         tonalElevation = 0.dp,
         shadowElevation = if (light) 1.dp else 0.dp
     ) {
@@ -511,13 +414,13 @@ fun ProductSettingsSection(
         ) {
             Text(
                 text = title,
-                fontSize = 13.sp,
+                fontSize = OptikTextSize.body,
                 fontWeight = FontWeight.SemiBold
             )
             if (!description.isNullOrBlank()) {
                 Text(
                     text = description,
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -550,16 +453,16 @@ fun ProductSettingsLink(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, fontSize = OptikTextSize.body, fontWeight = FontWeight.SemiBold)
                 Text(
                     description,
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+            Text("›", fontSize = OptikTextSize.heading, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -583,15 +486,16 @@ fun ProductMetricStrip(
                 ) {
                     Text(
                         text = value,
-                        fontSize = 18.sp,
+                        fontSize = OptikTextSize.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = productAccentColor(label)
                     )
                     Text(
                         text = label,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -610,8 +514,8 @@ fun ProductEmptyState(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            Text(body, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = OptikTextSize.body)
+            Text(body, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -625,10 +529,10 @@ fun ProductInitialBadge(
     Box(
         modifier = modifier
             .size(36.dp)
-            .background(productAccentBrush(text), RoundedCornerShape(12.dp)),
+            .background(productAccentBrush(text), OptikShape.md),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(text, fontSize = OptikTextSize.bodyLarge, fontWeight = FontWeight.Bold, color = OptikTheme.colors.onHero)
     }
 }
 
@@ -643,21 +547,21 @@ fun ProductFilterPill(
     if (selected) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(OptikShape.md)
                 .background(productAccentBrush(label))
-                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f), RoundedCornerShape(14.dp))
+                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f), OptikShape.md)
                 .clickable(onClick = onClick)
                 .padding(horizontal = 16.dp, vertical = 9.dp)
         ) {
-            Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(text, color = OptikTheme.colors.onHero, fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.5.dp, productAccentColor(label).copy(alpha = 0.72f))
+            shape = OptikShape.md,
+            border = BorderStroke(OptikBorder.regular, productAccentColor(label).copy(alpha = 0.72f))
         ) {
-            Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+            Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = OptikTextSize.small)
         }
     }
 }
@@ -666,29 +570,25 @@ enum class ProductBadgeTone { GREEN, ORANGE, RED, NEUTRAL }
 
 @Composable
 fun ProductStatusBadge(text: String, tone: ProductBadgeTone) {
-    val light = !(LocalProductThemeController.current?.isDark ?: isSystemInDarkTheme())
-    val background = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreenSoft else Color(0xFF063B33)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrangeSoft else Color(0xFF4A2608)
-        ProductBadgeTone.RED -> if (light) ProductRedSoft else Color(0xFF4D1024)
-        ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant
+    val status = OptikTheme.status
+    val semantic = when (tone) {
+        ProductBadgeTone.GREEN -> status.success
+        ProductBadgeTone.ORANGE -> status.warning
+        ProductBadgeTone.RED -> status.danger
+        ProductBadgeTone.NEUTRAL -> null
     }
-    val foreground = when (tone) {
-        ProductBadgeTone.GREEN -> if (light) ProductGreen else Color(0xFF6EE7B7)
-        ProductBadgeTone.ORANGE -> if (light) ProductOrange else Color(0xFFFCD34D)
-        ProductBadgeTone.RED -> if (light) ProductRed else Color(0xFFFDA4AF)
-        ProductBadgeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val background = semantic?.container ?: MaterialTheme.colorScheme.surfaceVariant
+    val foreground = semantic?.content ?: MaterialTheme.colorScheme.onSurfaceVariant
     Surface(
         color = background,
         contentColor = foreground,
-        shape = RoundedCornerShape(20.dp),
-        border = if (tone == ProductBadgeTone.NEUTRAL) null else BorderStroke(1.5.dp, foreground.copy(alpha = 0.8f))
+        shape = OptikShape.xl,
+        border = if (tone == ProductBadgeTone.NEUTRAL) null else BorderStroke(OptikBorder.regular, foreground.copy(alpha = 0.8f))
     ) {
         Text(
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
             text = text,
-            fontSize = 11.sp,
+            fontSize = OptikTextSize.micro,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -706,7 +606,7 @@ fun ProductBottomBar(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
@@ -736,7 +636,7 @@ private fun ProductBottomItem(
     TextButton(
         modifier = modifier.height(52.dp),
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = OptikShape.md,
         colors = ButtonDefaults.textButtonColors(
             containerColor = Color.Transparent,
             contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -751,14 +651,14 @@ private fun ProductBottomItem(
             if (selected) {
                 Box(
                     modifier = iconBoxModifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(OptikShape.sm)
                         .background(productAccentBrush(label)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        tint = Color.White,
+                        tint = OptikTheme.colors.onHero,
                         modifier = Modifier.size(19.dp)
                     )
                 }
@@ -775,7 +675,7 @@ private fun ProductBottomItem(
             Text(
                 label,
                 maxLines = 1,
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.nav,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
             )
         }

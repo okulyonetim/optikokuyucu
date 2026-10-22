@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FDFCF7</color>
+    <!-- Açılış ekranı sanat eserinin zemini; ui/theme/OptikColors.kt içindeki OptikBrand ile aynı olmalı. -->
+    <color name="splash_background">#FDFCF7</color>
 </resources>

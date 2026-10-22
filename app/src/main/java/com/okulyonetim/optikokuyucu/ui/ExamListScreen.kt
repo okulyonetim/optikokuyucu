@@ -54,6 +54,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
 
 private enum class ExamListFilter { ALL, READ, WAITING }
 private enum class ExamListSubScreen { LIST, EDIT, REPORT, PARENT_SHARE }
@@ -267,21 +270,21 @@ fun ExamListScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("${allItems.size} sınav", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("${allItems.size} sınav", fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
                         when {
                             profile?.admin == true -> "Tüm kullanıcı sınavları"
                             profile != null -> "Kendi sınavlarınız ve herkese açık sınavlar"
                             else -> "Sınavlarınızı yönetin"
                         },
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Button(onClick = onNewExam, shape = RoundedCornerShape(13.dp)) {
-                    Text("＋ Yeni Sınav", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Button(onClick = onNewExam, shape = OptikShape.md) {
+                    Text("＋ Yeni Sınav", fontSize = OptikTextSize.small, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -290,9 +293,9 @@ fun ExamListScreen(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                placeholder = { Text("Sınav, sahibi veya klasör ara", fontSize = 12.sp) },
-                leadingIcon = { Text("⌕", fontSize = 20.sp) },
-                shape = RoundedCornerShape(16.dp)
+                placeholder = { Text("Sınav, sahibi veya klasör ara", fontSize = OptikTextSize.small) },
+                leadingIcon = { Text("⌕", fontSize = OptikTextSize.heading) },
+                shape = OptikShape.lg
             )
 
             Row(
@@ -388,9 +391,9 @@ private fun ExamListCard(
     val examAccent = productAccentColor(summary.name.ifBlank { summary.id })
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(2.dp, examAccent),
+        border = BorderStroke(OptikBorder.strong, examAccent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -404,20 +407,20 @@ private fun ExamListCard(
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(OptikShape.md)
                         .background(productAccentBrush(summary.name.ifBlank { summary.id })),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("▤", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("▤", fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(summary.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(summary.name, fontSize = OptikTextSize.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         buildString {
                             append(formatExamDate(summary.examDateEpochDay))
                             if (summary.schoolName.isNotBlank()) append(" · ${summary.schoolName}")
                         },
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -440,10 +443,10 @@ private fun ExamListCard(
                         modifier = Modifier.size(36.dp).clickable { menuOpen = true },
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        shape = RoundedCornerShape(11.dp)
+                        shape = OptikShape.sm
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("⋮", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("⋮", fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold)
                         }
                     }
                     DropdownMenu(
@@ -497,12 +500,12 @@ private fun ExamListCard(
                         }
                     }.ifBlank { "Kişisel sınav" },
                     modifier = Modifier.weight(1f),
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = if (summary.isPublic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text("Seçenekler ⋮", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Seçenekler ⋮", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

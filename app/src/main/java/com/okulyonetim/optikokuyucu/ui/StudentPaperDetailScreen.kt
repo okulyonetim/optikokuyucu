@@ -66,12 +66,12 @@ import com.okulyonetim.optikokuyucu.omr.scoring.QuestionEvaluationState
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTheme
 
 private enum class StudentPaperTab { CONTENT, IMAGE }
 
-private val CorrectGreen = Color(0xFF2E9D57)
-private val WrongRed = Color(0xFFD93B3B)
-private val WarningOrange = Color(0xFFD77A00)
 
 @Composable
 fun StudentPaperDetailScreen(
@@ -383,7 +383,7 @@ fun StudentPaperDetailScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                shape = OptikShape.lg,
                                 color = MaterialTheme.colorScheme.surface
                             ) {
                                 Text("Bu ders için soru kaydı bulunamadı.", modifier = Modifier.padding(14.dp))
@@ -393,14 +393,14 @@ fun StudentPaperDetailScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = OptikShape.md,
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                             ) {
                                 Text(
                                     "Cevabı düzeltmek için şıkkın üzerine dokunun. Seçili şıkkın üzerine tekrar dokunursanız soru boş yapılır. Değişiklikler puan, net ve raporlara anında yansır.",
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontSize = 11.sp,
+                                    fontSize = OptikTextSize.micro,
                                     lineHeight = 16.sp
                                 )
                             }
@@ -470,7 +470,7 @@ private fun MetadataEditor(
                 onValueChange = onNumberChanged,
                 label = { Text("Numara") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = OptikShape.md
             )
             OutlinedTextField(
                 modifier = Modifier.weight(1f),
@@ -478,7 +478,7 @@ private fun MetadataEditor(
                 onValueChange = onClassChanged,
                 label = { Text("Sınıf") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = OptikShape.md
             )
         }
         OutlinedTextField(
@@ -487,18 +487,18 @@ private fun MetadataEditor(
             onValueChange = onNameChanged,
             label = { Text("Ad Soyad") },
             singleLine = true,
-            shape = RoundedCornerShape(14.dp)
+            shape = OptikShape.md
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { onLessonMenuChanged(true) },
-                    shape = RoundedCornerShape(14.dp)
+                    shape = OptikShape.md
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text("Ders", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(selectedLesson?.let(::examLessonDisplayName) ?: "Tümü", fontSize = 11.sp)
+                        Text("Ders", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(selectedLesson?.let(::examLessonDisplayName) ?: "Tümü", fontSize = OptikTextSize.micro)
                     }
                 }
                 DropdownMenu(
@@ -520,21 +520,21 @@ private fun MetadataEditor(
                 onValueChange = onBookletChanged,
                 label = { Text("Kitapçık") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = OptikShape.md
             )
         }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             enabled = pdfEnabled,
             onClick = onPdf,
-            shape = RoundedCornerShape(14.dp)
+            shape = OptikShape.md
         ) {
             Text("Öğrenci PDF Raporu")
         }
         if (status.isNotBlank()) {
             Text(
                 status,
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = if (
                     status.startsWith("Kaydedilemedi") ||
                     status.startsWith("Silinemedi") ||
@@ -542,13 +542,13 @@ private fun MetadataEditor(
                     status.startsWith("PDF kaydedilemedi") ||
                     status.startsWith("Cevap düzeltilemedi") ||
                     status.startsWith("Orijinal cevaba dönülemedi")
-                ) MaterialTheme.colorScheme.error else CorrectGreen
+                ) MaterialTheme.colorScheme.error else OptikTheme.result.correct
             )
         }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = onDelete,
-            shape = RoundedCornerShape(14.dp)
+            shape = OptikShape.md
         ) {
             Text("Kağıdı Sınavdan Sil", color = MaterialTheme.colorScheme.error)
         }
@@ -567,17 +567,17 @@ private fun QuestionAnswerRow(
         listOfNotNull(answer.selectedChoice, evaluation?.expectedChoice).distinct()
     }
     val stateColor = when (evaluation?.state) {
-        QuestionEvaluationState.CORRECT -> CorrectGreen
-        QuestionEvaluationState.WRONG -> WrongRed
+        QuestionEvaluationState.CORRECT -> OptikTheme.result.correct
+        QuestionEvaluationState.WRONG -> OptikTheme.result.wrong
         QuestionEvaluationState.BLANK -> MaterialTheme.colorScheme.onSurfaceVariant
         QuestionEvaluationState.DOUBLE_MARK,
-        QuestionEvaluationState.SUSPICIOUS -> WarningOrange
+        QuestionEvaluationState.SUSPICIOUS -> OptikTheme.result.warning
         QuestionEvaluationState.NO_KEY,
         null -> when (answer.state) {
             RecordedAnswerState.MARKED -> MaterialTheme.colorScheme.primary
             RecordedAnswerState.BLANK -> MaterialTheme.colorScheme.onSurfaceVariant
             RecordedAnswerState.DOUBLE_MARK,
-            RecordedAnswerState.SUSPICIOUS -> WarningOrange
+            RecordedAnswerState.SUSPICIOUS -> OptikTheme.result.warning
         }
     }
 
@@ -591,7 +591,7 @@ private fun QuestionAnswerRow(
             text = "${questionDisplayNumber(answer.questionId)})",
             color = stateColor,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
+            fontSize = OptikTextSize.title,
             textAlign = TextAlign.Center
         )
         choices.forEach { choice ->
@@ -612,7 +612,7 @@ private fun QuestionAnswerRow(
                 Text(
                     "Orijinale dön",
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 11.sp,
+                    fontSize = OptikTextSize.micro,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -635,21 +635,21 @@ private fun ChoiceBubble(
     onClick: () -> Unit
 ) {
     val background = when {
-        selected && evaluationState == QuestionEvaluationState.CORRECT -> CorrectGreen
-        selected && evaluationState == QuestionEvaluationState.WRONG -> WrongRed
-        selected && evaluationState == QuestionEvaluationState.SUSPICIOUS -> WarningOrange
+        selected && evaluationState == QuestionEvaluationState.CORRECT -> OptikTheme.result.correct
+        selected && evaluationState == QuestionEvaluationState.WRONG -> OptikTheme.result.wrong
+        selected && evaluationState == QuestionEvaluationState.SUSPICIOUS -> OptikTheme.result.warning
         selected && evaluationState == null -> MaterialTheme.colorScheme.primaryContainer
         else -> Color.Transparent
     }
     val borderColor = when {
-        expected && !(selected && evaluationState == QuestionEvaluationState.CORRECT) -> CorrectGreen
-        selected && evaluationState == QuestionEvaluationState.WRONG -> WrongRed
+        expected && !(selected && evaluationState == QuestionEvaluationState.CORRECT) -> OptikTheme.result.correct
+        selected && evaluationState == QuestionEvaluationState.WRONG -> OptikTheme.result.wrong
         else -> MaterialTheme.colorScheme.outline
     }
     val textColor = when {
         selected && (evaluationState == QuestionEvaluationState.CORRECT ||
             evaluationState == QuestionEvaluationState.WRONG ||
-            evaluationState == QuestionEvaluationState.SUSPICIOUS) -> Color.White
+            evaluationState == QuestionEvaluationState.SUSPICIOUS) -> OptikTheme.result.onFill
         else -> MaterialTheme.colorScheme.onSurface
     }
     Surface(
@@ -659,7 +659,7 @@ private fun ChoiceBubble(
         border = BorderStroke(if (expected) 2.dp else 1.dp, borderColor)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(choice, color = textColor, fontSize = 14.sp)
+            Text(choice, color = textColor, fontSize = OptikTextSize.bodyLarge)
         }
     }
 }
@@ -675,14 +675,14 @@ private fun StudentResultSummaryBar(metrics: ExamPaperMetrics?) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("D ${metrics?.correct ?: 0}", color = CorrectGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text("Y ${metrics?.wrong ?: 0}", color = WrongRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text("B ${metrics?.blank ?: 0}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text("D ${metrics?.correct ?: 0}", color = OptikTheme.result.correct, fontSize = OptikTextSize.body, fontWeight = FontWeight.SemiBold)
+            Text("Y ${metrics?.wrong ?: 0}", color = OptikTheme.result.wrong, fontSize = OptikTextSize.body, fontWeight = FontWeight.SemiBold)
+            Text("B ${metrics?.blank ?: 0}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = OptikTextSize.body)
             Text(
                 "N ${metrics?.let { formatNet(it.net) } ?: "—"}",
-                color = CorrectGreen,
+                color = OptikTheme.result.correct,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = OptikTextSize.body
             )
         }
     }

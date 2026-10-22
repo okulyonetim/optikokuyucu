@@ -60,6 +60,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private data class ExamTemplateOption(
     val name: String,
@@ -435,7 +437,7 @@ fun NewExamScreen(
                 }
                 Text(
                     "1–4. sınıflar seçildiğinde İlkokul, 5–8. sınıflar seçildiğinde Ortaokul otomatik seçilir.",
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ExamSelectField(
@@ -470,7 +472,7 @@ fun NewExamScreen(
                 if (templateLocked) {
                     Text(
                         "Okunmuş kağıt bulunduğu için sınav yapısı ve optik form kilitli.",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -552,7 +554,7 @@ fun NewExamScreen(
                 } else {
                     Text(
                         "Çoklu ders sınavında dersler seçilen optik formdaki soru gruplarından otomatik alınır.",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -603,12 +605,12 @@ fun NewExamScreen(
                     ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("MEB puanlama kuralı", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Text("MEB puanlama kuralı", fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                                 ProductStatusBadge("MEB 2026", ProductBadgeTone.GREEN)
                             }
                             Text(
                                 "3 yanlış 1 doğruyu götürür · 100–500 ölçeği · standart puan ve ders katsayıları otomatik uygulanır.",
-                                fontSize = 9.sp,
+                                fontSize = OptikTextSize.micro,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -636,7 +638,7 @@ fun NewExamScreen(
                         if (scoreMode == ExamScoreMode.SCALED && customLessonOptions.size > 1) {
                             ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Ders Ağırlıkları", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Ders Ağırlıkları", fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                                     customLessonOptions.forEach { lesson ->
                                         RoundedExamField(
                                             customLessonWeightTexts[lesson.id] ?: "1",
@@ -744,7 +746,7 @@ fun NewExamScreen(
                     Text(
                         if (selectedParticipants.isEmpty()) "Katılımcı seçilmedi · serbest tarama" else "${selectedParticipants.size} öğrenci sınava eklenecek",
                         modifier = Modifier.weight(1f),
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -757,14 +759,14 @@ fun NewExamScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("Öğrenciye Özel Form", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Öğrenciye Özel Form", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
                         Text(
                             when {
                                 !designerBackedForm -> "Form Editörü ile oluşturulmuş bir form seçin."
                                 selectedParticipants.isEmpty() -> "Önce sınıf veya öğrenci seçin."
                                 else -> "Öğrenci bilgileri forma otomatik işlenir."
                             },
-                            fontSize = 9.sp,
+                            fontSize = OptikTextSize.micro,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -780,7 +782,7 @@ fun NewExamScreen(
                 ProductCompactCard(modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth().padding(11.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         ProductStatusBadge("UYARI", ProductBadgeTone.RED)
-                        Text(status, Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                        Text(status, Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                     }
                 }
             }
@@ -803,7 +805,7 @@ private fun StructureModeCard(
         modifier = modifier.clickable(enabled = enabled, onClick = onClick),
         color = background,
         contentColor = content,
-        shape = RoundedCornerShape(14.dp),
+        shape = OptikShape.md,
         border = androidx.compose.foundation.BorderStroke(
             if (selected) 1.5.dp else 1.dp,
             when {
@@ -816,10 +818,10 @@ private fun StructureModeCard(
     ) {
         Column(Modifier.padding(horizontal = 11.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(mode.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(mode.title, fontSize = OptikTextSize.small, fontWeight = FontWeight.Bold)
                 if (selected) Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
-            Text(mode.description, fontSize = 9.sp, color = content.copy(alpha = 0.72f), maxLines = 2)
+            Text(mode.description, fontSize = OptikTextSize.micro, color = content.copy(alpha = 0.72f), maxLines = 2)
         }
     }
 }
@@ -843,17 +845,17 @@ private fun ExamSelectField(
         ) {
             ProductInitialBadge(symbol)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     value,
-                    fontSize = 12.sp,
+                    fontSize = OptikTextSize.small,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(if (enabled) "⌄" else "🔒", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+            Text(if (enabled) "⌄" else "🔒", color = MaterialTheme.colorScheme.primary, fontSize = OptikTextSize.bodyLarge)
         }
     }
 }
@@ -869,11 +871,11 @@ private fun RoundedExamField(
         modifier = Modifier.fillMaxWidth(),
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, fontSize = 11.sp) },
-        leadingIcon = { Text(prefix, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp) },
+        label = { Text(label, fontSize = OptikTextSize.micro) },
+        leadingIcon = { Text(prefix, color = MaterialTheme.colorScheme.primary, fontSize = OptikTextSize.body) },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium,
-        shape = RoundedCornerShape(14.dp)
+        shape = OptikShape.md
     )
 }
 

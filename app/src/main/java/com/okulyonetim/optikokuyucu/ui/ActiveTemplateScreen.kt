@@ -50,6 +50,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private enum class FormLibraryFilter { ALL, READY, SAVED }
 private data class PendingReadyDelete(val name: String, val key: String)
@@ -265,7 +267,7 @@ fun ActiveTemplateScreen(
                 item {
                     Text(
                         if (profile.admin) "Admin · tüm kurum formları" else "${profile.displayName} · kendi ve ortak formlar",
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -291,16 +293,16 @@ fun ActiveTemplateScreen(
                     Button(
                         modifier = Modifier.weight(1f),
                         onClick = onCreateForm,
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     ) {
-                        Text("＋ Yeni Form", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("＋ Yeni Form", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
                         onClick = { importLauncher.launch(arrayOf(DesignerFormTransfer.MIME_TYPE, "application/*")) },
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     ) {
-                        Text("⇩ İçe Aktar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("⇩ İçe Aktar", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -342,7 +344,7 @@ fun ActiveTemplateScreen(
                             status = "Silinen hazır formlar geri getirildi."
                         }
                     ) {
-                        Text("Silinen hazır formları geri getir", fontSize = 11.sp)
+                        Text("Silinen hazır formları geri getir", fontSize = OptikTextSize.micro)
                     }
                 }
             }
@@ -397,7 +399,7 @@ fun ActiveTemplateScreen(
                         FormSectionTitle("Kurum Formları")
                         if (savedDocuments.isNotEmpty()) {
                             TextButton(onClick = { refreshForms("Kayıtlı formlar yenilendi.") }) {
-                                Text("Yenile", fontSize = 11.sp)
+                                Text("Yenile", fontSize = OptikTextSize.micro)
                             }
                         }
                     }
@@ -457,7 +459,7 @@ fun ActiveTemplateScreen(
                     Text(
                         status,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp
+                        fontSize = OptikTextSize.micro
                     )
                 }
             }
@@ -540,25 +542,25 @@ private fun ActiveFormSummary(
             ) {
                 Text(
                     "Aktif Form",
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     name,
-                    fontSize = 13.sp,
+                    fontSize = OptikTextSize.body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     "$questionCount soru · $markGridCount bilgi alanı · v$version",
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (fellBackToDefault) {
                     Text(
                         "Önceki seçim bulunamadı; varsayılan form kullanılıyor.",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.tertiary
                     )
                 }
@@ -572,7 +574,7 @@ private fun ActiveFormSummary(
 private fun FormSectionTitle(title: String) {
     Text(
         text = title,
-        fontSize = 13.sp,
+        fontSize = OptikTextSize.body,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onBackground
     )
@@ -612,21 +614,21 @@ private fun TemplateLibraryCard(
                 ) {
                     Text(
                         name,
-                        fontSize = 13.sp,
+                        fontSize = OptikTextSize.body,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         subtitle,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         detail,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -647,16 +649,16 @@ private fun TemplateLibraryCard(
                     if (onPreview != null) {
                         OutlinedButton(
                             modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = OptikShape.sm,
                             onClick = onPreview
-                        ) { Text("Önizle", fontSize = 10.sp) }
+                        ) { Text("Önizle", fontSize = OptikTextSize.micro) }
                     }
                     if (onEdit != null) {
                         OutlinedButton(
                             modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = OptikShape.sm,
                             onClick = onEdit
-                        ) { Text("Düzenle", fontSize = 10.sp) }
+                        ) { Text("Düzenle", fontSize = OptikTextSize.micro) }
                     }
                     Spacer(Modifier.weight(1f))
                 }
@@ -671,27 +673,27 @@ private fun TemplateLibraryCard(
                     if (onExport != null) {
                         OutlinedButton(
                             modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = OptikShape.sm,
                             onClick = onExport
-                        ) { Text("Dışa Aktar", fontSize = 10.sp) }
+                        ) { Text("Dışa Aktar", fontSize = OptikTextSize.micro) }
                     }
                     if (onTogglePublic != null) {
                         OutlinedButton(
                             modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = OptikShape.sm,
                             onClick = onTogglePublic
                         ) {
-                            Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = 10.sp)
+                            Text(if (public) "Özel Yap" else "Herkese Aç", fontSize = OptikTextSize.micro)
                         }
                     }
                     Spacer(Modifier.weight(1f))
                     if (onDelete != null) {
                         OutlinedButton(
                             modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = OptikShape.sm,
                             onClick = onDelete
                         ) {
-                            Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                            Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                         }
                     }
                 }

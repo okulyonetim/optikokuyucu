@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerDocument
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerGalleryTestAsset
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerPreviewSampleData
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 /** Print-like read-only view backed by the same DesignerDocument/DesignerPrintRenderer path as PDF. */
 @Composable
@@ -89,7 +90,7 @@ internal fun DesignerDocumentPreviewScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp)
+                shape = OptikShape.lg
             ) {
                 if (bitmap != null) {
                     Image(

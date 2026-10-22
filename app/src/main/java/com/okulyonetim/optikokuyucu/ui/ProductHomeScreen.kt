@@ -45,6 +45,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun ProductHomeScreen(
@@ -108,20 +110,20 @@ fun ProductHomeScreen(
                         Surface(
                             color = Color.White.copy(alpha = 0.17f),
                             contentColor = Color.White,
-                            shape = RoundedCornerShape(13.dp)
+                            shape = OptikShape.md
                         ) {
                             Text(
                                 "O",
                                 modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                                fontSize = 17.sp,
+                                fontSize = OptikTextSize.title,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Text("Optik Okuyucu", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Optik Okuyucu", color = Color.White, fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold)
                             Text(
                                 profile?.displayName?.takeIf(String::isNotBlank) ?: "Sınav yönetim merkezi",
-                                fontSize = 10.sp,
+                                fontSize = OptikTextSize.micro,
                                 color = Color.White.copy(alpha = 0.76f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -156,7 +158,7 @@ fun ProductHomeScreen(
             }
         }
 
-        item { Text("Hızlı İşlemler", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Hızlı İşlemler", fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold) }
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -190,14 +192,14 @@ fun ProductHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("Son Sınavlar", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Son Sınavlar", fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold)
                     Text(
                         if (examItems.isEmpty()) "Henüz kayıt yok" else "En son ${minOf(5, examItems.size)} sınav",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                TextButton(onClick = onOpenExams) { Text("Tümünü Gör", fontSize = 10.sp) }
+                TextButton(onClick = onOpenExams) { Text("Tümünü Gör", fontSize = OptikTextSize.micro) }
             }
         }
 
@@ -210,11 +212,11 @@ fun ProductHomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("İlk sınavınızı oluşturun", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Sınav, form ve puanlama ayarlarını tek ekrandan belirleyin.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("İlk sınavınızı oluşturun", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
+                            Text("Sınav, form ve puanlama ayarlarını tek ekrandan belirleyin.", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        OutlinedButton(onClick = onNewExam, shape = RoundedCornerShape(11.dp)) {
-                            Text("Başla", fontSize = 10.sp)
+                        OutlinedButton(onClick = onNewExam, shape = OptikShape.sm) {
+                            Text("Başla", fontSize = OptikTextSize.micro)
                         }
                     }
                 }
@@ -240,14 +242,14 @@ private fun HomeThemeToggle(controller: ProductThemeController) {
         modifier = Modifier.size(42.dp).clickable { controller.toggleLightDark() },
         color = Color.White.copy(alpha = 0.16f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(12.dp)
+        shape = OptikShape.md
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(if (controller.isDark) "☀" else "☾", fontSize = 22.sp, fontWeight = FontWeight.Medium)
+            Text(if (controller.isDark) "☀" else "☾", fontSize = OptikTextSize.display, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -258,15 +260,15 @@ private fun HomeHeroMetric(modifier: Modifier, label: String, value: String) {
         modifier = modifier,
         color = Color.White.copy(alpha = 0.14f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(13.dp)
+        shape = OptikShape.md
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(label, fontSize = 9.sp, color = Color.White.copy(alpha = 0.76f))
+            Text(value, fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = OptikTextSize.micro, color = Color.White.copy(alpha = 0.76f))
         }
     }
 }
@@ -277,12 +279,12 @@ private fun HomeHeroBadge(text: String, modifier: Modifier = Modifier) {
         modifier = modifier,
         color = Color.White.copy(alpha = 0.13f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(20.dp)
+        shape = OptikShape.xl
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            fontSize = 9.sp,
+            fontSize = OptikTextSize.micro,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -308,8 +310,8 @@ private fun HomeQuickActionCard(
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             ProductInitialBadge(symbol)
-            Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(description, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(description, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -331,20 +333,20 @@ private fun HomeExamRow(item: SchoolExamListItem, onClick: () -> Unit) {
             Surface(
                 color = Color.Transparent,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(10.dp)
+                shape = OptikShape.sm
             ) {
                 Column(
                     modifier = Modifier
-                        .background(productAccentBrush(summary.name), RoundedCornerShape(10.dp))
+                        .background(productAccentBrush(summary.name), OptikShape.sm)
                         .padding(horizontal = 9.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(formatHomeDay(summary.examDateEpochDay), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(formatHomeMonth(summary.examDateEpochDay), fontSize = 8.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.84f))
+                    Text(formatHomeDay(summary.examDateEpochDay), fontSize = OptikTextSize.body, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(formatHomeMonth(summary.examDateEpochDay), fontSize = OptikTextSize.micro, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.84f))
                 }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(summary.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(summary.name, fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     buildString {
                         append(exam?.papers?.size ?: 0)
@@ -352,7 +354,7 @@ private fun HomeExamRow(item: SchoolExamListItem, onClick: () -> Unit) {
                         if (summary.ownerName.isNotBlank()) append(" · ${summary.ownerName}")
                         if (exam == null) append(" · Bulut")
                     },
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

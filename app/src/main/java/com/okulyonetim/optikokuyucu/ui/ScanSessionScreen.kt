@@ -47,6 +47,8 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun ScanSessionScreen(onBack: () -> Unit) {
@@ -171,8 +173,8 @@ fun ScanSessionScreen(onBack: () -> Unit) {
                             onValueChange = { query = it },
                             singleLine = true,
                             label = { Text("Öğrenci, numara veya sınıf ara") },
-                            leadingIcon = { Text("⌕", fontSize = 20.sp) },
-                            shape = RoundedCornerShape(18.dp)
+                            leadingIcon = { Text("⌕", fontSize = OptikTextSize.heading) },
+                            shape = OptikShape.lg
                         )
                     }
 
@@ -204,7 +206,7 @@ fun ScanSessionScreen(onBack: () -> Unit) {
                                 val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
                                 csvLauncher.launch("${safeFileName(report.examName)}-$timestamp.csv")
                             },
-                            shape = RoundedCornerShape(16.dp)
+                            shape = OptikShape.lg
                         ) {
                             Text("CSV Raporunu Dışa Aktar")
                         }
@@ -235,7 +237,7 @@ private fun ResultsEmptyState(onBack: () -> Unit) {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = OptikShape.xl,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
@@ -247,7 +249,7 @@ private fun ResultsEmptyState(onBack: () -> Unit) {
                     "Bir sınav oluşturup optik kağıtları okuttuğunuzda analizler burada otomatik oluşacak.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedButton(onClick = onBack, shape = RoundedCornerShape(14.dp)) {
+                OutlinedButton(onClick = onBack, shape = OptikShape.md) {
                     Text("Anasayfaya Dön")
                 }
             }
@@ -259,7 +261,7 @@ private fun ResultsEmptyState(onBack: () -> Unit) {
 private fun ExamResultHeader(exam: Exam, report: ExamReport) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = OptikShape.xl,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -295,13 +297,13 @@ private fun ResultMetricGrid(report: ExamReport) {
 private fun ResultMetricCard(modifier: Modifier, label: String, value: String) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.padding(horizontal = 9.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(value, fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
@@ -315,7 +317,7 @@ private fun AnswerDistributionCard(report: ExamReport) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -337,13 +339,13 @@ private fun DistributionLine(label: String, value: Int, total: Int) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(6.dp)
+        shape = OptikShape.xs
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(ratio.coerceAtLeast(0.01f)).height(6.dp),
                 color = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(6.dp)
+                shape = OptikShape.xs
             ) {}
         }
     }
@@ -367,7 +369,7 @@ private fun ScoreDistributionCard(report: ExamReport) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -380,7 +382,7 @@ private fun ScoreDistributionCard(report: ExamReport) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(6.dp)
+                    shape = OptikShape.xs
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Surface(
@@ -388,7 +390,7 @@ private fun ScoreDistributionCard(report: ExamReport) {
                                 .fillMaxWidth((count.toFloat() / maxCount.toFloat()).coerceAtLeast(0.01f))
                                 .height(6.dp),
                             color = MaterialTheme.colorScheme.secondary,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = OptikShape.xs
                         ) {}
                     }
                 }
@@ -401,7 +403,7 @@ private fun ScoreDistributionCard(report: ExamReport) {
 private fun StudentResultCard(row: ExamReportRow) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { },
-        shape = RoundedCornerShape(18.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -432,7 +434,7 @@ private fun StudentResultCard(row: ExamReportRow) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     row.points?.let(::formatOneDecimal) ?: "—",
-                    fontSize = 19.sp,
+                    fontSize = OptikTextSize.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -459,7 +461,7 @@ private fun StudentResultCard(row: ExamReportRow) {
 private fun ResultInfoCard(title: String, description: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

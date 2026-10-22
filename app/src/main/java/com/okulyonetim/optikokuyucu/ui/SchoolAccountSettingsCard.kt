@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.school.SchoolSyncAccessPolicy
 import kotlinx.coroutines.launch
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 @Composable
 fun SchoolAccountSettingsCard() {
@@ -37,7 +38,7 @@ fun SchoolAccountSettingsCard() {
         if (account == null) {
             Text(
                 "Okul Yönetim oturumu bulunamadı.",
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.error
             )
             return@ProductSettingsSection
@@ -56,26 +57,26 @@ fun SchoolAccountSettingsCard() {
             ) {
                 Text(
                     account.profile.displayName.ifBlank { account.profile.username },
-                    fontSize = 13.sp,
+                    fontSize = OptikTextSize.body,
                     fontWeight = FontWeight.SemiBold
                 )
                 if (teacherAccount) {
                     Text(
                         "Öğretmen hesabı · yalnız sınav sonuçları Okul Yönetim'e gönderilebilir",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
                         "Öğrenciler: ${account.directoryStatus.ifBlank { "Henüz eşitlenmedi" }}",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
                 }
                 Text(
                     "${if (teacherAccount) "Sonuçlar" else "Sınavlar"}: ${account.cloudStatus.ifBlank { "Henüz eşitlenmedi" }}",
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
@@ -104,7 +105,7 @@ fun SchoolAccountSettingsCard() {
                 ) {
                     Text(
                         if (workingAction == "directory") "Eşitleniyor…" else "Öğrenciler",
-                        fontSize = 10.sp
+                        fontSize = OptikTextSize.micro
                     )
                 }
             }
@@ -137,7 +138,7 @@ fun SchoolAccountSettingsCard() {
                     } else {
                         "Sınav / Sonuç"
                     },
-                    fontSize = 10.sp
+                    fontSize = OptikTextSize.micro
                 )
             }
         }
@@ -145,7 +146,7 @@ fun SchoolAccountSettingsCard() {
         if (actionStatus.isNotBlank()) {
             Text(
                 actionStatus,
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -155,7 +156,7 @@ fun SchoolAccountSettingsCard() {
             enabled = workingAction == null,
             onClick = account.signOut
         ) {
-            Text("Çıkış Yap", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+            Text("Çıkış Yap", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
         }
     }
 }

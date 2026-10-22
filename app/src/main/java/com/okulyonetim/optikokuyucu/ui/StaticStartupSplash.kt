@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.okulyonetim.optikokuyucu.R
 import kotlinx.coroutines.delay
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBrand
 
 /**
  * Static, aspect-ratio-safe startup artwork.
@@ -59,4 +60,4 @@ fun StaticStartupSplash(content: @Composable () -> Unit) {
 }
 
 private const val SPLASH_DURATION_MS = 4_000L
-private val SplashBackground = Color(0xFFFDFCF7)
+private val SplashBackground = OptikBrand.splashBackground

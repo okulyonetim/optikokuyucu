@@ -50,12 +50,14 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSelection
 import com.okulyonetim.optikokuyucu.omr.template.BubbleSpec
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
-private val OverlayKeyGreen = Color(0xFF16A05D)
-private val OverlayCorrectGreen = Color(0xFF20A861)
-private val OverlayWrongRed = Color(0xFFE2464C)
-private val OverlayDoubleYellow = Color(0xFFF4B740)
-private val OverlayInfoBlue = Color(0xFF3B82F6)
+private val OverlayKeyGreen = OptikOverlay.key
+private val OverlayCorrectGreen = OptikOverlay.correct
+private val OverlayWrongRed = OptikOverlay.wrong
+private val OverlayDoubleYellow = OptikOverlay.doubleMark
+private val OverlayInfoBlue = OptikOverlay.info
 
 /**
  * Canonical sheet plus a bubble-sized scoring overlay.
@@ -106,7 +108,7 @@ fun StudentPaperImagePanel(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = OptikShape.lg,
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Box(
@@ -158,7 +160,7 @@ fun StudentPaperImagePanel(
 private fun OverlayLegend() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = OptikShape.lg,
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -193,7 +195,7 @@ private fun MissingScanImageState(sourceWidth: Int, sourceHeight: Int) {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(

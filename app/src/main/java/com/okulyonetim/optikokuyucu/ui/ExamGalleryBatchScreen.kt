@@ -45,6 +45,7 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.student.FileStudentRosterRepository
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 /** User-started production import for multiple student sheets from the Android gallery. */
 @Composable
@@ -218,7 +219,7 @@ fun ExamGalleryBatchScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                shape = OptikShape.xl,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
@@ -250,7 +251,7 @@ fun ExamGalleryBatchScreen(
             if (progress.total > 0) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
+                    shape = OptikShape.xl
                 ) {
                     Column(
                         modifier = Modifier.padding(18.dp),
@@ -275,7 +276,7 @@ fun ExamGalleryBatchScreen(
             if (failures.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp)
+                    shape = OptikShape.xl
                 ) {
                     Column(
                         modifier = Modifier.padding(18.dp),

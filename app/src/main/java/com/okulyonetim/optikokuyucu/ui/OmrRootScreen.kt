@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private enum class RootDestination {
     HOME,
@@ -426,7 +428,7 @@ private fun RootSettingsScreen() {
                 ) {
                     Text(
                         schoolName.ifBlank { "Okul adı henüz eşitlenmedi." },
-                        fontSize = 13.sp,
+                        fontSize = OptikTextSize.body,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -436,7 +438,7 @@ private fun RootSettingsScreen() {
                         } else {
                             "Okul adı elle değiştirilemez. Okul Yönetim bağlantısı kurulduğunda güvenilir kurum bilgisi kullanılır."
                         },
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -446,7 +448,7 @@ private fun RootSettingsScreen() {
             item {
                 Text(
                     "Tema seçimi için sağ üstteki ◐ simgesini kullanın.",
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -479,14 +481,14 @@ private fun RootToolsScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(17.dp),
+                    shape = OptikShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("OMR çalışma merkezi", fontWeight = FontWeight.Bold)
                         Text(
                             "Tarama, sonuç, cevap anahtarı, OCR ve form araçlarını tek noktadan yönetin.",
-                            fontSize = 11.sp,
+                            fontSize = OptikTextSize.micro,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
@@ -513,7 +515,7 @@ private fun ToolActionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(17.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(
             containerColor = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
             contentColor = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
@@ -528,24 +530,24 @@ private fun ToolActionCard(
             Surface(
                 color = if (primary) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f) else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(11.dp)
+                shape = OptikShape.sm
             ) {
                 Text(
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                     text = symbol,
-                    fontSize = 17.sp,
+                    fontSize = OptikTextSize.title,
                     fontWeight = FontWeight.Bold
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, fontSize = OptikTextSize.body, fontWeight = FontWeight.SemiBold)
                 Text(
                     description,
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = if (primary) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text("›", fontSize = 20.sp, color = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
+            Text("›", fontSize = OptikTextSize.heading, color = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
         }
     }
 }

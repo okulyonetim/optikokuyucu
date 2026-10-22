@@ -39,6 +39,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerTemplateCompiler
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 @Composable
 internal fun BookletAreaEditorScreen(
@@ -70,7 +72,7 @@ internal fun BookletAreaEditorScreen(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = OptikShape.lg) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Tür · Kitapçık Türü", style = MaterialTheme.typography.labelLarge)
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -173,14 +175,14 @@ private fun BookletChoice(modifier: Modifier, label: String, selected: Boolean, 
 private fun BookletPreview(document: DesignerDocument, component: SingleChoiceComponent) {
     val preview = document.copy(components = listOf(component), visualElements = emptyList())
     val compiled = DesignerTemplateCompiler.compile(preview)
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = OptikShape.lg) {
         Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Canlı Önizleme", style = MaterialTheme.typography.labelLarge)
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(document.space.aspectRatio.toFloat()).background(Color.White)) {
                 Canvas(Modifier.fillMaxSize()) {
                     val sx = size.width / document.space.width.toFloat()
                     val sy = size.height / document.space.height.toFloat()
-                    compiled.markGrids.singleOrNull()?.let { drawSingleChoice(component, it, sx, sy, Color(0xFFB54848)) }
+                    compiled.markGrids.singleOrNull()?.let { drawSingleChoice(component, it, sx, sy, OptikOverlay.formInk) }
                     drawComponentDecorations(preview, sx, sy)
                 }
             }

@@ -52,6 +52,8 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 /** Production exam scanner with duplicate-student confirmation and a short result overlay. */
 @Composable
@@ -316,7 +318,7 @@ private fun ExamCameraSummaryPopup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = OptikShape.xl,
         color = Color.Black.copy(alpha = 0.72f),
         contentColor = Color.White,
         shadowElevation = 8.dp
@@ -324,7 +326,7 @@ private fun ExamCameraSummaryPopup(
         Column(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
-            Text("✓ ${summary.studentName}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("✓ ${summary.studentName}", fontWeight = FontWeight.Bold, fontSize = OptikTextSize.titleLarge)
             val identityParts = buildList {
                 if (summary.className.isNotBlank()) add("Sınıf ${summary.className}")
                 if (summary.studentNumber.isNotBlank()) add("No ${summary.studentNumber}")
@@ -340,13 +342,13 @@ private fun ExamCameraSummaryPopup(
                 Text(
                     "D ${summary.correct}   Y ${summary.wrong}   B ${summary.blank}   N ${formatNet(summary.net)}",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
+                    fontSize = OptikTextSize.title
                 )
             } else {
                 Text(
                     "D —   Y —   B ${summary.blank}   N —",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
+                    fontSize = OptikTextSize.title
                 )
                 Text(
                     "Cevap anahtarı bulunamadı",

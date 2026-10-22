@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.okulyonetim.optikokuyucu.omr.scoring.AnswerKeyPdfExporter
 import com.okulyonetim.optikokuyucu.omr.scoring.ManualAnswerSection
 import com.okulyonetim.optikokuyucu.omr.scoring.StoredAnswerKey
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun AnswerKeyMultiPdfButton(
@@ -80,7 +81,7 @@ fun AnswerKeyMultiPdfButton(
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             enabled = ready,
-            shape = RoundedCornerShape(16.dp),
+            shape = OptikShape.lg,
             onClick = {
                 pendingEntries = requiredKeys.map { key ->
                     AnswerKeyPdfExporter.SheetEntry(

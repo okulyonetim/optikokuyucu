@@ -33,6 +33,7 @@ import com.okulyonetim.optikokuyucu.update.ApkCheck
 import com.okulyonetim.optikokuyucu.update.StartupUpdatePrompt
 import kotlinx.coroutines.launch
 import java.io.File
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 @Composable
 internal fun AppUpdateSettingsCard() {
@@ -144,12 +145,12 @@ internal fun AppUpdateSettingsCard() {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     "Yüklü sürüm",
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "${BuildConfig.VERSION_NAME}  ·  ${BuildConfig.VERSION_CODE}",
-                    fontSize = 14.sp,
+                    fontSize = OptikTextSize.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -162,14 +163,14 @@ internal fun AppUpdateSettingsCard() {
         update?.let { available ->
             Text(
                 "Yeni sürüm ${available.versionName}",
-                fontSize = 14.sp,
+                fontSize = OptikTextSize.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             available.notes.trim().takeIf { it.isNotEmpty() }?.let { notes ->
                 Text(
                     notes.take(260),
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     lineHeight = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -185,7 +186,7 @@ internal fun AppUpdateSettingsCard() {
 
         Text(
             status,
-            fontSize = 10.sp,
+            fontSize = OptikTextSize.micro,
             lineHeight = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

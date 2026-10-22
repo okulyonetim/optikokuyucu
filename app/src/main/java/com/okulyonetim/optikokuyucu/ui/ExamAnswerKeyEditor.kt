@@ -68,6 +68,9 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import java.io.File
 import java.util.concurrent.Executors
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -433,11 +436,11 @@ fun ExamAnswerKeyEditor(
             }
             Surface(
                 modifier = Modifier.size(46.dp).clickable { optionsOpen = true },
-                shape = RoundedCornerShape(14.dp),
+                shape = OptikShape.md,
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("⋮", fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("⋮", fontSize = OptikTextSize.display, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -446,7 +449,7 @@ fun ExamAnswerKeyEditor(
             Text(
                 status,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-                fontSize = 11.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -468,7 +471,7 @@ fun ExamAnswerKeyEditor(
                         Text(
                             "${index + 1})",
                             modifier = Modifier.size(width = 40.dp, height = 48.dp),
-                            fontSize = 17.sp,
+                            fontSize = OptikTextSize.title,
                             fontWeight = FontWeight.SemiBold
                         )
                         choices.forEach { choice ->
@@ -476,17 +479,17 @@ fun ExamAnswerKeyEditor(
                             Surface(
                                 modifier = Modifier.size(48.dp).clickable { toggleChoice(questionId, choice) },
                                 shape = CircleShape,
-                                color = if (selected) Color(0xFF4CAF50) else Color.Transparent,
+                                color = if (selected) OptikTheme.result.correct else Color.Transparent,
                                 border = BorderStroke(
                                     1.2.dp,
-                                    if (selected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline
+                                    if (selected) OptikTheme.result.correct else MaterialTheme.colorScheme.outline
                                 )
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         choice,
-                                        fontSize = 16.sp,
-                                        color = if (selected) Color(0xFF102313) else MaterialTheme.colorScheme.onSurface
+                                        fontSize = OptikTextSize.title,
+                                        color = if (selected) OptikTheme.result.onFill else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -513,7 +516,7 @@ fun ExamAnswerKeyEditor(
                 Text(
                     "${exam.name}${booklet?.let { " · Kitapçık $it" }.orEmpty()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
+                    fontSize = OptikTextSize.small
                 )
                 AnswerKeyOption("⇩", "Excel'den içe aktar") {
                     optionsOpen = false
@@ -542,11 +545,11 @@ private fun KeySelectorButton(label: String, value: String, onClick: () -> Unit)
     OutlinedButton(
         modifier = Modifier.fillMaxWidth().height(58.dp),
         onClick = onClick,
-        shape = RoundedCornerShape(13.dp)
+        shape = OptikShape.md
     ) {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
+            Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = OptikTextSize.bodyLarge)
         }
     }
 }
@@ -568,8 +571,8 @@ private fun AnswerKeyOption(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(symbol, fontSize = 20.sp)
-            Text(label, fontSize = 15.sp)
+            Text(symbol, fontSize = OptikTextSize.heading)
+            Text(label, fontSize = OptikTextSize.title)
         }
     }
 }
