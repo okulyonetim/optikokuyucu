@@ -232,8 +232,8 @@ class OptikAccent(val start: Color, val end: Color, val tone: Color) {
 object OptikAccents {
     private val palette = listOf(
         OptikAccent(Color(0xFF6030E8), Color(0xFF4318C9), Color(0xFF7A5AF0)), // indigo
-        OptikAccent(Color(0xFF0E7490), Color(0xFF0F766E), Color(0xFF0E9DB8)), // camgöbeği-yeşil
-        OptikAccent(Color(0xFFC2540A), Color(0xFFB45309), Color(0xFFD98324)), // amber-turuncu
+        OptikAccent(Color(0xFF0E7490), Color(0xFF0F766E), Color(0xFF0C93AD)), // camgöbeği-yeşil
+        OptikAccent(Color(0xFFC2540A), Color(0xFFB45309), Color(0xFFC97614)), // amber-turuncu
         OptikAccent(Color(0xFF7C3AED), Color(0xFF5B21B6), Color(0xFF9467F0)), // mor
         OptikAccent(Color(0xFF047857), Color(0xFF15803D), Color(0xFF1F9D63))  // zümrüt
     )
