@@ -3,6 +3,7 @@ package com.okulyonetim.optikokuyucu.exam
 import android.content.Context
 import com.okulyonetim.optikokuyucu.school.SchoolContentAccess
 import com.okulyonetim.optikokuyucu.school.SchoolPortalManager
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.File
 import java.security.MessageDigest
 
@@ -32,7 +33,13 @@ class FileExamRepository(context: Context) : ExamRepository {
     private val appContext = context.applicationContext
     private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
-    override fun save(exam: Exam) {
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
+    override fun save(exam: Exam) = synchronized(AtomicFiles.lockFor(directory)) { saveLocked(exam) }
+
+    private fun saveLocked(exam: Exam) {
         // Old app versions could link multiple raw scans to the same student. Persist only the
         // newest result per stable student identity from now on.
         val deduplicatedExam = ExamPaperDeduplication.collapse(exam)
@@ -58,23 +65,13 @@ class FileExamRepository(context: Context) : ExamRepository {
             ExamTemplateBindingPolicy.validateUpdate(stored, ownedExam)
         }
 
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(ExamCodec.encode(ownedExam))
-        if (destination.exists() && !destination.delete()) {
-            temporary.delete()
-            error("Eski sınav kaydı güncellenemedi.")
-        }
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("Sınav kaydı kalıcı depoya taşınamadı.")
-        }
+        AtomicFiles.writeBytes(destination, ExamCodec.encode(ownedExam))
     }
 
     override fun load(id: String): Exam? {
         val file = fileFor(id)
         if (!file.isFile) return null
-        return runCatching { ExamCodec.decode(file.readBytes()) }
-            .getOrNull()
+        return AtomicFiles.readOrNull(file, "Sınav kaydı") { ExamCodec.decode(it) }
             ?.takeIf { it.id == id }
             ?.let(ExamPaperDeduplication::collapse)
     }
@@ -83,7 +80,7 @@ class FileExamRepository(context: Context) : ExamRepository {
         val all = directory
             .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
             .orEmpty()
-            .mapNotNull { file -> runCatching { ExamCodec.decode(file.readBytes()) }.getOrNull() }
+            .mapNotNull { file -> AtomicFiles.readOrNull(file, "Sınav kaydı") { ExamCodec.decode(it) } }
             .map(ExamPaperDeduplication::collapse)
             .sortedWith(
                 compareByDescending<Exam> { it.examDateEpochDay }

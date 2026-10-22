@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.student
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.storage.AppLog
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.File
 import java.security.MessageDigest
 import java.util.Base64
@@ -32,20 +34,16 @@ interface StudentClassRepository {
 class FileStudentClassRepository(context: Context) : StudentClassRepository {
     private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
     override fun save(entry: StudentClassEntry) {
         val normalized = entry.normalized()
-        val target = fileFor(normalized)
-        val temporary = File(directory, target.name + ".tmp")
         val branchEncoded = Base64.getUrlEncoder().withoutPadding()
             .encodeToString(normalized.branch.toByteArray(Charsets.UTF_8))
-        temporary.writeText("${normalized.gradeLevel}\n$branchEncoded", Charsets.UTF_8)
-        if (target.exists() && !target.delete()) {
-            temporary.delete()
-            error("Sınıf kaydı güncellenemedi.")
-        }
-        if (!temporary.renameTo(target)) {
-            temporary.delete()
-            error("Sınıf kaydı kalıcı depoya taşınamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            AtomicFiles.writeText(fileFor(normalized), "${normalized.gradeLevel}\n$branchEncoded")
         }
     }
 
@@ -61,13 +59,21 @@ class FileStudentClassRepository(context: Context) : StudentClassRepository {
         return !file.exists() || file.delete()
     }
 
-    private fun decode(file: File): StudentClassEntry? = runCatching {
+    private fun decode(file: File): StudentClassEntry? = try {
         val lines = file.readLines(Charsets.UTF_8)
-        if (lines.size < 2) return@runCatching null
-        val grade = lines[0].trim().toIntOrNull() ?: return@runCatching null
-        val branch = String(Base64.getUrlDecoder().decode(lines[1].trim()), Charsets.UTF_8)
-        StudentClassEntry(grade, branch).normalized()
-    }.getOrNull()
+        val grade = lines.getOrNull(0)?.trim()?.toIntOrNull()
+        val encodedBranch = lines.getOrNull(1)?.trim()
+        if (grade == null || encodedBranch == null) {
+            AppLog.warn("Storage", "Sınıf kaydı biçimi geçersiz: ${file.name}")
+            null
+        } else {
+            val branch = String(Base64.getUrlDecoder().decode(encodedBranch), Charsets.UTF_8)
+            StudentClassEntry(grade, branch).normalized()
+        }
+    } catch (error: Throwable) {
+        AppLog.warn("Storage", "Sınıf kaydı okunamadı: ${file.name}", error)
+        null
+    }
 
     private fun fileFor(entry: StudentClassEntry): File {
         val key = entry.className.lowercase()

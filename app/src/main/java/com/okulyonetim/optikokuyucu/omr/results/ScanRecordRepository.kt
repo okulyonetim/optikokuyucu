@@ -1,6 +1,8 @@
 package com.okulyonetim.optikokuyucu.omr.results
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.Properties
@@ -58,39 +60,43 @@ class FileScanRecordRepository(
 ) : ScanRecordRepository {
     private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
     fun setManualAnswer(recordId: String, questionId: String, selectedChoice: String?) {
-        require(loadRaw(recordId) != null) { "Düzeltilecek OMR kaydı bulunamadı." }
-        require(questionId.isNotBlank()) { "Soru kimliği boş olamaz." }
-        val overrides = loadManualOverrides(recordId).toMutableMap()
-        overrides[questionId] = selectedChoice?.trim()?.takeIf { it.isNotEmpty() }
-            ?: ManualAnswerOverrideApplier.BLANK_TOKEN
-        saveManualOverrides(recordId, overrides)
+        synchronized(AtomicFiles.lockFor(directory)) {
+            require(loadRaw(recordId) != null) { "Düzeltilecek OMR kaydı bulunamadı." }
+            require(questionId.isNotBlank()) { "Soru kimliği boş olamaz." }
+            val overrides = loadManualOverrides(recordId).toMutableMap()
+            overrides[questionId] = selectedChoice?.trim()?.takeIf { it.isNotEmpty() }
+                ?: ManualAnswerOverrideApplier.BLANK_TOKEN
+            saveManualOverrides(recordId, overrides)
+        }
     }
 
     fun clearManualAnswer(recordId: String, questionId: String) {
-        val overrides = loadManualOverrides(recordId).toMutableMap()
-        if (overrides.remove(questionId) != null) saveManualOverrides(recordId, overrides)
+        synchronized(AtomicFiles.lockFor(directory)) {
+            val overrides = loadManualOverrides(recordId).toMutableMap()
+            if (overrides.remove(questionId) != null) saveManualOverrides(recordId, overrides)
+        }
     }
 
     fun isManuallyCorrected(recordId: String, questionId: String): Boolean =
         loadManualOverrides(recordId).containsKey(questionId)
 
     override fun save(record: ScanRecord) {
-        val destination = fileFor(record.id)
-        if (destination.isFile) {
-            val stored = runCatching { ScanRecordCodec.decode(destination.readBytes()) }
-                .getOrElse { error ->
-                    throw IllegalStateException("Mevcut ham OMR kaydı okunamadı.", error)
-                }
-            ScanRecordImmutabilityPolicy.validateExisting(stored, record)
-            return
-        }
-
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(ScanRecordCodec.encode(record))
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("OMR kaydı kalıcı depoya taşınamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            val destination = fileFor(record.id)
+            if (destination.isFile) {
+                val stored = runCatching { ScanRecordCodec.decode(destination.readBytes()) }
+                    .getOrElse { error ->
+                        throw IllegalStateException("Mevcut ham OMR kaydı okunamadı.", error)
+                    }
+                ScanRecordImmutabilityPolicy.validateExisting(stored, record)
+                return
+            }
+            AtomicFiles.writeBytes(destination, ScanRecordCodec.encode(record))
         }
     }
 
@@ -101,7 +107,7 @@ class FileScanRecordRepository(
     override fun list(): List<ScanRecord> = directory
         .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
         .orEmpty()
-        .mapNotNull { file -> runCatching { ScanRecordCodec.decode(file.readBytes()) }.getOrNull() }
+        .mapNotNull { file -> AtomicFiles.readOrNull(file, "OMR kaydı") { ScanRecordCodec.decode(it) } }
         .map { record -> ManualAnswerOverrideApplier.apply(record, loadManualOverrides(record.id)) }
         .sortedWith(
             compareByDescending<ScanRecord> { it.capturedAtEpochMs }
@@ -118,8 +124,7 @@ class FileScanRecordRepository(
     private fun loadRaw(id: String): ScanRecord? {
         val file = fileFor(id)
         if (!file.isFile) return null
-        return runCatching { ScanRecordCodec.decode(file.readBytes()) }
-            .getOrNull()
+        return AtomicFiles.readOrNull(file, "OMR kaydı") { ScanRecordCodec.decode(it) }
             ?.takeIf { it.id == id }
     }
 
@@ -142,13 +147,10 @@ class FileScanRecordRepository(
         val properties = Properties().apply {
             overrides.forEach { (key, value) -> setProperty(key, value) }
         }
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.outputStream().use { properties.store(it, "Manual OMR answer corrections") }
-        if (destination.exists()) destination.delete()
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("Manuel cevap düzeltmesi kalıcı depoya taşınamadı.")
-        }
+        val bytes = ByteArrayOutputStream().also { output ->
+            properties.store(output, "Manual OMR answer corrections")
+        }.toByteArray()
+        AtomicFiles.writeBytes(destination, bytes)
     }
 
     private fun fileFor(id: String): File = File(directory, keyFor(id) + FILE_SUFFIX)

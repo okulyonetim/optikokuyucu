@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.student
 
 import android.content.Context
 import com.okulyonetim.optikokuyucu.school.SchoolStudentVisibilityStore
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.File
 import java.security.MessageDigest
 
@@ -29,48 +30,52 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
     private val directory = File(appContext.filesDir, DIRECTORY_NAME).apply { mkdirs() }
     private val schoolVisibilityStore = SchoolStudentVisibilityStore(appContext)
 
-    override fun save(entry: StudentRosterEntry) {
-        val normalized = entry.normalized()
-        val destination = fileFor(normalized)
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(StudentRosterCodec.encode(normalized))
-        if (destination.exists() && !destination.delete()) {
-            temporary.delete()
-            error("Eski öğrenci kaydı güncellenemedi.")
-        }
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("Öğrenci kaydı kalıcı depoya taşınamadı.")
-        }
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
 
-        // 0.17.1 ve öncesindeki yalnız-numara dosyasını, aynı kurum kimliğine aitse temizle.
-        // Böylece yükseltme sonrası öğrenci listesinde aynı kayıt iki kez görünmez.
-        val legacy = legacyFileFor(normalized.studentNumber)
-        if (legacy != destination && legacy.isFile) {
-            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
-            if (legacyEntry?.identityKey == normalized.identityKey) legacy.delete()
+    override fun save(entry: StudentRosterEntry) {
+        synchronized(AtomicFiles.lockFor(directory)) {
+            val normalized = entry.normalized()
+            val destination = fileFor(normalized)
+            AtomicFiles.writeBytes(destination, StudentRosterCodec.encode(normalized))
+
+            // 0.17.1 ve öncesindeki yalnız-numara dosyasını, aynı kurum kimliğine aitse temizle.
+            // Böylece yükseltme sonrası öğrenci listesinde aynı kayıt iki kez görünmez.
+            val legacy = legacyFileFor(normalized.studentNumber)
+            if (legacy != destination && legacy.isFile) {
+                val legacyEntry = readEntry(legacy)
+                if (legacyEntry?.identityKey == normalized.identityKey) {
+                    legacy.delete()
+                }
+            }
         }
     }
 
     /** Rewrites an entry whose grade change may also move it between İlkokul and Ortaokul. */
     fun replace(oldEntry: StudentRosterEntry, newEntry: StudentRosterEntry) {
-        val oldNormalized = oldEntry.normalized()
-        val newNormalized = newEntry.normalized()
-        save(newNormalized)
-        if (oldNormalized.identityKey == newNormalized.identityKey) return
+        synchronized(AtomicFiles.lockFor(directory)) {
+            val oldNormalized = oldEntry.normalized()
+            val newNormalized = newEntry.normalized()
+            save(newNormalized)
+            if (oldNormalized.identityKey == newNormalized.identityKey) return
 
-        val oldFile = fileForIdentity(oldNormalized.identityKey)
-        if (oldFile.isFile && !oldFile.delete()) {
-            error("Eski kurum öğrenci kaydı temizlenemedi.")
-        }
-        val legacy = legacyFileFor(oldNormalized.studentNumber)
-        if (legacy.isFile) {
-            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
-            if (legacyEntry?.identityKey == oldNormalized.identityKey && !legacy.delete()) {
-                error("Eski öğrenci kaydı temizlenemedi.")
+            val oldFile = fileForIdentity(oldNormalized.identityKey)
+            if (oldFile.isFile && !oldFile.delete()) {
+                error("Eski kurum öğrenci kaydı temizlenemedi.")
+            }
+            val legacy = legacyFileFor(oldNormalized.studentNumber)
+            if (legacy.isFile) {
+                val legacyEntry = readEntry(legacy)
+                if (legacyEntry?.identityKey == oldNormalized.identityKey && !legacy.delete()) {
+                    error("Eski öğrenci kaydı temizlenemedi.")
+                }
             }
         }
     }
+
+    private fun readEntry(file: File): StudentRosterEntry? =
+        AtomicFiles.readOrNull(file, "Öğrenci kaydı") { StudentRosterCodec.decode(it) }
 
     /**
      * Numara iki kurumda birden varsa bilinçli olarak null döner. Çağıran taraf sınıf/kurum bilgisi
@@ -94,7 +99,7 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
     override fun list(): List<StudentRosterEntry> = directory
         .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
         .orEmpty()
-        .mapNotNull { file -> runCatching { StudentRosterCodec.decode(file.readBytes()) }.getOrNull() }
+        .mapNotNull(::readEntry)
         .groupBy { it.identityKey }
         .mapNotNull { (_, records) -> records.maxByOrNull { it.updatedAtEpochMs } }
         .sortedWith(
@@ -181,7 +186,7 @@ class FileStudentRosterRepository(context: Context) : StudentRosterRepository {
         // Yükseltme öncesi numara-temelli dosya hâlâ varsa ve aynı kuruma aitse onu da kaldır.
         val legacy = legacyFileFor(normalizedNumber)
         if (legacy.isFile) {
-            val legacyEntry = runCatching { StudentRosterCodec.decode(legacy.readBytes()) }.getOrNull()
+            val legacyEntry = readEntry(legacy)
             if (legacyEntry?.identityKey == identity) deleted = legacy.delete() && deleted
         }
 

@@ -2,6 +2,7 @@ package com.okulyonetim.optikokuyucu.omr.scoring
 
 import android.content.Context
 import com.okulyonetim.optikokuyucu.omr.results.ScanRecord
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -64,23 +65,20 @@ interface AnswerKeyRepository {
 class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
     private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
     override fun save(key: StoredAnswerKey) {
-        val destination = fileFor(
-            key.templateId,
-            key.templateVersion,
-            key.variantGridId,
-            key.variantValue,
-            key.examId
-        )
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(AnswerKeyCodec.encode(key))
-        if (destination.exists() && !destination.delete()) {
-            temporary.delete()
-            error("Eski cevap anahtarı değiştirilemedi.")
-        }
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("Cevap anahtarı kalıcı depoya taşınamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            val destination = fileFor(
+                key.templateId,
+                key.templateVersion,
+                key.variantGridId,
+                key.variantValue,
+                key.examId
+            )
+            AtomicFiles.writeBytes(destination, AnswerKeyCodec.encode(key))
         }
     }
 
@@ -93,8 +91,7 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
     ): StoredAnswerKey? {
         val file = fileFor(templateId, templateVersion, variantGridId, variantValue, examId)
         if (!file.isFile) return null
-        return runCatching { AnswerKeyCodec.decode(file.readBytes()) }
-            .getOrNull()
+        return AtomicFiles.readOrNull(file, "Cevap anahtarı") { AnswerKeyCodec.decode(it) }
             ?.takeIf {
                 it.templateId == templateId &&
                     it.templateVersion == templateVersion &&
@@ -107,7 +104,7 @@ class FileAnswerKeyRepository(context: Context) : AnswerKeyRepository {
     override fun list(): List<StoredAnswerKey> = directory
         .listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
         .orEmpty()
-        .mapNotNull { file -> runCatching { AnswerKeyCodec.decode(file.readBytes()) }.getOrNull() }
+        .mapNotNull { file -> AtomicFiles.readOrNull(file, "Cevap anahtarı") { AnswerKeyCodec.decode(it) } }
         .sortedWith(
             compareByDescending<StoredAnswerKey> { it.createdAtEpochMs }
                 .thenBy { it.examId ?: "" }

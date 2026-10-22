@@ -1,6 +1,7 @@
 package com.okulyonetim.optikokuyucu.omr.results
 
 import android.content.Context
+import com.okulyonetim.optikokuyucu.storage.AtomicFiles
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -45,25 +46,20 @@ interface ScanImageRepository {
 class FileScanImageRepository(context: Context) : ScanImageRepository {
     private val directory = File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
+    init {
+        AtomicFiles.cleanStaleTemporaries(directory)
+    }
+
     override fun save(image: StoredScanImage) {
-        val destination = fileFor(image.scanRecordId)
-        val temporary = File(directory, destination.name + ".tmp")
-        temporary.writeBytes(ScanImageCodec.encode(image))
-        if (destination.exists() && !destination.delete()) {
-            temporary.delete()
-            error("Eski tarama görüntüsü değiştirilemedi.")
-        }
-        if (!temporary.renameTo(destination)) {
-            temporary.delete()
-            error("Tarama görüntüsü kalıcı depoya taşınamadı.")
+        synchronized(AtomicFiles.lockFor(directory)) {
+            AtomicFiles.writeBytes(fileFor(image.scanRecordId), ScanImageCodec.encode(image))
         }
     }
 
     override fun load(scanRecordId: String): StoredScanImage? {
         val file = fileFor(scanRecordId)
         if (!file.isFile || file.length() !in 1..MAX_STORED_IMAGE_BYTES) return null
-        return runCatching { ScanImageCodec.decode(file.readBytes()) }
-            .getOrNull()
+        return AtomicFiles.readOrNull(file, "Tarama görüntüsü") { ScanImageCodec.decode(it) }
             ?.takeIf { it.scanRecordId == scanRecordId }
     }
 
