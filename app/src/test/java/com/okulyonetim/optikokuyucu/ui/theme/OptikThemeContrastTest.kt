@@ -124,16 +124,18 @@ class OptikThemeContrastTest {
 
     @Test
     fun `accent fills carry white text and tones stay visible on light and dark surfaces`() {
-        val lightSurface = optikLightColorScheme().surface
-        val darkSurface = optikDarkColorScheme().surface
+        val lightScheme = optikLightColorScheme()
+        val darkScheme = optikDarkColorScheme()
         val seen = HashSet<Color>()
         // Paletteki her rengi yakalayacak kadar çok farklı tohumdan örnekle.
         (0 until 400).map { OptikAccents.forSeed("tohum-$it") }.forEach { accent ->
             if (!seen.add(accent.start)) return@forEach
             assertText("vurgu başlangıç", Color.White, accent.start)
             assertText("vurgu bitiş", Color.White, accent.end)
-            assertText("vurgu tonu/açık", accent.tone, lightSurface, 3.0)
-            assertText("vurgu tonu/koyu", accent.tone, darkSurface, 3.0)
+            assertText("vurgu tonu/açık yüzey", accent.tone, lightScheme.surface, 3.0)
+            assertText("vurgu tonu/açık zemin", accent.tone, lightScheme.background, 3.0)
+            assertText("vurgu tonu/koyu yüzey", accent.tone, darkScheme.surface, 3.0)
+            assertText("vurgu tonu/koyu zemin", accent.tone, darkScheme.background, 3.0)
         }
         assertEquals("beş vurgu rengi de denenmeli", 5, seen.size)
     }
