@@ -65,13 +65,19 @@ jobs:
         shell: bash
         run: |
           APK="dist/optik-okuyucu.apk"
-          NOTES="Optik Okuyucu ${VERSION_NAME} (versionCode ${VERSION_CODE})\n\nAndroid CI testleri ve APK derlemesi başarıyla tamamlandıktan sonra otomatik yayımlandı."
+          CHECKSUM="$(sha256sum "$APK" | cut -d' ' -f1)"
+          # Uygulama bu satırı okuyup indirilen dosyanın bozulmadığını doğrular.
+          printf '%s\n\n%s\n\nSHA-256: %s\n' \
+            "Optik Okuyucu ${VERSION_NAME} (versionCode ${VERSION_CODE})" \
+            "Android CI testleri ve APK derlemesi başarıyla tamamlandıktan sonra otomatik yayımlandı." \
+            "$CHECKSUM" > release-notes.txt
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
+            gh release edit "$TAG" --notes-file release-notes.txt
           else
             gh release create "$TAG" "$APK" \
               --target "$TARGET_SHA" \
               --title "Optik Okuyucu ${VERSION_NAME}" \
-              --notes "$NOTES" \
+              --notes-file release-notes.txt \
               --latest
           fi

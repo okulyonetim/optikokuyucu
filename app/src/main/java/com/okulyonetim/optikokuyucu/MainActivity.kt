@@ -14,6 +14,7 @@ import com.okulyonetim.optikokuyucu.omr.diagnostics.OpenCvOmrSelfTest
 import com.okulyonetim.optikokuyucu.ui.OmrRootScreen
 import com.okulyonetim.optikokuyucu.ui.SchoolPortalGate
 import com.okulyonetim.optikokuyucu.ui.StaticStartupSplash
+import com.okulyonetim.optikokuyucu.update.StartupUpdatePrompt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.opencv.android.OpenCVLoader
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
 
         // Okul Yönetim uygulamasındaki gibi her açılışta yayınlanan son APK'yı kontrol et.
         // Kontrol başarısız olursa uygulamanın açılışı kesinlikle engellenmez.
-        AppUpdateManager.checkOnStartup(this)
+        StartupUpdatePrompt.checkOnStartup(this)
     }
 
     override fun onDestroy() {

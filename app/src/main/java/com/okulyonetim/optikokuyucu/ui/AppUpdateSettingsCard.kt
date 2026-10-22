@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -28,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.BuildConfig
 import com.okulyonetim.optikokuyucu.update.AppUpdateInfo
 import com.okulyonetim.optikokuyucu.update.AppUpdateManager
+import com.okulyonetim.optikokuyucu.update.ApkCheck
+import com.okulyonetim.optikokuyucu.update.StartupUpdatePrompt
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -37,12 +40,19 @@ internal fun AppUpdateSettingsCard() {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf<Float?>(null) }
     var update by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var status by remember { mutableStateOf("Güncellemeler GitHub üzerinden güvenli biçimde kontrol edilir.") }
 
     fun launchDownloadedInstaller() {
         val apk = downloadedApk ?: return
+        // Reject a wrong-key / wrong-package APK before Android shows its vague conflict dialog.
+        val check = AppUpdateManager.verifyDownloadedApk(context, apk)
+        if (check is ApkCheck.Problem) {
+            status = check.message
+            return
+        }
         runCatching { AppUpdateManager.launchInstaller(context, apk) }
             .onSuccess { status = "Android güncelleme ekranı açıldı." }
             .onFailure { error -> status = "Kurulum başlatılamadı: ${error.message ?: "Bilinmeyen hata"}" }
@@ -65,6 +75,7 @@ internal fun AppUpdateSettingsCard() {
             status = "Yeni sürüm kontrol ediliyor…"
             runCatching { AppUpdateManager.checkForUpdate() }
                 .onSuccess { found ->
+                    StartupUpdatePrompt.recordCheck(context)
                     update = found
                     downloadedApk = null
                     status = if (found == null) {
@@ -86,8 +97,17 @@ internal fun AppUpdateSettingsCard() {
         if (downloading) return
         scope.launch {
             downloading = true
+            progress = null
             status = "Sürüm ${currentUpdate.versionName} indiriliyor…"
-            runCatching { AppUpdateManager.downloadApk(context.applicationContext, currentUpdate) }
+            runCatching {
+                AppUpdateManager.downloadApk(context.applicationContext, currentUpdate) { done, total ->
+                    if (total > 0L) {
+                        val fraction = (done.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                        progress = fraction
+                        status = "Sürüm ${currentUpdate.versionName} indiriliyor… %${(fraction * 100).toInt()}"
+                    }
+                }
+            }
                 .onSuccess { apk ->
                     downloadedApk = apk
                     if (AppUpdateManager.canInstallPackages(context)) {
@@ -101,11 +121,14 @@ internal fun AppUpdateSettingsCard() {
                     status = "Güncelleme indirilemedi: ${error.message ?: "Bağlantı hatası"}"
                 }
             downloading = false
+            progress = null
         }
     }
 
+    // The hourly GitHub budget is shared by every phone on the school network, so opening the
+    // settings page only re-checks automatically when the startup check has not just done so.
     LaunchedEffect(Unit) {
-        checkForUpdate()
+        if (StartupUpdatePrompt.shouldAutoCheck(context)) checkForUpdate()
     }
 
     ProductSettingsSection(
@@ -151,6 +174,13 @@ internal fun AppUpdateSettingsCard() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        progress?.let { fraction ->
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         Text(
