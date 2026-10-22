@@ -78,8 +78,13 @@ data class OcrAnswerTableResult(
  * number). Geometry is only used to decide which table and which subject a cell belongs to, and to flag
  * cells that look wrong (missing, duplicated, out of sequence, low confidence).
  *
- * Returns null when the page does not look like such a table, so the caller can fall back to
- * [OcrAnswerKeyParser].
+ * Two printed layouts are understood and tried against each other, the one that explains more cells wins:
+ *  - [Orientation.COLUMNS]: subject names on top, one column group per subject (published LGS key, MEB key);
+ *  - [Orientation.ROWS]: subject names at the left, the answers of one subject running along a row (1-10, then
+ *    11-20 on the next line), several booklets stacked below each other.
+ *
+ * Returns null when the page does not look like such a table or the reading explains too few of the cells, so the
+ * caller can fall back to [OcrAnswerKeyParser].
  */
 object OcrAnswerTableParser {
     fun parse(
@@ -96,28 +101,60 @@ object OcrAnswerTableParser {
         if (cells.size < max(MIN_TABLE_CELLS, expectedTotal * 3 / 10)) return null
 
         val textTokens = tokens.filterIndexed { index, _ -> index !in extracted.consumedTokens }
-        val medianCellWidth = OcrAnswerKeyParser.median(cells.map { it.width }).coerceAtLeast(6f)
-        val medianCellHeight = OcrAnswerKeyParser.median(cells.map { it.height }).coerceAtLeast(6f)
+        val page = Page(
+            subjects = subjects,
+            knownBooklets = knownBooklets,
+            cells = cells,
+            medianCellWidth = OcrAnswerKeyParser.median(cells.map { it.width }).coerceAtLeast(6f),
+            medianCellHeight = OcrAnswerKeyParser.median(cells.map { it.height }).coerceAtLeast(6f),
+            width = recognition.imageWidth.toFloat(),
+            height = recognition.imageHeight.toFloat(),
+            text = recognition.text,
+            titles = findTitles(textTokens, knownBooklets)
+        )
+        val hits = findHeaderHits(textTokens, subjects)
+        if (hits.isEmpty()) return null
 
-        val headers = findHeaders(textTokens, subjects, cells, medianCellWidth)
-        if (headers.isEmpty()) return null
-        val medianHeaderHeight = OcrAnswerKeyParser.median(headers.map { it.token.height.toFloat() }).coerceAtLeast(8f)
+        // The page is either laid out with headers on top or with row labels at the left: read it both ways and
+        // keep the reading that explains more cells. Ties go to the column layout.
+        val best = Orientation.entries.mapNotNull { readTables(it, hits, page) }.maxByOrNull { it.placed } ?: return null
+        if (best.placed < cells.size * MIN_PLACED_SHARE) return null
+        return OcrAnswerTableResult(best.tables, best.warnings.distinct())
+    }
 
-        val groups = buildGroups(headers, medianHeaderHeight, recognition.imageWidth.toFloat(), recognition.imageHeight.toFloat())
-        val titles = findTitles(textTokens, knownBooklets)
+    private enum class Orientation { COLUMNS, ROWS }
+
+    private class Page(
+        val subjects: List<OcrTableSubject>,
+        val knownBooklets: List<String>,
+        val cells: List<Cell>,
+        val medianCellWidth: Float,
+        val medianCellHeight: Float,
+        val width: Float,
+        val height: Float,
+        val text: String,
+        val titles: List<TitleHit>
+    )
+
+    private class Reading(val tables: List<OcrAnswerTable>, val warnings: List<String>, val placed: Int)
+
+    private fun readTables(orientation: Orientation, allHits: List<HeaderHit>, page: Page): Reading? {
+        val hits = supportedHits(orientation, allHits, page)
+        if (hits.isEmpty()) return null
+        val headerHeight = OcrAnswerKeyParser.median(hits.map { it.token.height.toFloat() }).coerceAtLeast(8f)
+        val groups = when (orientation) {
+            Orientation.COLUMNS -> buildColumnGroups(hits, headerHeight, page)
+            Orientation.ROWS -> buildRowGroups(hits, page)
+        }
+
         val warnings = mutableListOf<String>()
         val claimedCells = mutableSetOf<Int>()
         val drafts = mutableListOf<TableDraft>()
-
         groups.forEach { group ->
-            val inside = cells.withIndex().filter { (_, cell) ->
-                cell.centerY > group.headerBottom && group.contains(cell.centerX, cell.centerY)
-            }
+            val inside = page.cells.withIndex().filter { (_, cell) -> group.contains(cell.centerX, cell.centerY) }
             if (inside.size < MIN_CELLS_PER_TABLE) return@forEach
             inside.forEach { claimedCells += it.index }
-            val tableCells = inside.map { it.value }
-            val booklet = pickTitle(group, titles, medianHeaderHeight, recognition.imageHeight.toFloat())
-            drafts += TableDraft(group, booklet, tableCells)
+            drafts += TableDraft(group, pickTitle(group, page.titles, headerHeight, page.height), inside.map { it.value })
         }
         if (drafts.isEmpty()) return null
 
@@ -126,26 +163,26 @@ object OcrAnswerTableParser {
         drafts.forEachIndexed { index, draft ->
             var booklet = draft.booklet
             if (booklet == null && drafts.size == 1) {
-                booklet = OcrAnswerKeyParser.detectBooklet(recognition.text, knownBooklets)
+                booklet = OcrAnswerKeyParser.detectBooklet(page.text, page.knownBooklets)
             }
             if (booklet != null && !usedBooklets.add(booklet)) {
                 warnings += "Birden fazla tablo '$booklet' olarak okundu; kitapçık türlerini önizlemede kontrol edin."
                 booklet = null
             }
             val label = booklet?.let { "$it Grubu" } ?: "Tablo ${index + 1}"
-            val table = buildTable(draft, booklet, subjects, medianCellWidth, medianCellHeight, label, warnings)
+            val table = buildTable(draft, booklet, orientation, page, label, warnings)
             tables += table
             if (table.missingCount > 0) warnings += "$label: ${table.missingCount} cevap okunamadı."
             val flagged = table.reviewCount - table.missingCount
             if (flagged > 0) warnings += "$label: $flagged cevap kontrol gerektiriyor."
         }
 
-        val stray = cells.size - claimedCells.size
+        val stray = page.cells.size - claimedCells.size
         if (stray > STRAY_CELL_WARNING) warnings += "Tablo dışında $stray hücre okundu; yoksayıldı."
-        if (knownBooklets.isNotEmpty() && tables.any { it.booklet == null }) {
+        if (page.knownBooklets.isNotEmpty() && tables.any { it.booklet == null }) {
             warnings += "Kitapçık türü belirlenemeyen tablo var. Kaydetmeden önce seçin."
         }
-        return OcrAnswerTableResult(tables, warnings.distinct())
+        return Reading(tables, warnings, tables.sumOf { it.readCount })
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -240,8 +277,8 @@ object OcrAnswerTableParser {
                 }
                 .minByOrNull { it.value.left - number.right }
                 ?: return@forEach
-            val letterText = best.value.text.trim().trimStart('-', '.', ':').trim()
-            val numberText = number.text.trim().trimEnd('-', '.', ':').trim()
+            val letterText = best.value.text.trim().trimStart('-', '.', ':', ',', ';').trim()
+            val numberText = number.text.trim().trimEnd('-', '.', ':', ',', ';').trim()
             val parsed = parseCell(numberText, true, letterText, allowed) ?: return@forEach
             val left = min(number.left, best.value.left).toFloat()
             val right = max(number.right, best.value.right).toFloat()
@@ -264,7 +301,7 @@ object OcrAnswerTableParser {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Headers, groups (one per table) and titles
+    // Headers (subject names), groups (one per table) and titles
     // ---------------------------------------------------------------------------------------------
 
     private data class HeaderHit(val subjectIndex: Int, val token: OcrToken, val score: Float) {
@@ -272,12 +309,7 @@ object OcrAnswerTableParser {
         val centerY: Float get() = token.centerY
     }
 
-    private fun findHeaders(
-        textTokens: List<OcrToken>,
-        subjects: List<OcrTableSubject>,
-        cells: List<Cell>,
-        medianCellWidth: Float
-    ): List<HeaderHit> {
+    private fun findHeaderHits(textTokens: List<OcrToken>, subjects: List<OcrTableSubject>): List<HeaderHit> {
         val candidates = OcrAnswerKeyParser.phraseCandidates(textTokens)
         val scored = mutableListOf<HeaderHit>()
         subjects.forEachIndexed { index, subject ->
@@ -305,11 +337,34 @@ object OcrAnswerTableParser {
         scored.sortedByDescending { it.score }.forEach { hit ->
             if (accepted.none { overlaps(it.token, hit.token) }) accepted += hit
         }
-        val reach = medianCellWidth * HEADER_REACH_CELL_WIDTHS
+        // A header printed on two lines ("T.C. İnkılap Tarihi" / "ve Atatürkçülük") can match twice: keep the better.
         return accepted.filter { hit ->
-            cells.count { cell -> cell.centerY > hit.token.bottom && abs(cell.centerX - hit.centerX) <= reach } >= MIN_CELLS_PER_TABLE
+            accepted.none { other ->
+                other !== hit && other.subjectIndex == hit.subjectIndex &&
+                    (other.score > hit.score || (other.score == hit.score && other.token.top < hit.token.top)) &&
+                    stacked(other.token, hit.token)
+            }
         }
     }
+
+    private fun stacked(a: OcrToken, b: OcrToken): Boolean =
+        abs(a.centerY - b.centerY) <= max(a.height, b.height) * 2.5f && a.left < b.right && b.left < a.right
+
+    /** Keeps the headers that have enough answer cells where this layout expects them. */
+    private fun supportedHits(orientation: Orientation, hits: List<HeaderHit>, page: Page): List<HeaderHit> =
+        hits.filter { hit ->
+            val supported = when (orientation) {
+                Orientation.COLUMNS -> {
+                    val reach = page.medianCellWidth * COLUMN_REACH_CELL_WIDTHS
+                    page.cells.count { it.centerY > hit.token.bottom && abs(it.centerX - hit.centerX) <= reach }
+                }
+                Orientation.ROWS -> {
+                    val reach = page.medianCellHeight * ROW_REACH_CELL_HEIGHTS
+                    page.cells.count { it.centerX > hit.token.right && abs(it.centerY - hit.centerY) <= reach }
+                }
+            }
+            supported >= MIN_CELLS_PER_TABLE
+        }
 
     /** "Din Kotoro" is still the Din Kültürü header: a multi-word header whose first word is read exactly. */
     private fun firstWordScore(candidate: String, alias: String): Float {
@@ -327,21 +382,25 @@ object OcrAnswerTableParser {
         return intersects || centerInside(a, b) || centerInside(b, a)
     }
 
-    /** One printed table: the headers of one header row between two split points, plus the page area below them. */
+    /** One printed table: its subject headers plus the page area that holds its answer cells. */
     private data class Group(
         val headers: List<HeaderHit>,
         val left: Float,
         val right: Float,
+        val top: Float,
+        val bottom: Float,
+        /** Top edge of the first header: where to look upwards for the booklet title. */
         val headerTop: Float,
-        val headerBottom: Float,
-        val bottom: Float
+        val titleLeft: Float,
+        val titleRight: Float
     ) {
-        fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y < bottom
+        fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y > top && y < bottom
     }
 
     private data class TableDraft(val group: Group, val booklet: String?, val cells: List<Cell>)
 
-    private fun buildGroups(headers: List<HeaderHit>, headerHeight: Float, imageWidth: Float, imageHeight: Float): List<Group> {
+    /** Headers on top: header rows give tables printed side by side, further rows give tables below. */
+    private fun buildColumnGroups(headers: List<HeaderHit>, headerHeight: Float, page: Page): List<Group> {
         // 1. Header rows: headers that share a baseline belong to tables printed side by side.
         val tolerance = max(headerHeight * 0.8f, 6f)
         val rows = mutableListOf<MutableList<HeaderHit>>()
@@ -355,76 +414,112 @@ object OcrAnswerTableParser {
         val result = mutableListOf<Group>()
         rows.forEachIndexed { rowIndex, row ->
             // 2. A table never has the same subject twice, so a repeat starts the next table of the row.
-            val parts = mutableListOf<MutableList<HeaderHit>>()
-            row.forEach { hit ->
-                val current = parts.lastOrNull()
-                if (current == null || current.any { it.subjectIndex == hit.subjectIndex }) parts += mutableListOf(hit) else current += hit
-            }
+            val parts = splitOnRepeatedSubject(row)
             val headerTop = row.minOf { it.token.top }.toFloat()
             val headerBottom = row.maxOf { it.token.bottom }.toFloat()
             val nextTop = rows.getOrNull(rowIndex + 1)?.minOf { it.token.top }?.toFloat()
-            val bottom = nextTop?.let { it - headerHeight * 0.2f }?.coerceAtLeast(headerBottom + headerHeight) ?: imageHeight
+            val bottom = nextTop?.let { it - headerHeight * 0.2f }?.coerceAtLeast(headerBottom + headerHeight) ?: page.height
             parts.forEachIndexed { partIndex, part ->
                 val previous = parts.getOrNull(partIndex - 1)
                 val next = parts.getOrNull(partIndex + 1)
                 val left = previous?.let { (it.last().centerX + part.first().centerX) / 2f } ?: 0f
-                val right = next?.let { (part.last().centerX + it.first().centerX) / 2f } ?: imageWidth
-                result += Group(part, left, right, headerTop, headerBottom, bottom)
+                val right = next?.let { (part.last().centerX + it.first().centerX) / 2f } ?: page.width
+                result += Group(part, left, right, headerBottom, bottom, headerTop, left, right)
             }
         }
         return result
     }
 
+    /** Subject names at the left: a list of labels top to bottom; a repeated subject starts the next table below. */
+    private fun buildRowGroups(headers: List<HeaderHit>, page: Page): List<Group> {
+        val parts = splitOnRepeatedSubject(headers.sortedBy { it.centerY })
+        return parts.mapIndexed { index, part ->
+            val previous = parts.getOrNull(index - 1)
+            val next = parts.getOrNull(index + 1)
+            val top = previous?.let { (it.last().centerY + part.first().centerY) / 2f } ?: 0f
+            val bottom = next?.let { (part.last().centerY + it.first().centerY) / 2f } ?: page.height
+            val left = part.maxOf { it.token.right }.toFloat() - 2f
+            Group(part, left, page.width, top, bottom, part.minOf { it.token.top }.toFloat(), 0f, page.width)
+        }
+    }
+
+    private fun splitOnRepeatedSubject(ordered: List<HeaderHit>): List<List<HeaderHit>> {
+        val parts = mutableListOf<MutableList<HeaderHit>>()
+        ordered.forEach { hit ->
+            val current = parts.lastOrNull()
+            if (current == null || current.any { it.subjectIndex == hit.subjectIndex }) parts += mutableListOf(hit) else current += hit
+        }
+        return parts
+    }
+
     private data class TitleHit(val booklet: String, val centerX: Float, val centerY: Float)
 
+    /** Booklet markers: "A Grubu" / "A Kitapçığı" in a title, or a single large letter printed next to the title. */
     private fun findTitles(textTokens: List<OcrToken>, knownBooklets: List<String>): List<TitleHit> {
         val known = knownBooklets.associateBy { OcrAnswerKeyParser.normalize(it) }
+        fun resolve(letter: String): String? =
+            if (known.isNotEmpty()) known[letter] else letter.takeIf { it.length == 1 && it[0] in 'A'..'H' }
+
         val hits = mutableListOf<TitleHit>()
         OcrAnswerKeyParser.phraseCandidates(textTokens).forEach { candidate ->
             val normalized = OcrAnswerKeyParser.normalize(candidate.text)
             val letter = TITLE_AFTER.find(normalized)?.groupValues?.get(1)
                 ?: TITLE_BEFORE.find(normalized)?.groupValues?.get(1)
                 ?: return@forEach
-            val booklet = if (known.isNotEmpty()) known[letter] ?: return@forEach else letter.takeIf { it in "ABCDEFGH" } ?: return@forEach
+            val booklet = resolve(letter) ?: return@forEach
             hits += TitleHit(booklet, candidate.centerX, candidate.centerY)
+        }
+        val textHeight = OcrAnswerKeyParser.median(textTokens.map { it.height.toFloat() })
+        textTokens.forEach { token ->
+            if (token.height < textHeight * BIG_LETTER_RATIO) return@forEach
+            val booklet = resolve(OcrAnswerKeyParser.normalize(token.text)) ?: return@forEach
+            hits += TitleHit(booklet, token.centerX, token.centerY)
         }
         return hits
     }
 
-    private fun pickTitle(group: Group, titles: List<TitleHit>, headerHeight: Float, imageHeight: Float): String? {
-        val maxDistance = max(headerHeight * 9f, imageHeight * 0.25f)
+    private fun pickTitle(group: Group, titles: List<TitleHit>, headerHeight: Float, pageHeight: Float): String? {
+        val maxDistance = max(headerHeight * 9f, pageHeight * 0.25f)
         val aboveBand = group.headerTop - maxDistance
         return titles.asSequence()
             .filter { it.centerY < group.headerTop && it.centerY >= aboveBand }
-            .filter { it.centerX >= group.left && it.centerX < group.right }
+            .filter { it.centerX >= group.titleLeft && it.centerX < group.titleRight }
             .maxByOrNull { it.centerY }
             ?.booklet
     }
 
     // ---------------------------------------------------------------------------------------------
-    // One table: columns -> subjects -> numbered cells
+    // One table: clusters -> subject blocks -> numbered cells
     // ---------------------------------------------------------------------------------------------
 
     private fun buildTable(
         draft: TableDraft,
         booklet: String?,
-        subjects: List<OcrTableSubject>,
-        medianCellWidth: Float,
-        medianCellHeight: Float,
+        orientation: Orientation,
+        page: Page,
         label: String,
         warnings: MutableList<String>
     ): OcrAnswerTable {
-        val headers = draft.group.headers.sortedBy { it.centerX }
-        val columns = clusterColumns(draft.cells, max(medianCellWidth * COLUMN_GAP_CELL_WIDTHS, 6f))
-        // Question numbers restart at every subject, so they split the columns into subject blocks without any
-        // help from the header text; blocks and headers then line up left to right.
-        val blocks = segmentBlocks(columns)
-        val blockXs = blocks.map { block -> block.flatMap { columns[it] }.map { it.centerX }.average().toFloat() }
-        val aligned = alignMonotone(blockXs, headers.map { it.centerX }, max(medianCellWidth * SKIP_CELL_WIDTHS, 40f))
+        val columns = orientation == Orientation.COLUMNS
+        fun axis(x: Float, y: Float) = if (columns) x else y
+        val headers = draft.group.headers.sortedBy { axis(it.centerX, it.centerY) }
+        val clusters = if (columns) {
+            clusterAxis(draft.cells, max(page.medianCellWidth * COLUMN_GAP_CELL_WIDTHS, 6f)) { it.centerX }
+        } else {
+            clusterAxis(draft.cells, max(page.medianCellHeight * LINE_GAP_CELL_HEIGHTS, 3f)) { it.centerY }
+        }
+        // Question numbers restart at every subject, so they split the clusters into subject blocks without any
+        // help from the header text; blocks and headers then line up in reading order.
+        val blocks = segmentBlocks(clusters)
+        val blockPositions = blocks.map { block ->
+            block.flatMap { clusters[it] }.map { axis(it.centerX, it.centerY) }.average().toFloat()
+        }
+        val skip = if (columns) max(page.medianCellWidth * SKIP_CELL_WIDTHS, 40f) else max(page.medianCellHeight * SKIP_CELL_HEIGHTS, 40f)
+        val aligned = alignMonotone(blockPositions, headers.map { axis(it.centerX, it.centerY) }, skip)
 
         val subjectOfBlock = IntArray(blocks.size) { index -> aligned[index].takeIf { it >= 0 }?.let { headers[it].subjectIndex } ?: -1 }
         val foundSubjects = headers.map { it.subjectIndex }.toSet()
-        val missingSubjects = subjects.indices.filter { it !in foundSubjects }
+        val missingSubjects = page.subjects.indices.filter { it !in foundSubjects }
         val headerless = blocks.indices.filter { subjectOfBlock[it] < 0 }
         val inferred = mutableSetOf<Int>()
         if (headerless.size == 1 && missingSubjects.size == 1) {
@@ -433,7 +528,8 @@ object OcrAnswerTableParser {
             inferred += missingSubjects.first()
         } else {
             headerless.forEach { blockIndex ->
-                val nearest = blocks.indices.filter { subjectOfBlock[it] >= 0 }.minByOrNull { abs(blockXs[it] - blockXs[blockIndex]) }
+                val nearest = blocks.indices.filter { subjectOfBlock[it] >= 0 }
+                    .minByOrNull { abs(blockPositions[it] - blockPositions[blockIndex]) }
                 if (nearest != null) subjectOfBlock[blockIndex] = subjectOfBlock[nearest]
             }
         }
@@ -442,45 +538,52 @@ object OcrAnswerTableParser {
         blocks.forEachIndexed { blockIndex, block ->
             val subjectIndex = subjectOfBlock[blockIndex]
             if (subjectIndex < 0) return@forEachIndexed
-            block.forEach { columnIndex ->
-                bySubject.getOrPut(subjectIndex) { mutableListOf() } += columns[columnIndex].map { ColumnCell(it, columnIndex) }
+            block.forEach { clusterIndex ->
+                bySubject.getOrPut(subjectIndex) { mutableListOf() } += clusters[clusterIndex].map {
+                    ColumnCell(it, clusterIndex, if (columns) it.centerY else it.centerX)
+                }
             }
         }
 
-        val results = subjects.mapIndexed { index, subject ->
+        val results = page.subjects.mapIndexed { index, subject ->
             val headerFound = index in foundSubjects
             val isInferred = index in inferred
             when {
-                isInferred -> warnings += "$label: ${subject.label} başlığı okunamadı; sütun eleme yoluyla eşleştirildi, kontrol edin."
+                isInferred -> warnings += "$label: ${subject.label} başlığı okunamadı; eleme yoluyla eşleştirildi, kontrol edin."
                 !headerFound -> warnings += "$label: ${subject.label} başlığı bulunamadı."
             }
-            val note = if (isInferred) "başlık okunamadı, sütun eleme ile eşleşti" else null
-            resolveSubject(subject, headerFound, bySubject[index].orEmpty(), medianCellHeight, label, warnings, note)
+            val note = if (isInferred) "başlık okunamadı, eleme ile eşleşti" else null
+            resolveSubject(subject, headerFound, bySubject[index].orEmpty(), page.medianCellHeight, columns, label, warnings, note)
         }
         return OcrAnswerTable(booklet, results)
     }
 
-    private data class ColumnCell(val cell: Cell, val column: Int)
+    /**
+     * A cell with its place in a subject's reading order: [major] is the index of its column (column layout) or
+     * line (row layout), [minor] its position inside that column/line.
+     */
+    private data class ColumnCell(val cell: Cell, val major: Int, val minor: Float)
 
-    private fun clusterColumns(cells: List<Cell>, gap: Float): List<List<Cell>> {
-        val sorted = cells.sortedBy { it.centerX }
-        val columns = mutableListOf<MutableList<Cell>>()
-        sorted.forEach { cell ->
-            val last = columns.lastOrNull()
-            if (last != null && cell.centerX - last.last().centerX <= gap) last += cell else columns += mutableListOf(cell)
+    private fun clusterAxis(cells: List<Cell>, gap: Float, key: (Cell) -> Float): List<List<Cell>> {
+        val clusters = mutableListOf<MutableList<Cell>>()
+        var lastKey = 0f
+        cells.sortedBy(key).forEach { cell ->
+            val value = key(cell)
+            if (clusters.isNotEmpty() && value - lastKey <= gap) clusters.last() += cell else clusters += mutableListOf(cell)
+            lastKey = value
         }
-        return columns
+        return clusters
     }
 
     /**
-     * Groups neighbouring columns into subject blocks. Every subject numbers its questions from 1, so a column that
+     * Groups neighbouring columns (or lines) into subject blocks. Every subject numbers its questions from 1, so a column that
      * repeats question numbers the current block already has starts the next subject, while the second half of the
      * same subject (11-20 next to 1-10) brings new numbers.
      */
-    private fun segmentBlocks(columns: List<List<Cell>>): List<List<Int>> {
+    private fun segmentBlocks(clusters: List<List<Cell>>): List<List<Int>> {
         val blocks = mutableListOf<MutableList<Int>>()
         val blockNumbers = mutableSetOf<Int>()
-        columns.forEachIndexed { index, column ->
+        clusters.forEachIndexed { index, column ->
             val numbers = column.map { it.number }.toSet()
             val shared = numbers.count { it in blockNumbers }
             val repeats = shared >= max(1f, min(numbers.size, blockNumbers.size) * RESTART_SHARE)
@@ -496,8 +599,8 @@ object OcrAnswerTableParser {
     }
 
     /**
-     * Order-preserving matching of block centres to header centres (both left to right). A block or header may stay
-     * unmatched at [skip] cost. Returns, per block, the matched header index or -1.
+     * Order-preserving matching of block positions to header positions (both in reading order). A block or header
+     * may stay unmatched at [skip] cost. Returns, per block, the matched header index or -1.
      */
     private fun alignMonotone(blockXs: List<Float>, headerXs: List<Float>, skip: Float): IntArray {
         val b = blockXs.size
@@ -541,6 +644,7 @@ object OcrAnswerTableParser {
         headerFound: Boolean,
         candidates: List<ColumnCell>,
         medianCellHeight: Float,
+        columnLayout: Boolean,
         label: String,
         warnings: MutableList<String>,
         inferredNote: String? = null
@@ -551,7 +655,7 @@ object OcrAnswerTableParser {
             warnings += "$label: ${subject.label} için soru aralığı dışında ${candidates.size - inRange.size} hücre yoksayıldı."
         }
         val allowed = subject.allowedChoices.map { it.uppercase(Locale.ROOT) }.toSet()
-        val ordered = bestReadingOrder(inRange, medianCellHeight)
+        val ordered = bestReadingOrder(inRange, medianCellHeight, allowTransposed = columnLayout)
         val inSequence = increasingSubsequence(ordered)
 
         val slots = arrayOfNulls<OcrTableCell>(count + 2)
@@ -601,19 +705,17 @@ object OcrAnswerTableParser {
     }
 
     /**
-     * Cells of a subject can run down the columns (1-10, then 11-20) or across the rows; the order that explains
-     * more cells as one increasing sequence is the one the table uses.
+     * Cells of a subject follow their column (or line) order. In the column layout they may instead run across the
+     * rows (1-2 side by side, 3-4 below ...); the order that explains more cells as one increasing sequence wins.
      */
-    private fun bestReadingOrder(items: List<ColumnCell>, medianCellHeight: Float): List<ColumnCell> {
-        if (items.size < 3) return items.sortedWith(compareBy({ it.column }, { it.cell.centerY }))
-        val columnMajor = items.sortedWith(compareBy({ it.column }, { it.cell.centerY }))
+    private fun bestReadingOrder(items: List<ColumnCell>, medianCellHeight: Float, allowTransposed: Boolean): List<ColumnCell> {
+        val natural = items.sortedWith(compareBy({ it.major }, { it.minor }))
+        if (!allowTransposed || items.size < 3) return natural
         val bands = rowBands(items.map { it.cell.centerY }, max(medianCellHeight * 0.6f, 4f))
-        val rowMajor = items.withIndex()
-            .sortedWith(compareBy({ bands[it.index] }, { it.value.column }))
+        val acrossRows = items.withIndex()
+            .sortedWith(compareBy({ bands[it.index] }, { it.value.major }))
             .map { it.value }
-        val columnScore = increasingSubsequence(columnMajor).size
-        val rowScore = increasingSubsequence(rowMajor).size
-        return if (rowScore > columnScore) rowMajor else columnMajor
+        return if (increasingSubsequence(acrossRows).size > increasingSubsequence(natural).size) acrossRows else natural
     }
 
     /** Gives every y a band index so cells printed on one row compare equal despite a few pixels of jitter. */
@@ -665,7 +767,12 @@ object OcrAnswerTableParser {
     private const val MIN_CELLS_PER_TABLE = 3
     private const val MAX_QUESTION_NUMBER = 99
     private const val STRAY_CELL_WARNING = 3
-    private const val HEADER_REACH_CELL_WIDTHS = 6f
+    private const val COLUMN_REACH_CELL_WIDTHS = 6f
+    private const val ROW_REACH_CELL_HEIGHTS = 8f
+    private const val LINE_GAP_CELL_HEIGHTS = 0.45f
+    private const val SKIP_CELL_HEIGHTS = 6f
+    private const val BIG_LETTER_RATIO = 2f
+    private const val MIN_PLACED_SHARE = 0.5f
     private const val COLUMN_GAP_CELL_WIDTHS = 0.8f
     private const val SKIP_CELL_WIDTHS = 4f
     private const val FIRST_WORD_SCORE = 0.78f
@@ -675,9 +782,9 @@ object OcrAnswerTableParser {
     private const val MOVE_SKIP_HEADER = 2
 
     private val DASHES = Regex("[\\u2010-\\u2015\\u2212\\u2013\\u2014]")
-    private val CELL = Regex("(?<![\\p{L}\\p{N}])([0-9lI|]{1,2})\\s*([-.:])?\\s*([\\p{L}0-9])(?![\\p{L}\\p{N}])")
-    private val BARE_NUMBER = Regex("\\s*[0-9lI|]{1,2}\\s*[-.:]?\\s*")
-    private val BARE_LETTER = Regex("\\s*[-.:]?\\s*\\p{L}\\s*")
+    private val CELL = Regex("(?<![\\p{L}\\p{N}])([0-9lI|]{1,2})\\s*([-.:,;])?\\s*([\\p{L}0-9])(?![\\p{L}\\p{N}])")
+    private val BARE_NUMBER = Regex("\\s*[0-9lI|]{1,2}\\s*[-.:,;]?\\s*")
+    private val BARE_LETTER = Regex("\\s*[-.:,;]?\\s*\\p{L}\\s*")
     private val DIGIT_LOOKALIKES = mapOf('8' to "B", '0' to "D", '4' to "A")
     private val TITLE_AFTER = Regex("(?<![A-Z0-9])([A-Z0-9])\\s*(?:GRUBU|GRUP|KITAPCIGI|KITAPCIK)(?![A-Z])")
     private val TITLE_BEFORE = Regex("(?:GRUBU|GRUP|KITAPCIGI|KITAPCIK)\\s*([A-Z0-9])(?![A-Z0-9])")

@@ -92,6 +92,142 @@ class OcrAnswerTableParserTest {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Row-labelled tables (subject names at the left, answers running along the row): ÖZDER deneme key
+    // ---------------------------------------------------------------------------------------------
+
+    private val ozderA = mapOf(
+        "tr" to "CBCDCCBACAADBADADBBA",
+        "ink" to "DBCADBDBCD",
+        "din" to "CBCAACBADD",
+        "eng" to "BCCBADADBB",
+        "mat" to "CBDABBCBACBADCCACDBB",
+        "fen" to "BACBCABABDDCDACADBDC"
+    )
+    private val ozderB = mapOf(
+        "tr" to "CBACAADBADADBBACBCDC",
+        "ink" to "ADBDBCDDBC",
+        "din" to "ACBADDCBCA",
+        "eng" to "DADBBCBABC",
+        "mat" to "BBCBDAACBADCCACDBBCB",
+        "fen" to "BCABABDDCDACADBDCBAC"
+    )
+
+    @Test
+    fun `row-labelled answer key with two stacked booklets is read from real OCR output`() {
+        listOf("ozder_exam1_1x.tsv", "ozder_exam1_2x.tsv").forEach { name ->
+            val result = parse(loadFixture(name))
+
+            assertEquals(name, 2, result.tables.size)
+            listOf(result.tables[0] to ozderA, result.tables[1] to ozderB).forEach { (table, truth) ->
+                assertTrue("$name read ${table.readCount}", table.readCount >= 85)
+                table.subjects.forEach { subject ->
+                    subject.cells.forEach { cell ->
+                        val expected = truth.getValue(subject.subject.id)[cell.number - 1].toString()
+                        when {
+                            // A cell that is reported as clean must be right ...
+                            cell.status == OcrCellStatus.OK -> assertEquals("$name ${subject.subject.id} ${cell.number}", expected, cell.choice)
+                            // ... and an empty one must be flagged, never silently wrong.
+                            cell.choice == null -> assertEquals(OcrCellStatus.MISSING, cell.status)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `row-labelled key reads every present answer correctly even when OCR smudges letters`() {
+        val result = parse(loadFixture("ozder_exam1_1x.tsv"))
+
+        listOf(result.tables[0] to ozderA, result.tables[1] to ozderB).forEach { (table, truth) ->
+            table.subjects.forEach { subject ->
+                subject.cells.filter { it.choice != null }.forEach { cell ->
+                    assertEquals(
+                        "${subject.subject.id} ${cell.number}",
+                        truth.getValue(subject.subject.id)[cell.number - 1].toString(),
+                        cell.choice
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a page where only one subject header is readable is not guessed`() {
+        val tokens = rowPage(RowLayout("A", 0, ozderA)).filterNot { token ->
+            subjects.filter { it.id != "fen" }.any { token.text.equals(headerText(it.id), ignoreCase = true) }
+        }
+
+        assertNull(OcrAnswerTableParser.parse(recognition(tokens, 450, 400), subjects, booklets))
+    }
+
+    @Test
+    fun `synthetic row-labelled tables take the booklet from the large letter`() {
+        val tokens = rowPage(RowLayout("A", 0, ozderA), RowLayout("B", 0, ozderB))
+        val result = parse(recognition(tokens, 450, 800))
+
+        assertEquals(listOf("A", "B"), result.tables.map { it.booklet })
+        assertEquals(ozderA, answersByTableId(result.tables[0]))
+        assertEquals(ozderB, answersByTableId(result.tables[1]))
+        assertEquals(0, result.tables.sumOf { it.reviewCount })
+    }
+
+    @Test
+    fun `row-labelled table with a missing label is matched by elimination`() {
+        val tokens = rowPage(RowLayout("A", 0, ozderA)).filterNot { it.text == headerText("din") }
+        val table = parse(recognition(tokens, 450, 400)).tables.single()
+
+        val din = table.subjects.first { it.subject.id == "din" }
+        assertFalse(din.headerFound)
+        assertEquals(ozderA.getValue("din"), din.cells.joinToString("") { it.choice.orEmpty() })
+        assertTrue(din.cells.all { it.status == OcrCellStatus.SUSPICIOUS })
+        assertEquals(ozderA.getValue("tr"), table.subjects.first { it.subject.id == "tr" }.cells.joinToString("") { it.choice.orEmpty() })
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Official key where every answer is "1." and "A" in separate boxes (MEB)
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `number and letter in separate boxes under column headers are paired`() {
+        val meb = listOf(
+            Triple("tr", 36, truthA.getValue("tr")),
+            Triple("ink", 155, truthA.getValue("ink")),
+            Triple("din", 288, truthA.getValue("din")),
+            Triple("eng", 406, truthA.getValue("eng"))
+        )
+        val tokens = mutableListOf<OcrToken>()
+        tokens += OcrToken("04.06.2023 TARİHİNDE YAPILAN SINAV", 54, 92, 440, 104, 0.9f)
+        tokens += OcrToken("“A” KİTAPÇIĞI CEVAP ANAHTARI", 162, 116, 332, 128, 0.9f)
+        tokens += OcrToken("TÜRKÇE", 36, 150, 83, 165, 0.9f)
+        tokens += OcrToken("T.C. İNKILAP TARİHİ", 122, 143, 224, 156, 0.9f)
+        tokens += OcrToken("VE ATATÜRKÇÜLÜK", 122, 158, 225, 172, 0.9f)
+        tokens += OcrToken("DİN KÜLTÜRÜ VE", 264, 144, 352, 155, 0.9f)
+        tokens += OcrToken("AHLAK BİLGİSİ", 268, 158, 346, 172, 0.9f)
+        tokens += OcrToken("YABANCI DİL", 391, 142, 460, 157, 0.9f)
+        tokens += OcrToken("(İNGİLİZCE)", 396, 158, 456, 172, 0.9f)
+        meb.forEach { (_, x, answers) ->
+            answers.forEachIndexed { index, choice ->
+                val y = 184 + index * 12
+                tokens += OcrToken("${index + 1}.", x + 4, y, x + 16, y + 11, 0.9f)
+                tokens += OcrToken(choice.toString(), x + 22, y, x + 30, y + 11, 0.9f)
+            }
+        }
+        val result = OcrAnswerTableParser.parse(recognition(tokens, 495, 619), subjects, booklets)!!
+
+        val table = result.tables.single()
+        assertEquals("A", table.booklet)
+        assertEquals(
+            mapOf(
+                "tr" to truthA.getValue("tr"), "ink" to truthA.getValue("ink"), "din" to truthA.getValue("din"),
+                "eng" to truthA.getValue("eng"), "mat" to "-".repeat(20), "fen" to "-".repeat(20)
+            ),
+            answersByTableId(table)
+        )
+        assertEquals(0, table.subjects.take(4).sumOf { it.reviewCount })
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Synthetic tables
     // ---------------------------------------------------------------------------------------------
 
@@ -336,6 +472,34 @@ class OcrAnswerTableParserTest {
                     val confidence = layout.confidence[id to number] ?: 0.9f
                     add(token(text, left + column * 60 + 12, layout.y + 100 + row * 24, confidence, 36, 18))
                 }
+            }
+        }
+    }
+
+    private data class RowLayout(val booklet: String?, val x: Int, val answers: Map<String, String>)
+
+    /**
+     * Row-labelled table: subject names in a left column, every subject a box with its answers along the row
+     * (10 per line, a second line for 11-20), a large booklet letter above the table.
+     */
+    private fun rowPage(vararg layouts: RowLayout): List<OcrToken> = layouts.flatMapIndexed { tableIndex, layout ->
+        buildList {
+            val top = 20 + tableIndex * 400
+            layout.booklet?.let { add(OcrToken(it, layout.x + 340, top, layout.x + 372, top + 36, 0.9f)) }
+            add(OcrToken("CEVAP ANAHTARI", layout.x + 121, top + 35, layout.x + 230, top + 48, 0.9f))
+            var y = top + 60
+            listOf("tr", "ink", "din", "eng", "mat", "fen").forEach { id ->
+                val answers = layout.answers.getValue(id)
+                val lines = (answers.length + 9) / 10
+                val boxHeight = lines * 12
+                val labelTexts = headerText(id)
+                add(OcrToken(labelTexts, layout.x + 15, y + boxHeight / 2 - 6, layout.x + 95, y + boxHeight / 2 + 6, 0.9f))
+                answers.forEachIndexed { index, choice ->
+                    val line = index / 10
+                    val column = index % 10
+                    add(OcrToken("${index + 1}. $choice", layout.x + 108 + column * 31, y + line * 12, layout.x + 108 + column * 31 + 22, y + line * 12 + 12, 0.9f))
+                }
+                y += boxHeight + 18
             }
         }
     }
