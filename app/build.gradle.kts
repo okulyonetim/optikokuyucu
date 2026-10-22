@@ -1,3 +1,4 @@
+import java.io.File
 import java.net.URI
 import java.security.MessageDigest
 
@@ -52,7 +53,7 @@ val appVersionName = ciBuildNumber?.let { "0.20.$it" } ?: "0.20.128"
 // derlemede değişirse "paket mevcut bir paketle çakışıyor" hatası alınır. Anahtar verilmezse
 // (yerel derleme, fork PR) Android'in varsayılan debug anahtarı kullanılır; CI bu APK'yı yayımlamaz.
 val optikKeystoreFile = providers.environmentVariable("OPTIK_KEYSTORE_PATH")
-    .orNull?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }
+    .orNull?.takeIf { it.isNotBlank() }?.let { File(it) }
 val optikKeystorePassword = providers.environmentVariable("OPTIK_KEYSTORE_PASSWORD")
     .orNull?.takeIf { it.isNotBlank() }
 val useOptikSigning = optikKeystoreFile != null && optikKeystorePassword != null

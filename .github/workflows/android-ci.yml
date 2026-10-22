@@ -71,12 +71,18 @@ jobs:
           gradle-version: '9.6.0'
 
       - name: Run OMR unit tests
-        run: gradle --no-daemon :app:testDebugUnitTest
+        env:
+          OPTIK_KEYSTORE_PASSWORD: ${{ secrets.OPTIK_KEYSTORE_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee "$RUNNER_TEMP/gradle-1-test.log"
 
       - name: Build debug APK
         env:
           OPTIK_KEYSTORE_PASSWORD: ${{ secrets.OPTIK_KEYSTORE_PASSWORD }}
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/gradle-2-build.log"
 
       # Sabit anahtarın sertifika parmak izi (gizli değildir). APK başka bir anahtarla imzalanırsa
       # derleme durur; böylece telefonlara güncellenemeyen bir sürüm yayımlanamaz.
@@ -92,6 +98,18 @@ jobs:
             echo "::error::APK beklenen anahtarla imzalanmamış. Beklenen: $EXPECTED_CERT_SHA256"
             exit 1
           fi
+
+      # Derleme başarısız olursa Gradle hata satırlarını anotasyon olarak yazar; günlük
+      # dosyasını açmadan (ör. telefondan) nedeni görmeyi sağlar.
+      - name: Summarize Gradle failure
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP"/gradle-*.log; do
+            [ -f "$f" ] || continue
+            MSG=$(grep -E -A4 '^e: |^\* What went wrong|FAILED$' "$f" | head -24 | sed 's/%/%25/g' | tr '\n' '|')
+            [ -n "$MSG" ] && echo "::error title=Gradle hatasi ($(basename "$f"))::$MSG"
+          done
+          exit 0
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
