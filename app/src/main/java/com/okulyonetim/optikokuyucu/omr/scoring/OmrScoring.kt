@@ -23,7 +23,8 @@ data class ScoringPolicy(
     val correctPoints: Double = 1.0,
     val wrongPoints: Double = 0.0,
     val blankPoints: Double = 0.0,
-    val doubleMarkPoints: Double = 0.0,
+    /** Null (default) scores a double mark exactly like a wrong answer, matching the printed rules. */
+    val doubleMarkPoints: Double? = null,
     val suspiciousPoints: Double = 0.0
 )
 
@@ -170,7 +171,7 @@ object OmrScorer {
                 expectedChoice = expected,
                 selectedChoice = null,
                 recognitionConfidence = confidence,
-                points = policy.wrongPoints
+                points = policy.doubleMarkPoints ?: policy.wrongPoints
             )
 
             ScorableState.SUSPICIOUS -> QuestionEvaluation(

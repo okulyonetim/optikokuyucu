@@ -42,7 +42,6 @@ class OmrScoringTest {
                 correctPoints = 4.0,
                 wrongPoints = -1.0,
                 blankPoints = 0.0,
-                doubleMarkPoints = 0.0,
                 suspiciousPoints = 0.0
             )
         )
