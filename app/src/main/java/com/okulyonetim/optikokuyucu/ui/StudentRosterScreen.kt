@@ -67,6 +67,8 @@ import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private data class StudentRosterOverview(
     val key: String,
@@ -308,7 +310,7 @@ fun StudentRosterScreen(
 
     importPreview?.let { preview ->
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { importPreview = null },
@@ -324,11 +326,11 @@ fun StudentRosterScreen(
                     Text("Öğrenciler", fontWeight = FontWeight.SemiBold)
                     preview.students.forEach { student ->
                         val school = student.schoolName.takeIf(String::isNotBlank)?.let { "$it · " }.orEmpty()
-                        Text("$school${student.className} · No ${student.studentNumber} · ${student.fullName}", fontSize = 12.sp)
+                        Text("$school${student.className} · No ${student.studentNumber} · ${student.fullName}", fontSize = OptikTextSize.small)
                     }
                     Text(
                         "PDF veli adı veya telefon içermiyorsa mevcut veli bilgileri korunur; yeni öğrencilerde boş bırakılır.",
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -361,7 +363,7 @@ fun StudentRosterScreen(
 
     if (manualStudentOpen) {
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { manualStudentOpen = false },
@@ -401,7 +403,7 @@ fun StudentRosterScreen(
                             singleLine = true
                         )
                     }
-                    Text("Cinsiyet", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Cinsiyet", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (studentGender == StudentGender.GIRL) {
                             FilledTonalButton(onClick = { studentGender = StudentGender.GIRL }) { Text("Kız") }
@@ -472,7 +474,7 @@ fun StudentRosterScreen(
 
     if (classManagerOpen) {
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { classManagerOpen = false },
@@ -516,7 +518,7 @@ fun StudentRosterScreen(
 
     if (classEditorOpen) {
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { classEditorOpen = false; classManagerOpen = true },
@@ -542,7 +544,7 @@ fun StudentRosterScreen(
                         if (affected > 0) {
                             Text(
                                 "$affected öğrencinin sınıf bilgisi de güncellenecek.",
-                                fontSize = 11.sp,
+                                fontSize = OptikTextSize.micro,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -608,7 +610,7 @@ fun StudentRosterScreen(
         }
 
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { editing = null },
@@ -655,13 +657,13 @@ fun StudentRosterScreen(
                     if (studentResults.isEmpty()) {
                         Text(
                             "Bu öğrenciye ait henüz sınav sonucu bulunmuyor.",
-                            fontSize = 11.sp,
+                            fontSize = OptikTextSize.micro,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
                             "${studentResults.size} sınav sonucu · Her sınav için optik kağıdı açabilir veya PDF raporu oluşturabilirsiniz.",
-                            fontSize = 10.sp,
+                            fontSize = OptikTextSize.micro,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         studentResults.forEach { result ->
@@ -672,7 +674,7 @@ fun StudentRosterScreen(
                                 ) {
                                     Text(
                                         result.exam.name,
-                                        fontSize = 12.sp,
+                                        fontSize = OptikTextSize.small,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis
@@ -682,17 +684,17 @@ fun StudentRosterScreen(
                                         listOfNotNull(subject, result.row.className.takeIf(String::isNotBlank))
                                             .joinToString(" · ")
                                             .ifBlank { result.exam.schoolName },
-                                        fontSize = 9.sp,
+                                        fontSize = OptikTextSize.micro,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         "D ${result.row.correct ?: "—"} · Y ${result.row.wrong ?: "—"} · B ${result.row.blank ?: "—"} · Net ${formatStudentResultNumber(result.row.net)} · Puan ${formatStudentResultNumber(result.row.points)}",
-                                        fontSize = 10.sp,
+                                        fontSize = OptikTextSize.micro,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
                                         "Genel sıra ${result.row.overallRank ?: "—"} · Sınıf sırası ${result.row.classRank ?: "—"}",
-                                        fontSize = 9.sp,
+                                        fontSize = OptikTextSize.micro,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Row(
@@ -705,7 +707,7 @@ fun StudentRosterScreen(
                                                 editing = null
                                                 onOpenPaper(result.exam.id, result.row.scanRecordId)
                                             }
-                                        ) { Text("Optik Kağıt", fontSize = 10.sp) }
+                                        ) { Text("Optik Kağıt", fontSize = OptikTextSize.micro) }
                                         OutlinedButton(
                                             modifier = Modifier.weight(1f),
                                             onClick = {
@@ -738,7 +740,7 @@ fun StudentRosterScreen(
                                                     feedback.error("PDF hazırlanamadı: ${error.message ?: error.javaClass.simpleName}")
                                                 }
                                             }
-                                        ) { Text("PDF", fontSize = 10.sp) }
+                                        ) { Text("PDF", fontSize = OptikTextSize.micro) }
                                     }
                                 }
                             }
@@ -756,7 +758,7 @@ fun StudentRosterScreen(
                     }
                     Text(
                         "Bu işlem yalnız Optik Okuyucu listesini etkiler; Okul Yönetim'deki öğrenci kaydı silinmez veya değiştirilmez.",
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -790,7 +792,7 @@ fun StudentRosterScreen(
 
     pendingDeleteStudent?.let { student ->
         AlertDialog(
-            shape = RoundedCornerShape(24.dp),
+            shape = OptikShape.xl,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             onDismissRequest = { pendingDeleteStudent = null },
@@ -810,7 +812,7 @@ fun StudentRosterScreen(
                     )
                     Text(
                         "Sonraki Okul Yönetim senkronunda bu öğrenci otomatik olarak yeniden eklenmeyecek. Aynı numaralı diğer kurum öğrencisi etkilenmeyecek.",
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -861,7 +863,7 @@ fun StudentRosterScreen(
                 item {
                     Text(
                         "$importSourceLabel okunuyor…",
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
@@ -976,8 +978,8 @@ private fun StudentOptionRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(symbol, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
-            Text(label, fontSize = 14.sp)
+            Text(symbol, fontSize = OptikTextSize.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Text(label, fontSize = OptikTextSize.bodyLarge)
         }
     }
 }
@@ -1002,7 +1004,7 @@ private fun StudentRosterOverviewCard(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     student.name.ifBlank { "Öğrenci bilgisi bekliyor" },
-                    fontSize = 13.sp,
+                    fontSize = OptikTextSize.body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1013,7 +1015,7 @@ private fun StudentRosterOverviewCard(
                         append(" · No: ").append(student.number.ifBlank { "—" })
                         if (student.schoolName.isNotBlank()) append(" · ").append(student.schoolName)
                     },
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1026,7 +1028,7 @@ private fun StudentRosterOverviewCard(
                         student.guardianPhone.isNotBlank() -> "Veli telefonu: ${student.guardianPhone}"
                         else -> "Veli bilgisi eklenmedi"
                     },
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

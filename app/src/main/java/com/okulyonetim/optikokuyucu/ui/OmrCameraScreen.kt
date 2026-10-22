@@ -80,6 +80,10 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlin.math.max
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 private const val ANALYSIS_WIDTH = 1920
 private const val ANALYSIS_HEIGHT = 1080
@@ -158,14 +162,14 @@ private fun CameraPermissionContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ProductInitialBadge("▣")
-                    Text("Kamera izni gerekli", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Kamera izni gerekli", fontSize = OptikTextSize.title, fontWeight = FontWeight.SemiBold)
                     Text(
                         "Optik formları canlı okuyabilmek için kameraya erişim vermelisiniz.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+                        fontSize = OptikTextSize.micro
                     )
-                    Button(onClick = onRequestPermission, shape = RoundedCornerShape(12.dp)) {
-                        Text("Kamera İzni Ver", fontSize = 12.sp)
+                    Button(onClick = onRequestPermission, shape = OptikShape.md) {
+                        Text("Kamera İzni Ver", fontSize = OptikTextSize.small)
                     }
                 }
             }
@@ -406,12 +410,12 @@ private fun CameraOptionsSheet(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Kamera Seçenekleri", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        Text("Hassasiyet", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Kamera Seçenekleri", fontSize = OptikTextSize.title, fontWeight = FontWeight.SemiBold)
+        Text("Hassasiyet", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
         Text(
             "Normal standart okumadır. Yüksek soluk işaretlerde, Düşük çok koyu baskılarda kullanılabilir.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp
+            fontSize = OptikTextSize.micro
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -445,11 +449,11 @@ private fun CameraOptionsSheet(
                 onCheckedChange = onShowStudentSummaryChanged
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Öğrenci bilgisini göster", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Öğrenci bilgisini göster", fontSize = OptikTextSize.small, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Okuma sonrası öğrenci ve sonuç özetini kısa süre gösterir.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp
+                    fontSize = OptikTextSize.micro
                 )
             }
         }
@@ -464,12 +468,12 @@ private fun SensitivityButton(
     onClick: () -> Unit
 ) {
     if (selected) {
-        Button(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
-            Text(text, fontSize = 11.sp)
+        Button(modifier = modifier, onClick = onClick, shape = OptikShape.md) {
+            Text(text, fontSize = OptikTextSize.micro)
         }
     } else {
-        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
-            Text(text, fontSize = 11.sp)
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = OptikShape.md) {
+            Text(text, fontSize = OptikTextSize.micro)
         }
     }
 }
@@ -500,8 +504,8 @@ private fun CameraProductHeader(
         modifier = modifier,
         color = Color.Black.copy(alpha = 0.70f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
+        shape = OptikShape.md,
+        border = BorderStroke(OptikBorder.hairline, Color.White.copy(alpha = 0.16f))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -513,7 +517,7 @@ private fun CameraProductHeader(
             ) {
                 if (onBack != null) {
                     TextButton(onClick = onBack) {
-                        Text("‹", color = Color.White, fontSize = 20.sp)
+                        Text("‹", color = Color.White, fontSize = OptikTextSize.heading)
                     }
                 }
                 Column(
@@ -522,14 +526,14 @@ private fun CameraProductHeader(
                 ) {
                     Text(
                         title,
-                        fontSize = 14.sp,
+                        fontSize = OptikTextSize.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         subtitle,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = Color.White.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -538,15 +542,15 @@ private fun CameraProductHeader(
                 if (onOpenGallery != null) {
                     OutlinedButton(
                         onClick = onOpenGallery,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = OptikShape.sm,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.30f))
+                        border = BorderStroke(OptikBorder.hairline, Color.White.copy(alpha = 0.30f))
                     ) {
-                        Text("Galeri", fontSize = 10.sp)
+                        Text("Galeri", fontSize = OptikTextSize.micro)
                     }
                 }
                 TextButton(onClick = onOpenOptions) {
-                    Text("⋮", color = Color.White, fontSize = 20.sp)
+                    Text("⋮", color = Color.White, fontSize = OptikTextSize.heading)
                 }
             }
 
@@ -557,20 +561,20 @@ private fun CameraProductHeader(
             ) {
                 Text(
                     stateText,
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = Color.White.copy(alpha = 0.78f)
                 )
                 OutlinedButton(
                     onClick = onToggleTorch,
                     enabled = torchAvailable,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = OptikShape.sm,
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = Color.White,
                         disabledContentColor = Color.White.copy(alpha = 0.35f)
                     ),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.30f))
+                    border = BorderStroke(OptikBorder.hairline, Color.White.copy(alpha = 0.30f))
                 ) {
-                    Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", fontSize = 10.sp)
+                    Text(if (torchEnabled) "☀ Açık" else "☀ Flaş", fontSize = OptikTextSize.micro)
                 }
             }
         }
@@ -588,8 +592,8 @@ private fun CameraStatusPanel(
         modifier = Modifier.fillMaxWidth(),
         color = Color.Black.copy(alpha = 0.72f),
         contentColor = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+        shape = OptikShape.md,
+        border = BorderStroke(OptikBorder.hairline, Color.White.copy(alpha = 0.14f))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -601,24 +605,24 @@ private fun CameraStatusPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(message, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(message, fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                     Text(
                         stateText,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = Color.White.copy(alpha = 0.68f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text("${stats.markerCount}/4", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("${stats.markerCount}/4", fontSize = OptikTextSize.body, fontWeight = FontWeight.Bold)
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(if (openCvReady) "OMR ✓" else "OMR —", fontSize = 9.sp)
-                Text("Okunan ${stats.liveReadCount}", fontSize = 9.sp)
-                Text("Güven %${(stats.pageConfidence * 100).toInt()}", fontSize = 9.sp)
+                Text(if (openCvReady) "OMR ✓" else "OMR —", fontSize = OptikTextSize.micro)
+                Text("Okunan ${stats.liveReadCount}", fontSize = OptikTextSize.micro)
+                Text("Güven %${(stats.pageConfidence * 100).toInt()}", fontSize = OptikTextSize.micro)
             }
         }
     }
@@ -629,10 +633,10 @@ private fun LiveReadResultCard(result: LiveOmrReadResult) {
     val bubbles = result.bubbleResult
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = OptikShape.md,
         color = Color.Black.copy(alpha = 0.72f),
         contentColor = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF69D49F).copy(alpha = 0.65f))
+        border = BorderStroke(OptikBorder.hairline, OptikOverlay.lockedBorder.copy(alpha = 0.65f))
     ) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
@@ -640,21 +644,21 @@ private fun LiveReadResultCard(result: LiveOmrReadResult) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("✓ Form Okundu", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                Text(String.format(Locale.US, "%.0f%%", result.decisionConfidence * 100.0), fontSize = 10.sp)
+                Text("✓ Form Okundu", fontWeight = FontWeight.SemiBold, fontSize = OptikTextSize.small)
+                Text(String.format(Locale.US, "%.0f%%", result.decisionConfidence * 100.0), fontSize = OptikTextSize.micro)
             }
             val student = result.markGridResult.grids.firstOrNull { it.gridId == "studentNumber" }?.value
             val booklet = result.markGridResult.grids.firstOrNull { it.gridId == "booklet" }?.value
             Text(
                 "No ${student ?: "—"} · Kitapçık ${booklet ?: "—"} · İşaretli ${bubbles.markedCount} · Boş ${bubbles.blankCount}",
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 color = Color.White.copy(alpha = 0.76f)
             )
             if (bubbles.doubleMarkCount > 0 || bubbles.suspiciousCount > 0) {
                 Text(
                     "Çift ${bubbles.doubleMarkCount} · Şüpheli ${bubbles.suspiciousCount}",
-                    fontSize = 9.sp,
-                    color = Color(0xFFFFC75A)
+                    fontSize = OptikTextSize.micro,
+                    color = OptikOverlay.trackingAccent
                 )
             }
         }
@@ -675,8 +679,8 @@ private fun OmrGuideOverlay(
     val primary = MaterialTheme.colorScheme.primary
     Canvas(modifier = modifier) {
         val accent = when (phase) {
-            PageTrackingPhase.LOCKED -> Color(0xFF4ADE80)
-            PageTrackingPhase.TRACKING -> Color(0xFFFBBF24)
+            PageTrackingPhase.LOCKED -> OptikOverlay.locked
+            PageTrackingPhase.TRACKING -> OptikOverlay.tracking
             else -> primary.copy(alpha = if (confidence > 0.0) 0.95f else 0.70f)
         }
 

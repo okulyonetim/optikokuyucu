@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 /**
  * Six-argument overload used by the structured form editor.
@@ -62,7 +64,7 @@ fun ProductTopBar(
             ) {
                 Text(
                     text = leadingText ?: if (showAutomaticBack) "‹" else "",
-                    fontSize = 30.sp,
+                    fontSize = OptikTextSize.hero,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -71,7 +73,7 @@ fun ProductTopBar(
                 text = title,
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp,
+                fontSize = OptikTextSize.title,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -81,10 +83,10 @@ fun ProductTopBar(
                 Button(
                     modifier = Modifier.height(40.dp),
                     onClick = onActionClick,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = OptikShape.md,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 13.dp, vertical = 0.dp)
                 ) {
-                    Text(actionText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(actionText, fontSize = OptikTextSize.body, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -97,7 +99,7 @@ fun ProductTopBar(
                 ) {
                     Text(
                         text = if (themeController.isDark) "☀" else "☾",
-                        fontSize = 25.sp,
+                        fontSize = OptikTextSize.display,
                         fontWeight = FontWeight.Medium
                     )
                 }

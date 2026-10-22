@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTheme
 
 enum class AppFeedbackTone {
     SUCCESS,
@@ -84,11 +86,17 @@ fun AppFeedbackProvider(content: @Composable () -> Unit) {
 
 @Composable
 private fun AppFeedbackPopup(message: AppFeedbackMessage) {
+    val result = OptikTheme.result
     val container = when (message.tone) {
-        AppFeedbackTone.SUCCESS -> Color(0xFF1E6B49)
+        AppFeedbackTone.SUCCESS -> result.correct
         AppFeedbackTone.INFO -> MaterialTheme.colorScheme.primary
-        AppFeedbackTone.WARNING -> Color(0xFF9A5B08)
+        AppFeedbackTone.WARNING -> result.warning
         AppFeedbackTone.ERROR -> MaterialTheme.colorScheme.error
+    }
+    val content = when (message.tone) {
+        AppFeedbackTone.SUCCESS, AppFeedbackTone.WARNING -> result.onFill
+        AppFeedbackTone.INFO -> MaterialTheme.colorScheme.onPrimary
+        AppFeedbackTone.ERROR -> MaterialTheme.colorScheme.onError
     }
     val symbol = when (message.tone) {
         AppFeedbackTone.SUCCESS -> "✓"
@@ -107,9 +115,9 @@ private fun AppFeedbackPopup(message: AppFeedbackMessage) {
             modifier = Modifier
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = OptikShape.lg,
             color = container,
-            contentColor = Color.White,
+            contentColor = content,
             shadowElevation = 10.dp
         ) {
             Row(

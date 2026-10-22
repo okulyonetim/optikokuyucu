@@ -32,9 +32,10 @@ import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.exam.StudentLessonResultPresentation
 import com.okulyonetim.optikokuyucu.exam.StudentResultPresentation
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTheme
 
-private val ResultGreen = Color(0xFF3D9B56)
-private val ResultRed = Color(0xFFD34848)
 
 @Composable
 fun StudentResultHero(
@@ -55,7 +56,7 @@ fun StudentResultHero(
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp),
-        shape = RoundedCornerShape(22.dp),
+        shape = OptikShape.xl,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -71,21 +72,21 @@ fun StudentResultHero(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         result.scoreLabel,
-                        fontSize = 12.sp,
+                        fontSize = OptikTextSize.small,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         result.score?.let(::resultNumber) ?: "—",
-                        fontSize = 30.sp,
+                        fontSize = OptikTextSize.hero,
                         fontWeight = FontWeight.Bold,
                         color = if (result.score != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Toplam Net", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Toplam Net", fontSize = OptikTextSize.small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         result.net?.let(::resultNumber) ?: "—",
-                        fontSize = 25.sp,
+                        fontSize = OptikTextSize.display,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -96,8 +97,8 @@ fun StudentResultHero(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                ResultMetricPill("Doğru", result.correct?.toString() ?: "—", ResultGreen, Modifier.weight(1f))
-                ResultMetricPill("Yanlış", result.wrong?.toString() ?: "—", ResultRed, Modifier.weight(1f))
+                ResultMetricPill("Doğru", result.correct?.toString() ?: "—", OptikTheme.result.correct, Modifier.weight(1f))
+                ResultMetricPill("Yanlış", result.wrong?.toString() ?: "—", OptikTheme.result.wrong, Modifier.weight(1f))
                 ResultMetricPill("Boş", result.blank?.toString() ?: "—", MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
             }
 
@@ -112,7 +113,7 @@ fun StudentResultHero(
             if (result.scoreNote.isNotBlank()) {
                 Text(
                     result.scoreNote,
-                    fontSize = 11.sp,
+                    fontSize = OptikTextSize.micro,
                     lineHeight = 15.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -143,15 +144,15 @@ private fun ResultMetricPill(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = OptikShape.md,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
@@ -160,7 +161,7 @@ private fun ResultMetricPill(
 private fun RankPill(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(11.dp),
+        shape = OptikShape.sm,
         color = MaterialTheme.colorScheme.primaryContainer
     ) {
         Row(
@@ -168,8 +169,8 @@ private fun RankPill(label: String, value: String, modifier: Modifier = Modifier
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(value, fontSize = OptikTextSize.body, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -178,7 +179,7 @@ private fun RankPill(label: String, value: String, modifier: Modifier = Modifier
 private fun LessonResultTable(lessons: List<StudentLessonResultPresentation>) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -186,7 +187,7 @@ private fun LessonResultTable(lessons: List<StudentLessonResultPresentation>) {
             Text(
                 "Ders Sonuçları",
                 modifier = Modifier.padding(horizontal = 14.dp),
-                fontSize = 16.sp,
+                fontSize = OptikTextSize.title,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(7.dp))
@@ -238,14 +239,14 @@ private fun ResultTableRow(
         Text(
             lesson,
             modifier = Modifier.weight(1.65f),
-            fontSize = if (header) 11.sp else 12.sp,
+            fontSize = if (header) OptikTextSize.micro else OptikTextSize.small,
             fontWeight = if (header) weight else FontWeight.SemiBold,
             color = textColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        TableCell(correct, 0.45f, if (!header) ResultGreen else textColor, weight)
-        TableCell(wrong, 0.45f, if (!header) ResultRed else textColor, weight)
+        TableCell(correct, 0.45f, if (!header) OptikTheme.result.correct else textColor, weight)
+        TableCell(wrong, 0.45f, if (!header) OptikTheme.result.wrong else textColor, weight)
         TableCell(blank, 0.45f, textColor, weight)
         TableCell(net, 0.75f, if (!header) MaterialTheme.colorScheme.primary else textColor, FontWeight.SemiBold)
         TableCell(rank, 0.78f, textColor, FontWeight.SemiBold)
@@ -258,7 +259,7 @@ private fun RowScope.TableCell(text: String, weightValue: Float, color: Color, f
         text,
         modifier = Modifier.weight(weightValue),
         textAlign = TextAlign.Center,
-        fontSize = 11.sp,
+        fontSize = OptikTextSize.micro,
         fontWeight = fontWeight,
         color = color,
         maxLines = 1
@@ -269,7 +270,7 @@ private fun RowScope.TableCell(text: String, weightValue: Float, color: Color, f
 private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation>) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -283,12 +284,12 @@ private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Ders Başarı Grafiği", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Doğru ve yanlış yüzdeleri", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Ders Başarı Grafiği", fontSize = OptikTextSize.title, fontWeight = FontWeight.SemiBold)
+                    Text("Doğru ve yanlış yüzdeleri", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ChartLegend("Doğru", ResultGreen)
-                    ChartLegend("Yanlış", ResultRed)
+                    ChartLegend("Doğru", OptikTheme.result.correct)
+                    ChartLegend("Yanlış", OptikTheme.result.wrong)
                 }
             }
 
@@ -299,7 +300,7 @@ private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation
                     horizontalAlignment = Alignment.End
                 ) {
                     listOf(100, 80, 60, 40, 20, 0).forEach { percent ->
-                        Text("%$percent", fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("%$percent", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Box(modifier = Modifier.weight(1f).height(116.dp)) {
@@ -322,9 +323,9 @@ private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.Bottom
                             ) {
-                                ChartBar(lesson.correctPercent, ResultGreen)
+                                ChartBar(lesson.correctPercent, OptikTheme.result.correct)
                                 Spacer(Modifier.width(2.dp))
-                                ChartBar(lesson.wrongPercent, ResultRed)
+                                ChartBar(lesson.wrongPercent, OptikTheme.result.wrong)
                             }
                         }
                     }
@@ -336,7 +337,7 @@ private fun LessonPerformanceChart(lessons: List<StudentLessonResultPresentation
                         shortLessonName(lesson.lessonName),
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
-                        fontSize = 8.sp,
+                        fontSize = OptikTextSize.micro,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -362,7 +363,7 @@ private fun ChartBar(percent: Double, color: Color) {
 private fun ChartLegend(label: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(modifier = Modifier.width(9.dp).height(9.dp).background(color, RoundedCornerShape(2.dp)))
-        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -46,6 +46,7 @@ import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 private data class SavedExamReport(
     val uri: Uri,
@@ -232,7 +233,7 @@ fun ExamReportScreen(
                                 csvLauncher.launch(reportFileName(current.name, "csv"))
                             }
                         ) {
-                            Text("CSV", fontSize = 11.sp)
+                            Text("CSV", fontSize = OptikTextSize.micro)
                         }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
@@ -242,7 +243,7 @@ fun ExamReportScreen(
                                 xlsxLauncher.launch(reportFileName(current.name, "xlsx"))
                             }
                         ) {
-                            Text("Excel", fontSize = 11.sp)
+                            Text("Excel", fontSize = OptikTextSize.micro)
                         }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
@@ -252,7 +253,7 @@ fun ExamReportScreen(
                                 pdfLauncher.launch(reportFileName(current.name, "pdf"))
                             }
                         ) {
-                            Text("PDF", fontSize = 11.sp)
+                            Text("PDF", fontSize = OptikTextSize.micro)
                         }
                     }
 
@@ -261,7 +262,7 @@ fun ExamReportScreen(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = ::shareLastSavedReport
                         ) {
-                            Text("Son kaydedilen raporu paylaş", fontSize = 11.sp)
+                            Text("Son kaydedilen raporu paylaş", fontSize = OptikTextSize.micro)
                         }
                     }
                 }
@@ -304,14 +305,14 @@ private fun ExamReportSummary(report: ExamReport, status: String) {
             Text(
                 "MEB yöntemi yerel sınav grubunun istatistikleriyle uygulanır; gösterilen puan resmî ulusal MEB sonucu değildir.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 9.sp
+                fontSize = OptikTextSize.micro
             )
         }
         if (status.isNotBlank()) {
             Text(
                 text = status,
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -354,7 +355,7 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                 ) {
                     Text(
                         text = title,
-                        fontSize = 13.sp,
+                        fontSize = OptikTextSize.body,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -365,7 +366,7 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                             row.studentNumber.takeIf { it.isNotBlank() }?.let { "No $it" },
                             row.bookletCode.takeIf { it.isNotBlank() }?.let { "Kitapçık $it" }
                         ).filterNotNull().joinToString(" · ").ifBlank { "Öğrenci bilgisi girilmedi" },
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -382,14 +383,14 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                 ) {
                     Text(
                         "D ${row.correct ?: 0} · Y ${row.wrong ?: 0} · B ${row.blank ?: 0}",
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         row.points?.let { score ->
                             "${formatReportNumber(score)}${row.maximumPoints?.let { " / ${formatReportNumber(it)}" } ?: ""}"
                         } ?: "Puan —",
-                        fontSize = 13.sp,
+                        fontSize = OptikTextSize.body,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -400,7 +401,7 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                         row.overallRank?.let { append(" · Genel ").append(it).append(".") }
                         row.classRank?.let { append(" · Sınıf ").append(it).append(".") }
                     },
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     fontWeight = FontWeight.Medium
                 )
                 if (row.lessons.isNotEmpty()) {
@@ -409,14 +410,14 @@ private fun ExamReportRowCard(row: ExamReportRow) {
                 if ((row.doubleMark ?: 0) > 0 || (row.suspicious ?: 0) > 0 || (row.noKey ?: 0) > 0) {
                     Text(
                         "Çift ${row.doubleMark ?: 0} · Şüpheli ${row.suspicious ?: 0} · Anahtarsız ${row.noKey ?: 0}",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (row.scoreNote.isNotBlank()) {
                     Text(
                         row.scoreNote,
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
@@ -427,7 +428,7 @@ private fun ExamReportRowCard(row: ExamReportRow) {
             row.capturedAtEpochMs?.let {
                 Text(
                     "Tarama · ${formatReportDate(it)}",
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -443,7 +444,7 @@ private fun ExamLessonBreakdown(lessons: List<ExamLessonScore>) {
     ) {
         Text(
             "Ders sonuçları",
-            fontSize = 9.sp,
+            fontSize = OptikTextSize.micro,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary
         )
@@ -456,7 +457,7 @@ private fun ExamLessonBreakdown(lessons: List<ExamLessonScore>) {
                 Text(
                     examLessonDisplayName(lesson.lessonId),
                     modifier = Modifier.weight(1f),
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -468,7 +469,7 @@ private fun ExamLessonBreakdown(lessons: List<ExamLessonScore>) {
                         append(" · B ").append(lesson.blank)
                         append(" · N ").append(formatReportNumber(lesson.net))
                     },
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -482,7 +483,7 @@ private fun ExamLessonBreakdown(lessons: List<ExamLessonScore>) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    fontSize = 8.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

@@ -75,6 +75,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.Executors
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 private enum class ExamDetailTab { PAPERS, KEYS, REPORTS }
 
@@ -293,7 +294,7 @@ fun ExamDetailScreen(
                         status,
                         modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        fontSize = 10.sp
+                        fontSize = OptikTextSize.micro
                     )
                 }
             }
@@ -835,14 +836,14 @@ private fun ExamPaperCard(
             ) {
                 Text(
                     name,
-                    fontSize = 13.sp,
+                    fontSize = OptikTextSize.body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     listOf(clazz, number).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Tarama kaydı" },
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -882,10 +883,10 @@ private fun ExamPaperCompactResult(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Net", fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Net", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 row?.net?.let(::formatScore) ?: "—",
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -894,10 +895,10 @@ private fun ExamPaperCompactResult(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(scoreLabel, fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(scoreLabel, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 row?.points?.let(::formatScore) ?: "—",
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 fontWeight = FontWeight.Bold,
                 color = accent
             )
@@ -950,14 +951,14 @@ private fun ExamReportsTab(report: ExamReport, onOpenReports: () -> Unit) {
         }
         item {
             Column(modifier = Modifier.padding(horizontal = 14.dp)) {
-                Text("Sonuç Sıralaması", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Sonuç Sıralaması", fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold)
                 Text(
                     if (report.scoringType == ExamScoringType.LGS) {
                         "LGS puanı yüksekten düşüğe · eşitlikte net ve doğru sayısı"
                     } else {
                         "Puan yüksekten düşüğe · eşitlikte net ve doğru sayısı"
                     },
-                    fontSize = 9.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1006,14 +1007,14 @@ private fun ExamRankedResultCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         displayName,
-                        fontSize = 13.sp,
+                        fontSize = OptikTextSize.body,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         listOf(row.className, row.studentNumber).filter(String::isNotBlank).joinToString(" · ").ifBlank { "Öğrenci sonucu" },
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1035,7 +1036,7 @@ private fun ExamRankedResultCard(
             if (row.points == null && row.scoreNote.isNotBlank()) {
                 Text(
                     row.scoreNote,
-                    fontSize = 8.5.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -1057,14 +1058,14 @@ private fun ExamResultMetric(
     ) {
         Text(
             label,
-            fontSize = 6.8.sp,
+            fontSize = OptikTextSize.micro,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             value,
-            fontSize = if (emphasize) 9.5.sp else 9.sp,
+            fontSize = OptikTextSize.micro,
             fontWeight = if (emphasize) FontWeight.Bold else FontWeight.SemiBold,
             color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             maxLines = 1

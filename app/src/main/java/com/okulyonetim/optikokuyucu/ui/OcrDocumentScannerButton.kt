@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 /** Google Play services document scanner with crop, perspective correction and filters. */
 @Composable
@@ -45,7 +46,7 @@ internal fun OcrDocumentScannerButton(
     Button(
         modifier = modifier.fillMaxWidth(),
         enabled = enabled && activity != null,
-        shape = RoundedCornerShape(13.dp),
+        shape = OptikShape.md,
         onClick = {
             val host = activity
             if (host == null) {

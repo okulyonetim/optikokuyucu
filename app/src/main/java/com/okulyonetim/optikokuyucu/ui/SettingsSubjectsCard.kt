@@ -37,6 +37,7 @@ import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 /** Settings-page entry for subject names. Visual surfaces come from ProductUi. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,7 +150,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                         } else {
                             "Tek ders sınavlarında bu liste kullanılır. Okul Yönetim'den aktarınca liste güvenli biçimde güncellenir."
                         },
-                        fontSize = 11.sp,
+                        fontSize = OptikTextSize.micro,
                         color = Color.White.copy(alpha = 0.80f)
                     )
                 }
@@ -162,7 +163,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                     ) {
                         Text(
                             if (syncing) "Okul Yönetim'den aktarılıyor…" else "Okul Yönetim'den Dersleri Getir",
-                            fontSize = 11.sp
+                            fontSize = OptikTextSize.micro
                         )
                     }
                 }
@@ -189,12 +190,12 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                                     OutlinedButton(
                                         modifier = Modifier.weight(1f),
                                         onClick = ::cancelRename
-                                    ) { Text("Vazgeç", fontSize = 10.sp) }
+                                    ) { Text("Vazgeç", fontSize = OptikTextSize.micro) }
                                     FilledTonalButton(
                                         modifier = Modifier.weight(1f),
                                         enabled = editingValue.isNotBlank(),
                                         onClick = { saveRename(subject) }
-                                    ) { Text("Kaydet", fontSize = 10.sp) }
+                                    ) { Text("Kaydet", fontSize = OptikTextSize.micro) }
                                 }
                             }
                         } else {
@@ -206,12 +207,12 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                                 Text(
                                     subject,
                                     modifier = Modifier.weight(1f),
-                                    fontSize = 12.sp,
+                                    fontSize = OptikTextSize.small,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 TextButton(onClick = { beginRename(subject) }) {
-                                    Text("Düzenle", fontSize = 10.sp)
+                                    Text("Düzenle", fontSize = OptikTextSize.micro)
                                 }
                                 TextButton(
                                     enabled = subjects.size > 1,
@@ -220,7 +221,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                                         persist(subjects.filterNot { it == subject }, "Ders silindi.")
                                     }
                                 ) {
-                                    Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                                    Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                                 }
                             }
                         }
@@ -251,7 +252,7 @@ internal fun SettingsSubjectsCard(repository: AppSettingsRepository) {
                             }
                         }
                     ) {
-                        Text("Ekle", fontSize = 10.sp)
+                        Text("Ekle", fontSize = OptikTextSize.micro)
                     }
                 }
                 Spacer(Modifier.height(18.dp))

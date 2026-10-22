@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private data class RenderedPdfPage(
     val bitmap: Bitmap,
@@ -70,23 +72,23 @@ fun PdfReportPreview(
                 OutlinedButton(
                     enabled = pageIndex > 0,
                     onClick = { pageIndex-- },
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("‹ Önceki", fontSize = 10.sp) }
+                    shape = OptikShape.sm
+                ) { Text("‹ Önceki", fontSize = OptikTextSize.micro) }
                 Text(
                     "Sayfa ${pageIndex + 1} / ${rendered.pageCount}",
-                    fontSize = 10.sp,
+                    fontSize = OptikTextSize.micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp)
                 )
                 OutlinedButton(
                     enabled = pageIndex + 1 < rendered.pageCount,
                     onClick = { pageIndex++ },
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("Sonraki ›", fontSize = 10.sp) }
+                    shape = OptikShape.sm
+                ) { Text("Sonraki ›", fontSize = OptikTextSize.micro) }
             }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
+                shape = OptikShape.sm,
                 tonalElevation = 1.dp,
                 shadowElevation = 1.dp
             ) {

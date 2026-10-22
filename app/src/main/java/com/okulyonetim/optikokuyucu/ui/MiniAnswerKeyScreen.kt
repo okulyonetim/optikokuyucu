@@ -46,6 +46,8 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import java.io.ByteArrayOutputStream
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun MiniAnswerKeyScreen(onBack: () -> Unit) {
@@ -158,10 +160,10 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             item {
-                Text("Sınav seçin", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Sınav seçin", fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold)
                 Text(
                     "Soru sayısına göre A4'e mümkün olan en fazla okunaklı mini anahtar otomatik yerleştirilir.",
-                    fontSize = 11.sp,
+                    fontSize = OptikTextSize.micro,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -177,7 +179,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                             previewBytes = null
                             status = ""
                         },
-                        shape = RoundedCornerShape(20.dp),
+                        shape = OptikShape.xl,
                         border = BorderStroke(
                             1.5.dp,
                             if (item.id == selectedExamId) MaterialTheme.colorScheme.primary
@@ -194,8 +196,8 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${item.papers.size} kağıt", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(item.name, fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${item.papers.size} kağıt", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (item.id == selectedExamId) ProductStatusBadge("SEÇİLDİ", ProductBadgeTone.GREEN)
                         }
@@ -207,9 +209,9 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                 item {
                     ProductSettingsSection("Kitapçık Türleri", "Boş seçim mevcut tüm kitapçıkları kullanır; A/B gibi türler sayfada sırayla dağıtılır.") {
                         if (data == null) {
-                            Text("Sınavın optik formu çözümlenemedi.", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                            Text("Sınavın optik formu çözümlenemedi.", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                         } else if (data.booklets.isEmpty()) {
-                            Text("Tek genel cevap anahtarı", fontSize = 10.sp)
+                            Text("Tek genel cevap anahtarı", fontSize = OptikTextSize.micro)
                         } else {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(data.booklets) { booklet ->
@@ -218,7 +220,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                                         selected = booklet in selectedBooklets,
                                         enabled = ready,
                                         onClick = { selectedBooklets = selectedBooklets.toggleMini(booklet) },
-                                        label = { Text(if (ready) "$booklet Kitapçığı" else "$booklet · eksik", fontSize = 9.sp) }
+                                        label = { Text(if (ready) "$booklet Kitapçığı" else "$booklet · eksik", fontSize = OptikTextSize.micro) }
                                     )
                                 }
                             }
@@ -233,7 +235,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                         if (data != null) {
                             Text(
                                 "Otomatik öneri: A4 başına $recommendedCopies adet",
-                                fontSize = 10.sp,
+                                fontSize = OptikTextSize.micro,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -268,12 +270,12 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                     ProductSettingsSection("Önizleme Özeti", "Kesim çizgileri PDF üzerinde otomatik oluşturulur.") {
                         Text(
                             "${effectiveEntries.size} kitapçık türü · A4 üzerinde $copies mini anahtar · ${if (orientation == MiniAnswerKeyPdfExporter.Orientation.PORTRAIT) "dikey" else "yatay"}",
-                            fontSize = 10.sp
+                            fontSize = OptikTextSize.micro
                         )
                         if (effectiveEntries.isEmpty()) {
-                            Text("Önce sınavın cevap anahtarını kaydedin.", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                            Text("Önce sınavın cevap anahtarını kaydedin.", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                         } else if (copies !in availableCopyCounts) {
-                            Text("Bu soru yapısı için daha az kopya seçin.", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                            Text("Bu soru yapısı için daha az kopya seçin.", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                         }
                     }
                 }
@@ -281,7 +283,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = effectiveEntries.isNotEmpty() && copies in availableCopyCounts,
-                        shape = RoundedCornerShape(13.dp),
+                        shape = OptikShape.md,
                         onClick = {
                             runCatching {
                                 ByteArrayOutputStream().use { output ->
@@ -310,7 +312,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                             PdfReportPreview(pdfBytes = bytes, modifier = Modifier.fillMaxWidth())
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(13.dp),
+                                shape = OptikShape.md,
                                 onClick = {
                                     pendingPdfBytes = bytes
                                     pendingCopyCount = copies
@@ -324,7 +326,7 @@ fun MiniAnswerKeyScreen(onBack: () -> Unit) {
                 }
             }
             if (status.isNotBlank()) {
-                item { Text(status, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary) }
+                item { Text(status, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.primary) }
             }
             item { Spacer(Modifier.padding(4.dp)) }
         }

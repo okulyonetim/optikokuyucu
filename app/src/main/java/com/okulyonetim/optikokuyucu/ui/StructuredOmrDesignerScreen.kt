@@ -70,6 +70,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private const val DRAFT_AUTOSAVE_DELAY_MS = 1_000L
 
@@ -677,7 +678,7 @@ private fun FormInformationCard(
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Form adı *") },
             singleLine = true,
-            shape = RoundedCornerShape(14.dp)
+            shape = OptikShape.md
         )
         DropdownField(
             "Sınav Türü",

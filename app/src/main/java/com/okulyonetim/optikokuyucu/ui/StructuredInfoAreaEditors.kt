@@ -49,6 +49,9 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerPersonalizedTextBinding
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextAlignment
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextElement
 import com.okulyonetim.optikokuyucu.omr.designer.DesignerTextPresets
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 @Composable
 internal fun DescriptionAreaEditorScreen(
@@ -148,7 +151,7 @@ internal fun DescriptionAreaEditorScreen(
                 },
                 minLines = if (personalizedField == null && draft.rotationDegrees == 0) 4 else 1,
                 maxLines = if (personalizedField == null && draft.rotationDegrees == 0) 8 else 2,
-                shape = RoundedCornerShape(14.dp)
+                shape = OptikShape.md
             )
             InfoNumberStepper("Yazı Boyutu", draft.fontSize.toInt(), 8, 72) {
                 onDraftChange(draft.copy(fontSize = it.toDouble()))
@@ -311,8 +314,8 @@ private fun InfoAreaScaffold(
 private fun InfoEditorCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = OptikShape.lg,
+        border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -336,8 +339,8 @@ private fun InfoReadOnlyField(label: String, value: String) {
         Text(label, modifier = Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelSmall)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(50.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = OptikShape.pill,
+            border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         ) {
             Text(value, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp))
@@ -388,7 +391,7 @@ private fun InfoIssue(message: String) {
 private fun InfoVisualPreview(document: DesignerDocument, elements: List<com.okulyonetim.optikokuyucu.omr.designer.DesignerVisualElement>) {
     val bitmaps = rememberDesignerImageBitmaps(elements)
     val safe = remember(document.space) { DesignerPageGeometry.safeArea(document.space) }
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = OptikShape.lg) {
         Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Canlı Önizleme", style = MaterialTheme.typography.labelLarge)
             Text(
@@ -400,13 +403,13 @@ private fun InfoVisualPreview(document: DesignerDocument, elements: List<com.oku
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio((document.space.width / document.space.height).toFloat())
-                    .background(Color.White, RoundedCornerShape(6.dp))
+                    .background(Color.White, OptikShape.xs)
             ) {
                 Canvas(Modifier.fillMaxSize()) {
                     val sx = size.width / document.space.width.toFloat()
                     val sy = size.height / document.space.height.toFloat()
                     drawRect(
-                        color = Color(0xFFD7DCE6),
+                        color = OptikOverlay.paperGuide,
                         topLeft = androidx.compose.ui.geometry.Offset(safe.left.toFloat() * sx, safe.top.toFloat() * sy),
                         size = androidx.compose.ui.geometry.Size(safe.width.toFloat() * sx, safe.height.toFloat() * sy),
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f)

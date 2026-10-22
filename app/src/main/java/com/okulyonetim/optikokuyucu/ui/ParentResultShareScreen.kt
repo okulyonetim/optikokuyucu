@@ -48,6 +48,8 @@ import com.okulyonetim.optikokuyucu.student.StudentRosterEntry
 import com.okulyonetim.optikokuyucu.student.StudentSchoolIdentity
 import java.io.File
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private data class ParentShareItem(
     val row: ExamReportRow,
@@ -98,7 +100,7 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = OptikShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -112,10 +114,10 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(exam.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(exam.name, fontSize = OptikTextSize.bodyLarge, fontWeight = FontWeight.SemiBold)
                                 Text(
                                     "$phoneReady / ${filtered.size} veli telefonu hazır",
-                                    fontSize = 9.sp,
+                                    fontSize = OptikTextSize.micro,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -130,14 +132,14 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
                                     FilterChip(
                                         selected = selectedClass == null,
                                         onClick = { selectedClass = null },
-                                        label = { Text("Tümü", fontSize = 9.sp) }
+                                        label = { Text("Tümü", fontSize = OptikTextSize.micro) }
                                     )
                                 }
                                 items(classes) { className ->
                                     FilterChip(
                                         selected = selectedClass == className,
                                         onClick = { selectedClass = className },
-                                        label = { Text(className, fontSize = 9.sp) }
+                                        label = { Text(className, fontSize = OptikTextSize.micro) }
                                     )
                                 }
                             }
@@ -203,7 +205,7 @@ fun ParentResultShareScreen(examId: String, onBack: () -> Unit) {
                 }
             }
             if (status.isNotBlank()) {
-                item { Text(status, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary) }
+                item { Text(status, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.primary) }
             }
             item { Spacer(Modifier.padding(5.dp)) }
         }
@@ -224,7 +226,7 @@ private fun ParentOptionChip(
         label = {
             Text(
                 if (checked) "✓ $label" else label,
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -254,7 +256,7 @@ private fun ParentResultCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(15.dp),
+        shape = OptikShape.md,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -267,7 +269,7 @@ private fun ParentResultCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz Öğrenci" } },
-                        fontSize = 12.sp,
+                        fontSize = OptikTextSize.small,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -278,7 +280,7 @@ private fun ParentResultCard(
                             row.studentNumber.takeIf(String::isNotBlank)?.let { "No $it" },
                             roster?.guardianName?.takeIf(String::isNotBlank)
                         ).joinToString(" · ").ifBlank { "Veli bilgisi eşleşmedi" },
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -291,7 +293,7 @@ private fun ParentResultCard(
             }
             Text(
                 message,
-                fontSize = 9.sp,
+                fontSize = OptikTextSize.micro,
                 lineHeight = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
@@ -301,32 +303,32 @@ private fun ParentResultCard(
                 Button(
                     modifier = Modifier.weight(1f),
                     enabled = ready,
-                    shape = RoundedCornerShape(11.dp),
+                    shape = OptikShape.sm,
                     onClick = {
                         openWhatsApp(context, phone, message)
                             .onSuccess { onStatus("WhatsApp mesajı açıldı: ${row.studentName}") }
                             .onFailure { onStatus("WhatsApp açılamadı: ${it.message ?: it.javaClass.simpleName}") }
                     }
-                ) { Text("WhatsApp", fontSize = 9.sp) }
+                ) { Text("WhatsApp", fontSize = OptikTextSize.micro) }
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
                     enabled = ready,
-                    shape = RoundedCornerShape(11.dp),
+                    shape = OptikShape.sm,
                     onClick = {
                         openSms(context, phone, message)
                             .onSuccess { onStatus("SMS ekranı açıldı: ${row.studentName}") }
                             .onFailure { onStatus("SMS açılamadı: ${it.message ?: it.javaClass.simpleName}") }
                     }
-                ) { Text("SMS", fontSize = 9.sp) }
+                ) { Text("SMS", fontSize = OptikTextSize.micro) }
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(11.dp),
+                    shape = OptikShape.sm,
                     onClick = {
                         sharePersonalPdf(context, report, row, message)
                             .onSuccess { onStatus("Kişisel PDF paylaşımı açıldı: ${row.studentName}") }
                             .onFailure { onStatus("PDF paylaşılamadı: ${it.message ?: it.javaClass.simpleName}") }
                     }
-                ) { Text("PDF", fontSize = 9.sp) }
+                ) { Text("PDF", fontSize = OptikTextSize.micro) }
             }
         }
     }

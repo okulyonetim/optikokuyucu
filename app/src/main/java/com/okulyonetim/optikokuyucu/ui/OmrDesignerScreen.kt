@@ -70,6 +70,7 @@ import com.okulyonetim.optikokuyucu.omr.diagnostics.OmrSelfTestResult
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
 import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private sealed interface DesignerCanvasSelection {
     val id: String
@@ -119,7 +120,7 @@ fun OmrDesignerScreen(
                     .padding(top = 8.dp, end = 16.dp)
                     .background(
                         MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
-                        RoundedCornerShape(12.dp)
+                        OptikShape.md
                     ),
                 onClick = { testCamera = false }
             ) {
@@ -641,7 +642,7 @@ private fun CanonicalTemplatePreview(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspect)
-            .background(paperColor, RoundedCornerShape(6.dp))
+            .background(paperColor, OptikShape.xs)
             .pointerInput(template.space) {
                 detectTapGestures { offset ->
                     if (size.width <= 0 || size.height <= 0) return@detectTapGestures

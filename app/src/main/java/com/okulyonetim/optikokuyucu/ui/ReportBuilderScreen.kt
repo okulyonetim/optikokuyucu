@@ -50,6 +50,8 @@ import com.okulyonetim.optikokuyucu.exam.examLessonDisplayName
 import com.okulyonetim.optikokuyucu.omr.results.FileScanRecordRepository
 import com.okulyonetim.optikokuyucu.omr.scoring.FileAnswerKeyRepository
 import java.util.Locale
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 private enum class BuilderReportType(val label: String, val description: String) {
     EXAM("Sınav Raporu", "Genel sınav, sınıf ve ders sonuçları"),
@@ -274,8 +276,8 @@ private fun ExamSelectionStep(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Text("1. Sınav Seçimi", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("Rapor oluşturulacak sınavı seçin.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("1. Sınav Seçimi", fontSize = OptikTextSize.heading, fontWeight = FontWeight.Bold)
+            Text("Rapor oluşturulacak sınavı seçin.", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (exams.isEmpty()) {
             item { ProductEmptyState("Sınav bulunamadı", "Önce bir sınav oluşturun.") }
@@ -283,7 +285,7 @@ private fun ExamSelectionStep(
             items(exams.sortedByDescending { it.examDateEpochDay }, key = { it.id }) { exam ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onSelect(exam.id) },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = OptikShape.xl,
                     border = BorderStroke(
                         1.5.dp,
                         if (exam.id == selectedId) MaterialTheme.colorScheme.primary
@@ -300,10 +302,10 @@ private fun ExamSelectionStep(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(exam.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${exam.papers.size} kağıt · ${exam.schoolName}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(exam.name, fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${exam.papers.size} kağıt · ${exam.schoolName}", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+                        Text("›", fontSize = OptikTextSize.heading, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -326,14 +328,14 @@ private fun ChoiceStep(
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {
-            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(description, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold)
+            Text(description, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         items(choices.indices.toList()) { index ->
             val choice = choices[index]
             Card(
                 modifier = Modifier.fillMaxWidth().clickable { onSelect(index) },
-                shape = RoundedCornerShape(18.dp),
+                shape = OptikShape.lg,
                 border = BorderStroke(
                     1.25.dp,
                     if (index == selectedIndex) MaterialTheme.colorScheme.primary
@@ -345,13 +347,13 @@ private fun ChoiceStep(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(choice.first, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(choice.second, fontSize = 11.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(choice.first, fontSize = OptikTextSize.title, fontWeight = FontWeight.Bold)
+                    Text(choice.second, fontSize = OptikTextSize.micro, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
         item {
-            Button(modifier = Modifier.fillMaxWidth(), onClick = onNext, shape = RoundedCornerShape(13.dp)) {
+            Button(modifier = Modifier.fillMaxWidth(), onClick = onNext, shape = OptikShape.md) {
                 Text("Devam")
             }
         }
@@ -384,41 +386,41 @@ private fun ReportCustomizeStep(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text("Rapor Düzenleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Kapsamı, sütunları, sıralamayı ve sayfa yönünü belirleyin.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Rapor Düzenleme", fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Kapsamı, sütunları, sıralamayı ve sayfa yönünü belirleyin.", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             ProductSettingsSection("Kapsam", "Boş seçim tüm okulu/sınavı kapsar.") {
-                Text("Sınıflar", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text("Sınıflar", fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(classes) { className ->
                         FilterChip(
                             selected = className in selectedClasses,
                             onClick = { onClassesChanged(selectedClasses.toggle(className)) },
-                            label = { Text(className, fontSize = 9.sp) }
+                            label = { Text(className, fontSize = OptikTextSize.micro) }
                         )
                     }
                 }
                 if (reportType == BuilderReportType.STUDENT) {
-                    Text("Öğrenciler", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Öğrenciler", fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(rows, key = { it.scanRecordId }) { row ->
                             FilterChip(
                                 selected = row.scanRecordId in selectedStudents,
                                 onClick = { onStudentsChanged(selectedStudents.toggle(row.scanRecordId)) },
-                                label = { Text(row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz" } }, fontSize = 9.sp) }
+                                label = { Text(row.studentName.ifBlank { row.studentNumber.ifBlank { "İsimsiz" } }, fontSize = OptikTextSize.micro) }
                             )
                         }
                     }
                 }
                 if (lessonIds.isNotEmpty()) {
-                    Text("Dersler", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Dersler", fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(lessonIds) { lessonId ->
                             FilterChip(
                                 selected = lessonId in selectedLessons,
                                 onClick = { onLessonsChanged(selectedLessons.toggle(lessonId)) },
-                                label = { Text(examLessonDisplayName(lessonId), fontSize = 9.sp) }
+                                label = { Text(examLessonDisplayName(lessonId), fontSize = OptikTextSize.micro) }
                             )
                         }
                     }
@@ -441,7 +443,7 @@ private fun ReportCustomizeStep(
                                     }
                                     if (updated.isNotEmpty()) onColumnsChanged(updated)
                                 },
-                                label = { Text(reportColumnLabel(column, report?.scoringType), fontSize = 9.sp, maxLines = 1) }
+                                label = { Text(reportColumnLabel(column, report?.scoringType), fontSize = OptikTextSize.micro, maxLines = 1) }
                             )
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -458,18 +460,18 @@ private fun ReportCustomizeStep(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("${index + 1}.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(reportColumnLabel(column, report?.scoringType), modifier = Modifier.weight(1f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${index + 1}.", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(reportColumnLabel(column, report?.scoringType), modifier = Modifier.weight(1f), fontSize = OptikTextSize.micro, fontWeight = FontWeight.SemiBold)
                             OutlinedButton(
                                 enabled = index > 0,
                                 onClick = { onColumnsChanged(columns.move(index, index - 1)) },
-                                shape = RoundedCornerShape(9.dp)
-                            ) { Text("↑", fontSize = 11.sp) }
+                                shape = OptikShape.sm
+                            ) { Text("↑", fontSize = OptikTextSize.micro) }
                             OutlinedButton(
                                 enabled = index < columns.lastIndex,
                                 onClick = { onColumnsChanged(columns.move(index, index + 1)) },
-                                shape = RoundedCornerShape(9.dp)
-                            ) { Text("↓", fontSize = 11.sp) }
+                                shape = OptikShape.sm
+                            ) { Text("↓", fontSize = OptikTextSize.micro) }
                         }
                     }
                 }
@@ -482,7 +484,7 @@ private fun ReportCustomizeStep(
                         FilterChip(
                             selected = mode == sort,
                             onClick = { onSortChanged(mode) },
-                            label = { Text(mode.label, fontSize = 9.sp) }
+                            label = { Text(mode.label, fontSize = OptikTextSize.micro) }
                         )
                     }
                 }
@@ -507,7 +509,7 @@ private fun ReportCustomizeStep(
             }
         }
         item {
-            Button(modifier = Modifier.fillMaxWidth(), onClick = onNext, shape = RoundedCornerShape(13.dp)) {
+            Button(modifier = Modifier.fillMaxWidth(), onClick = onNext, shape = OptikShape.md) {
                 Text("PDF Önizleme")
             }
         }
@@ -537,11 +539,11 @@ private fun ReportPreviewStep(
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         item {
-            Text("PDF Önizleme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("PDF Önizleme", fontSize = OptikTextSize.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 config?.let { "${it.rows.size} kayıt · ${it.columns.size} alan · ${if (it.orientation == ReportPageOrientation.LANDSCAPE) "Yatay" else "Dikey"}" }
                     ?: "Rapor hazırlanamadı.",
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -576,29 +578,29 @@ private fun ReportPreviewStep(
                         } else {
                             "Ders kapsamı: ${config.selectedLessonIds.joinToString { examLessonDisplayName(it) }} · En sonda Toplam"
                         },
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(modifier = Modifier.weight(1f), onClick = { onPdf(pdfBytes) }, shape = RoundedCornerShape(12.dp)) {
+                    Button(modifier = Modifier.weight(1f), onClick = { onPdf(pdfBytes) }, shape = OptikShape.md) {
                         Text("PDF Dışa Aktar")
                     }
-                    OutlinedButton(modifier = Modifier.weight(1f), onClick = onExcel, shape = RoundedCornerShape(12.dp)) {
+                    OutlinedButton(modifier = Modifier.weight(1f), onClick = onExcel, shape = OptikShape.md) {
                         Text("Excel")
                     }
                 }
             }
             item {
-                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onShareParents, shape = RoundedCornerShape(12.dp)) {
+                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onShareParents, shape = OptikShape.md) {
                     Text("Velilere Sonuç Gönder")
                 }
             }
         }
         if (status.isNotBlank()) {
-            item { Text(status, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary) }
+            item { Text(status, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.primary) }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }

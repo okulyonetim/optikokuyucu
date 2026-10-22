@@ -68,6 +68,8 @@ import com.okulyonetim.optikokuyucu.omr.template.TemplatePoint
 import com.okulyonetim.optikokuyucu.omr.template.TemplateRect
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 internal enum class StructuredSelectionKind { COMPONENT, VISUAL }
 internal data class StructuredPaperSelection(val kind: StructuredSelectionKind, val id: String)
@@ -129,7 +131,7 @@ internal fun InteractivePaperWorkspace(
     val editorChromeVisible = displayMode.editorChromeVisible
     val directEditingEnabled = displayMode.directEditingEnabled
     val navigationEnabled = displayMode.viewportNavigationAlwaysEnabled || panMode
-    val omrColor = if (displayMode.usesPrintInk) Color.Black else Color(0xFFB54848)
+    val omrColor = if (displayMode.usesPrintInk) Color.Black else OptikOverlay.formInk
 
     LaunchedEffect(document.id, document.version, compileIssue?.message) {
         if (compileIssue != null) {
@@ -334,7 +336,7 @@ internal fun InteractivePaperWorkspace(
                     .align(Alignment.CenterHorizontally)
                     .fillMaxWidth(editorDisplayWidthScale.toFloat())
                     .aspectRatio(document.space.aspectRatio.toFloat())
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(OptikShape.xs)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .onSizeChanged { viewportSize = it; pan = clampPanFor(zoom, pan) }
                     .transformable(state = transformableState, enabled = navigationEnabled)
@@ -471,8 +473,8 @@ internal fun InteractivePaperWorkspace(
                         if (editorChromeVisible) {
                             val minorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MINOR_MM)
                             val majorStep = DesignerEditorLayout.canonicalForMillimeters(document, DesignerEditorLayout.GRID_MAJOR_MM)
-                            val minorColor = Color(0xFFE9ECF3)
-                            val majorColor = Color(0xFFD2D8E4)
+                            val minorColor = OptikOverlay.paperGridMinor
+                            val majorColor = OptikOverlay.paperGridMajor
                             var gx = minorStep
                             while (gx < document.space.width) {
                                 val major = abs((gx / majorStep) - (gx / majorStep).roundToInt()) < 0.02
@@ -574,7 +576,7 @@ internal fun InteractivePaperWorkspace(
                                     1.5f
                                 )
                             }
-                            drawRect(Color(0xFFBFC5D0), style = Stroke(1.1f))
+                            drawRect(OptikOverlay.paperFrame, style = Stroke(1.1f))
                         }
                     }
                 }

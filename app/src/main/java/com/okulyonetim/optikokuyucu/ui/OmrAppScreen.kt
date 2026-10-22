@@ -56,6 +56,7 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateDefaults
 import com.okulyonetim.optikokuyucu.omr.template.resolveActiveOmrTemplate
 import java.util.Locale
 import java.util.concurrent.Executors
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun OmrAppScreen(
@@ -78,7 +79,7 @@ fun OmrAppScreen(
                         .padding(top = 8.dp, end = 16.dp)
                         .background(
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                            RoundedCornerShape(12.dp)
+                            OptikShape.md
                         ),
                     onClick = { liveCamera = false }
                 ) {

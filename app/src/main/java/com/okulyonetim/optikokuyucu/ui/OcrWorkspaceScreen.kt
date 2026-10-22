@@ -58,6 +58,9 @@ import com.okulyonetim.optikokuyucu.omr.template.ActiveOmrTemplateResolver
 import com.okulyonetim.optikokuyucu.omr.template.ActiveTemplateSource
 import com.okulyonetim.optikokuyucu.omr.template.OmrRecognitionBindingsResolver
 import com.okulyonetim.optikokuyucu.omr.template.OmrTemplate
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
 
 private enum class OcrWorkspaceMode { DOCUMENT_LAYOUT, ANSWER_KEY }
 private enum class OcrWritingMode { PRINTED, HANDWRITING }
@@ -187,7 +190,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     }
                     Text(
                         "İşlem sırası: kenar/perspektif düzeltme → kırpma/filtre → aynı görüntü üzerinde konumlu OCR. Türkçe karakterler ve sayfa geometrisi korunur.",
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -203,7 +206,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                             OutlinedButton(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { examMenuOpen = true },
-                                shape = RoundedCornerShape(13.dp)
+                                shape = OptikShape.md
                             ) {
                                 Text(
                                     selectedExam?.name ?: "Sınav Seç",
@@ -219,7 +222,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                         text = {
                                             Column {
                                                 Text(exam.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                Text(exam.schoolName, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(exam.schoolName, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
                                         },
                                         onClick = {
@@ -238,7 +241,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                             )
                             target != null -> Text(
                                 "${target.sections.size} ders/cevap bloğu · ${target.sections.sumOf { it.questionIds.size }} soru",
-                                fontSize = 10.sp,
+                                fontSize = OptikTextSize.micro,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -260,13 +263,13 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     )
                     Text(
                         "Tarayıcı içinden galeriyi de seçebilirsiniz. Ham görsel doğrudan OCR'a gönderilmez; düzeltilmiş sayfa üzerinde tanıma yapılır.",
-                        fontSize = 10.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (status.isNotBlank()) {
                         Text(
                             status,
-                            fontSize = 10.sp,
+                            fontSize = OptikTextSize.micro,
                             color = if (status.startsWith("OCR başarısız") || status.startsWith("Akıllı belge tarayıcı açılamadı")) {
                                 MaterialTheme.colorScheme.error
                             } else MaterialTheme.colorScheme.primary
@@ -293,7 +296,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                     item {
                         OcrSectionCard("Kontrol Gerekenler", "Belirsiz hücreler otomatik olarak doğru kabul edilmez.") {
                             parsed.warnings.forEach { warning ->
-                                Text("• $warning", fontSize = 10.sp, color = MaterialTheme.colorScheme.error)
+                                Text("• $warning", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -306,7 +309,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                 OutlinedButton(
                                     modifier = Modifier.fillMaxWidth(),
                                     onClick = { bookletMenuOpen = true },
-                                    shape = RoundedCornerShape(13.dp)
+                                    shape = OptikShape.md
                                 ) {
                                     Text("Kitapçık ${selectedBooklet ?: "Seç"}", modifier = Modifier.weight(1f))
                                     Text("⌄")
@@ -374,7 +377,7 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
                                     status = "Cevap anahtarı kaydedilemedi: ${error.message ?: error.javaClass.simpleName}"
                                 }
                             },
-                            shape = RoundedCornerShape(13.dp)
+                            shape = OptikShape.md
                         ) { Text("Cevap Anahtarına Kaydet") }
                     }
                 }
@@ -389,17 +392,17 @@ fun OcrWorkspaceScreen(onBack: () -> Unit) {
 private fun OcrSectionCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(17.dp),
+        shape = OptikShape.lg,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(13.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            subtitle?.let { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(title, fontSize = OptikTextSize.bodyLarge, fontWeight = FontWeight.SemiBold)
+            subtitle?.let { Text(it, fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             content()
         }
     }
@@ -408,12 +411,12 @@ private fun OcrSectionCard(title: String, subtitle: String? = null, content: @Co
 @Composable
 private fun OcrChoiceButton(modifier: Modifier, label: String, selected: Boolean, onClick: () -> Unit) {
     if (selected) {
-        FilledTonalButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
-            Text("$label ✓", fontSize = 11.sp)
+        FilledTonalButton(modifier = modifier, onClick = onClick, shape = OptikShape.md) {
+            Text("$label ✓", fontSize = OptikTextSize.micro)
         }
     } else {
-        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) {
-            Text(label, fontSize = 11.sp)
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = OptikShape.md) {
+            Text(label, fontSize = OptikTextSize.micro)
         }
     }
 }
@@ -431,7 +434,7 @@ private fun OcrAnswerSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Text("${index + 1}", modifier = Modifier.size(32.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("${index + 1}", modifier = Modifier.size(32.dp), fontSize = OptikTextSize.small, fontWeight = FontWeight.Bold)
                 section.allowedChoices.sorted().forEach { choice ->
                     val selected = answers[questionId] == choice
                     Surface(
@@ -445,7 +448,7 @@ private fun OcrAnswerSection(
                         )
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(choice, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                            Text(choice, fontSize = OptikTextSize.small, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
                         }
                     }
                 }

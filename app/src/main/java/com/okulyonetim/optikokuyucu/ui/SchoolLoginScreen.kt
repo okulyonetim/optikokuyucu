@@ -50,6 +50,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.okulyonetim.optikokuyucu.R
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun SchoolLoginScreen(
@@ -91,7 +93,7 @@ fun SchoolLoginScreen(
 
             Surface(
                 modifier = Modifier.size(96.dp),
-                shape = RoundedCornerShape(30.dp),
+                shape = OptikShape.xl,
                 color = colors.surface,
                 tonalElevation = 6.dp,
                 shadowElevation = 10.dp
@@ -107,7 +109,7 @@ fun SchoolLoginScreen(
             Spacer(Modifier.height(20.dp))
 
             Surface(
-                shape = RoundedCornerShape(999.dp),
+                shape = OptikShape.pill,
                 color = colors.primaryContainer
             ) {
                 Text(
@@ -123,7 +125,7 @@ fun SchoolLoginScreen(
 
             Text(
                 text = "Optik Okuyucu",
-                fontSize = 30.sp,
+                fontSize = OptikTextSize.hero,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.onBackground,
                 textAlign = TextAlign.Center
@@ -152,7 +154,7 @@ fun SchoolLoginScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .widthIn(max = 520.dp),
-                shape = RoundedCornerShape(28.dp),
+                shape = OptikShape.xl,
                 colors = CardDefaults.cardColors(containerColor = colors.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
             ) {
@@ -185,7 +187,7 @@ fun SchoolLoginScreen(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
                         ),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = OptikShape.lg
                     )
 
                     OutlinedTextField(
@@ -222,13 +224,13 @@ fun SchoolLoginScreen(
                                 if (canSubmit) onSubmit()
                             }
                         ),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = OptikShape.lg
                     )
 
                     if (errorMessage.isNotBlank()) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = OptikShape.md,
                             color = colors.errorContainer
                         ) {
                             Text(
@@ -245,7 +247,7 @@ fun SchoolLoginScreen(
                             .fillMaxWidth()
                             .height(56.dp),
                         enabled = canSubmit,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = OptikShape.lg,
                         onClick = onSubmit
                     ) {
                         if (working) {

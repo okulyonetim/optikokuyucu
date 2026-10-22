@@ -66,6 +66,9 @@ import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
 import com.okulyonetim.optikokuyucu.settings.AppSettings
 import com.okulyonetim.optikokuyucu.settings.AppSettingsRepository
 import kotlin.math.roundToInt
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 @Composable
 internal fun NumberAreaEditorScreen(
@@ -239,7 +242,7 @@ internal fun AnswerAreaEditorScreen(
             }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = OptikShape.md,
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
             ) {
                 Text(
@@ -298,7 +301,7 @@ private fun MarkScaffold(
                 FilledTonalButton(
                     enabled = completeEnabled,
                     onClick = onComplete,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = OptikShape.md
                 ) {
                     Text("Tamam")
                 }
@@ -325,8 +328,8 @@ private fun MarkCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = OptikShape.lg,
+        border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -350,7 +353,7 @@ private fun MarkCard(
 @Composable
 private fun CompactTypeBadge(value: String) {
     Surface(
-        shape = RoundedCornerShape(999.dp),
+        shape = OptikShape.pill,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
     ) {
         Text(
@@ -379,10 +382,10 @@ private fun HintText(text: String) {
 private fun MoveControls(document: DesignerDocument, onMove: (Double, Double) -> Unit) {
     val step = DesignerEditorLayout.canonicalForMillimeters(document, 2.0)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(-step, 0.0) }, shape = RoundedCornerShape(12.dp)) { Text("←") }
-        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, -step) }, shape = RoundedCornerShape(12.dp)) { Text("↑") }
-        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, step) }, shape = RoundedCornerShape(12.dp)) { Text("↓") }
-        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(step, 0.0) }, shape = RoundedCornerShape(12.dp)) { Text("→") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(-step, 0.0) }, shape = OptikShape.md) { Text("←") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, -step) }, shape = OptikShape.md) { Text("↑") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(0.0, step) }, shape = OptikShape.md) { Text("↓") }
+        OutlinedButton(modifier = Modifier.weight(1f), onClick = { onMove(step, 0.0) }, shape = OptikShape.md) { Text("→") }
     }
 }
 
@@ -412,7 +415,7 @@ private fun LabelControls(
             modifier = Modifier.fillMaxWidth(),
             label = { Text(title) },
             singleLine = true,
-            shape = RoundedCornerShape(12.dp)
+            shape = OptikShape.md
         )
     }
 }
@@ -450,7 +453,7 @@ private fun AnswerSubjectControls(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = options.isNotEmpty(),
                 onClick = { expanded = true },
-                shape = RoundedCornerShape(12.dp)
+                shape = OptikShape.md
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(selectedSubject.ifBlank { "Ders seçin" }, modifier = Modifier.weight(1f))
@@ -482,7 +485,7 @@ private fun PatternField(text: String, issue: String?, presets: List<String>, on
             modifier = Modifier.fillMaxWidth(),
             isError = issue != null,
             singleLine = true,
-            shape = RoundedCornerShape(12.dp)
+            shape = OptikShape.md
         )
         presets.chunked(3).forEach { group ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -516,14 +519,14 @@ private fun ChoiceButton(modifier: Modifier, label: String, selected: Boolean, o
         FilledTonalButton(
             modifier = modifier,
             onClick = onClick,
-            shape = RoundedCornerShape(12.dp),
+            shape = OptikShape.md,
             colors = ButtonDefaults.filledTonalButtonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         ) { Text("$label ✓") }
     } else {
-        OutlinedButton(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(label) }
+        OutlinedButton(modifier = modifier, onClick = onClick, shape = OptikShape.md) { Text(label) }
     }
 }
 
@@ -542,7 +545,7 @@ private fun NumberInput(label: String, value: Double, min: Double, max: Double, 
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(12.dp)
+                shape = OptikShape.md
             )
             StepButton("−", enabled = value - step >= min) { onValueChange(value - step) }
             StepButton("+", enabled = value + step <= max) { onValueChange(value + step) }
@@ -565,7 +568,7 @@ private fun IntInput(label: String, value: Int, min: Int, max: Int, onValueChang
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(12.dp)
+                shape = OptikShape.md
             )
             StepButton("−", enabled = value > min) { onValueChange(value - 1) }
             StepButton("+", enabled = value < max) { onValueChange(value + 1) }
@@ -579,7 +582,7 @@ private fun StepButton(label: String, enabled: Boolean, onClick: () -> Unit) {
         enabled = enabled,
         onClick = onClick,
         modifier = Modifier.size(48.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = OptikShape.md
     ) {
         Text(label, style = MaterialTheme.typography.titleMedium)
     }
@@ -589,7 +592,7 @@ private fun StepButton(label: String, enabled: Boolean, onClick: () -> Unit) {
 private fun IssueText(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = OptikShape.md,
         color = MaterialTheme.colorScheme.errorContainer
     ) {
         Text(
@@ -610,7 +613,7 @@ private fun NumberPreview(document: DesignerDocument, component: NumericGridComp
     PreviewCard(document, "Canlı Önizleme") {
         val sx = size.width / document.space.width.toFloat()
         val sy = size.height / document.space.height.toFloat()
-        if (template != null) drawNumberGrid(component, template.markGrids.single(), sx, sy, Color(0xFF9E3E3E))
+        if (template != null) drawNumberGrid(component, template.markGrids.single(), sx, sy, OptikOverlay.formInkDark)
         drawComponentDecorations(preview, sx, sy)
     }
 }
@@ -625,7 +628,7 @@ private fun AnswerPreview(document: DesignerDocument, component: QuestionGroupCo
     PreviewCard(document, "Canlı Önizleme") {
         val sx = size.width / document.space.width.toFloat()
         val sy = size.height / document.space.height.toFloat()
-        if (template != null) drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, Color(0xFF9E3E3E))
+        if (template != null) drawAnswerGroup(component, rows, document.formSpec.answerAppearance, sx, sy, OptikOverlay.formInkDark)
         drawComponentDecorations(preview, sx, sy)
     }
 }
@@ -634,8 +637,8 @@ private fun AnswerPreview(document: DesignerDocument, component: QuestionGroupCo
 private fun PreviewCard(document: DesignerDocument, title: String, draw: DrawScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = OptikShape.lg,
+        border = BorderStroke(OptikBorder.hairline, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -645,7 +648,7 @@ private fun PreviewCard(document: DesignerDocument, title: String, draw: DrawSco
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio((document.space.width / document.space.height).toFloat())
-                    .background(Color.White, RoundedCornerShape(10.dp))
+                    .background(Color.White, OptikShape.sm)
             ) {
                 Canvas(Modifier.fillMaxSize(), onDraw = draw)
             }

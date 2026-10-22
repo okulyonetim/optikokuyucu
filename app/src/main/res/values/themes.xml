@@ -2,6 +2,8 @@
 <resources>
     <style name="Theme.OptikOkuyucu" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
+        <!-- Compose ilk kareyi çizene kadar beyaz parlama olmasın; açılış görseliyle aynı krem zemin. -->
+        <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

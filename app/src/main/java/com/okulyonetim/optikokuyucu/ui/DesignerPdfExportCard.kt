@@ -42,6 +42,8 @@ import com.okulyonetim.optikokuyucu.omr.designer.PdfPageProfile
 import com.okulyonetim.optikokuyucu.omr.designer.TemplateReadabilityAnalyzer
 import com.okulyonetim.optikokuyucu.omr.designer.pdfProfile
 import java.io.ByteArrayOutputStream
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
+import com.okulyonetim.optikokuyucu.ui.theme.OptikBorder
 
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -69,7 +71,7 @@ fun DesignerPdfExportCard(
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = OptikShape.xl,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
@@ -163,7 +165,7 @@ fun DesignerPdfExportCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.92f),
-                shape = RoundedCornerShape(22.dp),
+                shape = OptikShape.xl,
                 color = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = 3.dp,
@@ -211,7 +213,7 @@ fun DesignerPdfExportCard(
                                 suggestedPdfName(document, previewSourceProfile, a4Multi = true)
                             )
                         },
-                        shape = RoundedCornerShape(14.dp)
+                        shape = OptikShape.md
                     ) {
                         Text("Önizlenen PDF'yi Kaydet", fontWeight = FontWeight.Bold)
                     }
@@ -240,7 +242,7 @@ fun DesignerPdfExportCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = OptikShape.xl,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
@@ -261,8 +263,8 @@ fun DesignerPdfExportCard(
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canExport,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, borderColor),
+                shape = OptikShape.lg,
+                border = BorderStroke(OptikBorder.regular, borderColor),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary,
                     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.88f)
@@ -289,8 +291,8 @@ fun DesignerPdfExportCard(
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = canExport,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.5.dp, borderColor),
+                    shape = OptikShape.lg,
+                    border = BorderStroke(OptikBorder.regular, borderColor),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary,
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.88f)

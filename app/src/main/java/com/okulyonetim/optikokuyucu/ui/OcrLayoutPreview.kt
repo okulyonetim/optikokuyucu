@@ -34,6 +34,7 @@ import com.okulyonetim.optikokuyucu.ocr.OcrPageLayout
 import com.okulyonetim.optikokuyucu.ocr.OcrRecognitionPostProcessor
 import com.okulyonetim.optikokuyucu.ocr.OcrRecognitionResult
 import java.util.concurrent.Executors
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
 
 /**
  * Shows the corrected page itself and paints OCR geometry on top of the original positions.
@@ -93,7 +94,7 @@ internal fun OcrLayoutPreview(
         if (pages.isEmpty()) {
             Text(
                 "Belge görüntüsü kullanılamıyor; OCR konumları yine de cevap anahtarı analizinde korunuyor.",
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             return@Column
@@ -101,7 +102,7 @@ internal fun OcrLayoutPreview(
 
         pages.forEachIndexed { index, page ->
             if (pages.size > 1) {
-                Text("Sayfa ${index + 1}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Sayfa ${index + 1}", fontSize = OptikTextSize.micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),

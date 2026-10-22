@@ -15,6 +15,7 @@ import com.okulyonetim.optikokuyucu.omr.designer.DesignerTypography
 import com.okulyonetim.optikokuyucu.omr.designer.NumericGridComponent
 import com.okulyonetim.optikokuyucu.omr.designer.SingleChoiceComponent
 import com.okulyonetim.optikokuyucu.omr.template.MarkGridSpec
+import com.okulyonetim.optikokuyucu.ui.theme.OptikOverlay
 
 internal fun DrawScope.drawSingleChoice(
     component: SingleChoiceComponent,
@@ -70,7 +71,7 @@ internal fun DrawScope.drawComponentDecorations(
         if (component is NumericGridComponent) {
             DesignerEditorLayout.numericHeaderBoxes(component).forEach { box ->
                 drawRect(
-                    color = Color(0xFF555555),
+                    color = OptikOverlay.paperText,
                     topLeft = Offset(box.left.toFloat() * scaleX, box.top.toFloat() * scaleY),
                     size = Size(box.width.toFloat() * scaleX, box.height.toFloat() * scaleY),
                     style = Stroke(width = 1.0f)

@@ -61,6 +61,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import com.okulyonetim.optikokuyucu.ui.theme.OptikTextSize
+import com.okulyonetim.optikokuyucu.ui.theme.OptikShape
 
 @Composable
 fun AnswerKeyScreen(
@@ -397,19 +399,19 @@ fun AnswerKeyScreen(
                     ) {
                         Text(
                             activeTemplate.name,
-                            fontSize = 13.sp,
+                            fontSize = OptikTextSize.body,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             "${template.bubbleRows.size} soru · v${template.version}",
-                            fontSize = 10.sp,
+                            fontSize = OptikTextSize.micro,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             status,
-                            fontSize = 10.sp,
+                            fontSize = OptikTextSize.micro,
                             color = if (openCvReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -448,9 +450,9 @@ fun AnswerKeyScreen(
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { bookletMenuOpen = true },
-                            shape = RoundedCornerShape(13.dp)
+                            shape = OptikShape.md
                         ) {
-                            Text("Düzenlenen: Kitapçık ${bookletSelection ?: "Seçiniz"}", fontSize = 12.sp)
+                            Text("Düzenlenen: Kitapçık ${bookletSelection ?: "Seçiniz"}", fontSize = OptikTextSize.small)
                         }
                         DropdownMenu(
                             expanded = bookletMenuOpen,
@@ -494,18 +496,18 @@ fun AnswerKeyScreen(
                         supportingText = { Text("Seçenekler: ${section.allowedChoices.joinToString("/")}") },
                         minLines = 1,
                         maxLines = 3,
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     )
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !busy,
                     onClick = ::saveManual,
-                    shape = RoundedCornerShape(13.dp)
+                    shape = OptikShape.md
                 ) {
                     Text(
                         bookletSelection?.let { "Kitapçık $it Anahtarını Kaydet" } ?: "Manuel Anahtarı Kaydet",
-                        fontSize = 12.sp
+                        fontSize = OptikTextSize.small
                     )
                 }
             }
@@ -526,25 +528,25 @@ fun AnswerKeyScreen(
                                 arrayOf(XLS_MIME_TYPE, XLSX_MIME_TYPE, "application/octet-stream")
                             )
                         },
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     ) {
-                        Text("Excel", fontSize = 11.sp)
+                        Text("Excel", fontSize = OptikTextSize.micro)
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
                         enabled = openCvReady && !busy,
                         onClick = { imagePicker.launch("image/*") },
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     ) {
-                        Text("Galeri", fontSize = 11.sp)
+                        Text("Galeri", fontSize = OptikTextSize.micro)
                     }
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
                         enabled = openCvReady && !busy,
                         onClick = ::requestCamera,
-                        shape = RoundedCornerShape(13.dp)
+                        shape = OptikShape.md
                     ) {
-                        Text("Kamera", fontSize = 11.sp)
+                        Text("Kamera", fontSize = OptikTextSize.micro)
                     }
                 }
             }
@@ -569,7 +571,7 @@ fun AnswerKeyScreen(
             ) {
                 Text(
                     "Kayıtlı Anahtarlar · ${matchingKeys.size}",
-                    fontSize = 13.sp,
+                    fontSize = OptikTextSize.body,
                     fontWeight = FontWeight.SemiBold
                 )
                 TextButton(
@@ -578,7 +580,7 @@ fun AnswerKeyScreen(
                         status = "Anahtarlar yenilendi"
                     }
                 ) {
-                    Text("Yenile", fontSize = 11.sp)
+                    Text("Yenile", fontSize = OptikTextSize.micro)
                 }
             }
 
@@ -635,10 +637,10 @@ private fun AnswerKeyCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(title, fontSize = OptikTextSize.body, fontWeight = FontWeight.SemiBold)
                     Text(
                         "${key.answerKey.answers.size} soru · ${SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("tr", "TR")).format(Date(key.createdAtEpochMs))}",
-                        fontSize = 9.sp,
+                        fontSize = OptikTextSize.micro,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -647,7 +649,7 @@ private fun AnswerKeyCard(
 
             Text(
                 answerPreview,
-                fontSize = 10.sp,
+                fontSize = OptikTextSize.micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis
@@ -661,12 +663,12 @@ private fun AnswerKeyCard(
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
                     onClick = onExportXlsx,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = OptikShape.md
                 ) {
-                    Text("XLSX Dışa Aktar", fontSize = 10.sp)
+                    Text("XLSX Dışa Aktar", fontSize = OptikTextSize.micro)
                 }
                 TextButton(onClick = onDelete) {
-                    Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = 10.sp)
+                    Text("Sil", color = MaterialTheme.colorScheme.error, fontSize = OptikTextSize.micro)
                 }
             }
         }
