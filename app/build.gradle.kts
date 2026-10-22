@@ -129,6 +129,8 @@ dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("net.sourceforge.jexcelapi:jxl:2.6.12")
     testImplementation(libs.junit4)
+    // Android's own org.json is a stub in local unit tests; the real implementation lets us test JSON code.
+    testImplementation("org.json:json:20250107")
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

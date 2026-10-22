@@ -74,7 +74,12 @@ data class FirestoreDocument(
     val fields: Map<String, Any?>
 )
 
-class SchoolSessionStore(context: Context) {
+class SchoolSessionStore internal constructor(
+    context: Context,
+    private val vault: TokenVault
+) {
+    constructor(context: Context) : this(context, TokenVault(AndroidKeystoreCipher()))
+
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun load(): SchoolPortalSession? {
@@ -89,8 +94,17 @@ class SchoolSessionStore(context: Context) {
             linkedTeacherId = prefs.getString(KEY_TEACHER_ID, "").orEmpty(),
             permissions = decodePermissions(prefs.getString(KEY_PERMISSIONS, "").orEmpty())
         )
-        val idToken = prefs.getString(KEY_ID_TOKEN, "").orEmpty()
-        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, "").orEmpty()
+        val openedId = vault.open(prefs.getString(KEY_ID_TOKEN, "").orEmpty())
+        val openedRefresh = vault.open(prefs.getString(KEY_REFRESH_TOKEN, "").orEmpty())
+        val idToken = openedId.value
+        val refreshToken = openedRefresh.value
+        if (openedId.wasPlaintext || openedRefresh.wasPlaintext) {
+            // Sessions saved by older versions: re-write them encrypted right away.
+            prefs.edit()
+                .putString(KEY_ID_TOKEN, vault.seal(idToken))
+                .putString(KEY_REFRESH_TOKEN, vault.seal(refreshToken))
+                .commit()
+        }
         val tokens = if (idToken.isBlank() && refreshToken.isBlank()) null else SchoolAuthTokens(
             idToken = idToken,
             refreshToken = refreshToken,
@@ -112,8 +126,8 @@ class SchoolSessionStore(context: Context) {
                 .putString(KEY_ROLE_ID, p.roleId)
                 .putString(KEY_TEACHER_ID, p.linkedTeacherId)
                 .putString(KEY_PERMISSIONS, encodePermissions(p.permissions))
-                .putString(KEY_ID_TOKEN, t?.idToken.orEmpty())
-                .putString(KEY_REFRESH_TOKEN, t?.refreshToken.orEmpty())
+                .putString(KEY_ID_TOKEN, vault.seal(t?.idToken.orEmpty()))
+                .putString(KEY_REFRESH_TOKEN, vault.seal(t?.refreshToken.orEmpty()))
                 .putLong(KEY_EXPIRES_AT, t?.expiresAtEpochMs ?: 0L)
                 .commit()
         ) { "Okul Yönetim oturumu kaydedilemedi." }
@@ -286,11 +300,17 @@ class SchoolPortalClient(
     fun getDocument(collection: String, id: String): FirestoreDocument? =
         getDocumentWithToken(collection, id, ensureIdToken())
 
+    /**
+     * Creates or updates only the given top-level fields. Without an update mask Firestore replaces
+     * the whole document, which would silently delete fields that the Okul Yönetim web app (or a
+     * newer version of this app) stored in the same document.
+     */
     fun upsertDocument(collection: String, id: String, fields: Map<String, Any?>) {
+        require(fields.isNotEmpty()) { "Güncellenecek alan yok." }
         val encodedId = URLEncoder.encode(id, StandardCharsets.UTF_8.name()).replace("+", "%20")
         request(
             method = "PATCH",
-            url = firestoreBase(collection) + "/$encodedId",
+            url = firestoreBase(collection) + "/$encodedId?" + FirestoreJson.updateMaskQuery(fields.keys),
             token = ensureIdToken(),
             body = JSONObject().put("fields", FirestoreJson.encodeFields(fields)).toString()
         )
@@ -414,6 +434,24 @@ object FirestoreJson {
         fields.forEach { (key, value) -> put(key, encodeValue(value)) }
     }
 
+    /**
+     * "updateMask.fieldPaths=a&updateMask.fieldPaths=b" for a PATCH. Names that are not plain
+     * identifiers must be wrapped in backticks (with backslash escapes) or Firestore rejects the path.
+     */
+    fun updateMaskQuery(fieldNames: Collection<String>): String =
+        fieldNames.joinToString(separator = "&") { name ->
+            "updateMask.fieldPaths=" + URLEncoder.encode(fieldPath(name), StandardCharsets.UTF_8.name())
+        }
+
+    internal fun fieldPath(name: String): String =
+        if (SIMPLE_FIELD_NAME.matches(name)) {
+            name
+        } else {
+            "`" + name.replace("\\", "\\\\").replace("`", "\\`") + "`"
+        }
+
+    private val SIMPLE_FIELD_NAME = Regex("[A-Za-z_][A-Za-z_0-9]*")
+
     private fun decodeFields(json: JSONObject): Map<String, Any?> =
         json.keys().asSequence().associateWith { key -> decodeValue(json.getJSONObject(key)) }
 
@@ -435,11 +473,21 @@ object FirestoreJson {
     }
 
     private fun encodeValue(value: Any?): JSONObject = when (value) {
-        null -> JSONObject().put("nullValue", null)
+        // org.json drops a key when its value is a plain null, which produced an empty (invalid)
+        // Firestore value; JSONObject.NULL serializes as the required JSON null.
+        null -> JSONObject().put("nullValue", JSONObject.NULL)
         is String -> JSONObject().put("stringValue", value)
         is Boolean -> JSONObject().put("booleanValue", value)
         is Byte, is Short, is Int, is Long -> JSONObject().put("integerValue", value.toString())
-        is Float, is Double -> JSONObject().put("doubleValue", (value as Number).toDouble())
+        // org.json throws on NaN/Infinity and Firestore cannot store them in JSON, so a bad score
+        // would otherwise abort the whole sync; store null instead.
+        is Float, is Double -> (value as Number).toDouble().let { number ->
+            if (number.isNaN() || number.isInfinite()) {
+                JSONObject().put("nullValue", JSONObject.NULL)
+            } else {
+                JSONObject().put("doubleValue", number)
+            }
+        }
         is Map<*, *> -> {
             val map = value.entries.mapNotNull { (key, nested) ->
                 (key as? String)?.let { it to nested }
