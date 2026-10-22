@@ -296,7 +296,7 @@ object OcrAnswerKeyParser {
             .maxByOrNull { it.second }
     }
 
-    private fun phraseCandidates(tokens: List<OcrToken>): List<OcrToken> {
+    internal fun phraseCandidates(tokens: List<OcrToken>): List<OcrToken> {
         val result = ArrayList<OcrToken>(tokens.size * 2)
         result += tokens
         val lineTolerance = median(tokens.map { it.height.toFloat() }).coerceAtLeast(10f) * 0.9f
@@ -329,7 +329,7 @@ object OcrAnswerKeyParser {
         .replace(Regex("[^\\p{L}0-9]"), "")
         .uppercase(TURKISH)
 
-    private fun detectBooklet(text: String, knownBooklets: List<String>): String? {
+    internal fun detectBooklet(text: String, knownBooklets: List<String>): String? {
         if (knownBooklets.isEmpty()) return null
         val normalized = normalize(text)
         val known = knownBooklets.associateBy(::normalize)
@@ -342,21 +342,24 @@ object OcrAnswerKeyParser {
         return null
     }
 
-    private fun subjectAliases(label: String): List<String> {
+    internal fun subjectAliases(label: String): List<String> {
         val n = normalize(label)
         val aliases = linkedSetOf(n)
         when {
             n.contains("TURKCE") -> aliases += listOf("TURKCE", "TURK")
             n.contains("MATEMATIK") -> aliases += listOf("MATEMATIK", "MAT")
             n.contains("FEN") -> aliases += listOf("FEN BILIMLERI", "FEN")
-            n.contains("INGILIZCE") || n.contains("ENGLISH") -> aliases += listOf("INGILIZCE", "ENGLISH")
+            n.contains("YABANCI") -> aliases += listOf("YABANCI DIL", "YABANCI DIL INGILIZCE", "INGILIZCE", "ENGLISH")
+            n.contains("INGILIZCE") || n.contains("ENGLISH") -> aliases += listOf("INGILIZCE", "ENGLISH", "YABANCI DIL")
             n.contains("DIN") -> aliases += listOf("DIN", "DIN KULTURU", "DIN KULTURU VE AHLAK BILGISI")
-            n.contains("INKILAP") || n.contains("ATATURK") -> aliases += listOf("INKILAP", "TC INK TARH", "TC INKILAP TARIHI", "INKILAP TARIHI")
+            n.contains("INKILAP") || n.contains("ATATURK") -> aliases += listOf(
+                "INKILAP", "TC INK TARH", "TC INKILAP TARIHI", "INKILAP TARIHI", "T C INKILAP", "T C INKILAP TARIHI"
+            )
         }
         return aliases.filter(String::isNotBlank)
     }
 
-    private fun normalize(value: String): String {
+    internal fun normalize(value: String): String {
         val upper = value.uppercase(TURKISH)
             .replace('İ', 'I').replace('Ş', 'S').replace('Ğ', 'G')
             .replace('Ü', 'U').replace('Ö', 'O').replace('Ç', 'C')
@@ -366,7 +369,7 @@ object OcrAnswerKeyParser {
             .trim().replace(Regex("\\s+"), " ")
     }
 
-    private fun similarity(a: String, b: String): Float {
+    internal fun similarity(a: String, b: String): Float {
         if (a.isBlank() || b.isBlank()) return 0f
         if (a == b) return 1f
         if (a.contains(b) || b.contains(a)) return min(a.length, b.length).toFloat() / max(a.length, b.length) * 0.92f + 0.08f
@@ -407,7 +410,7 @@ object OcrAnswerKeyParser {
         return parts.joinToString(", ")
     }
 
-    private fun median(values: List<Float>): Float {
+    internal fun median(values: List<Float>): Float {
         if (values.isEmpty()) return 0f
         val sorted = values.sorted(); val mid = sorted.size / 2
         return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2f
